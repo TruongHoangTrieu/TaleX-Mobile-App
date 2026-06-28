@@ -272,13 +272,17 @@ export default function ProfileScreen() {
             <TouchableOpacity
               className="items-center justify-center w-[28%]"
               activeOpacity={0.7}
-              onPress={() =>
-                !isAuthenticated &&
-                Toast.show({
-                  type: "info",
-                  text1: "Bạn cần đăng nhập để sử dụng tính năng này!",
-                })
-              }
+              onPress={() => {
+                if (!isAuthenticated) {
+                  Toast.show({
+                    type: "info",
+                    text1: "Bạn cần đăng nhập để sử dụng tính năng này!",
+                  });
+                  return;
+                }
+
+                navigation.navigate("CreatorGuard");
+              }}
             >
               <View className="w-11 h-11 bg-purple-900/10 border border-purple-500/20 rounded-2xl items-center justify-center mb-2">
                 <Feather

@@ -150,7 +150,7 @@ async function parseJsonResponse<T = any>(res: Response, url: string): Promise<T
   }
 }
 
-async function authFetch(url: string, options: RequestOptions = {}) {
+export async function authFetch(url: string, options: RequestOptions = {}) {
   const buildOptions = async (token?: string | null): Promise<RequestInit> => {
     const headers: Record<string, string> = {
       Accept: "*/*",

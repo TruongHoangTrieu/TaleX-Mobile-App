@@ -8,6 +8,8 @@ import OtpVerifyScreen from "@/screens/auth/OtpVerifyScreen";
 import EditProfileScreen from "@/screens/profile/EditProfileScreen";
 import ComicDetailScreen from "@/screens/comics/ComicDetailScreen";
 import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
+import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
+import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -23,6 +25,16 @@ export default function RootNavigator() {
         <Stack.Screen name="EditProfileScreen" component={EditProfileScreen} />
         <Stack.Screen name="ComicDetailScreen" component={ComicDetailScreen} />
         <Stack.Screen name="MovieDetailScreen" component={MovieDetailScreen} />
+        <Stack.Screen
+          name="CreatorGuard"
+          component={CreatorGuardScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="CreatorDashboard"
+          component={CreatorDashboardScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

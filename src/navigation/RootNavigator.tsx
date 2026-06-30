@@ -10,12 +10,13 @@ import ComicDetailScreen from "@/screens/comics/ComicDetailScreen";
 import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
+import { navigationRef } from "./navigationRef";
 
 const Stack = createNativeStackNavigator();
 
 export default function RootNavigator() {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={TabNavigator} />
         <Stack.Screen name="Search" component={SearchScreen} />

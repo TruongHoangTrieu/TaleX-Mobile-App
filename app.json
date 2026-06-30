@@ -32,7 +32,9 @@
     "plugins": [
       "@react-native-community/datetimepicker",
       "react-native-video",
-      "expo-video"
+      "expo-video",
+      "expo-font",
+      "expo-secure-store"
     ]
   }
 }

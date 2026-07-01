@@ -11,6 +11,8 @@ import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
 import SubscriptionPlansScreen from "@/screens/subscription/SubscriptionPlansScreen";
+import { navigationRef } from "./navigationRef";
+import type { SeriesItem } from "@/services/series";
 
 export type RootStackParamList = {
   MainTabs: { screen?: "Home" | "Comics" | "Movies" | "Profile" } | undefined;
@@ -25,7 +27,12 @@ export type RootStackParamList = {
     | undefined;
   EditProfileScreen: undefined;
   ComicDetailScreen: { comicId?: string } | undefined;
-  MovieDetailScreen: { movieId?: string } | undefined;
+  MovieDetailScreen:
+    | {
+        movieId?: string;
+        seriesItem?: SeriesItem;
+      }
+    | undefined;
   CreatorGuard: undefined;
   CreatorDashboard: undefined;
   SubscriptionPlans: undefined;
@@ -35,7 +42,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={TabNavigator} />
         <Stack.Screen name="Search" component={SearchScreen} />

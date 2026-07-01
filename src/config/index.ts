@@ -1,1 +1,1 @@
-export const BASE_URL = (process.env.BASE_URL as string) || "https://api.talex.pro.vn/";
+export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL || "https://api.talex.pro.vn/";

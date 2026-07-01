@@ -110,11 +110,11 @@ export default function ProfileScreen() {
               <Text className="text-white text-lg font-bold tracking-wide">
                 {user?.username || user?.fullName || "Người dùng"}
               </Text>
-              <View className="bg-[#D4AF37]/10 border border-[#D4AF37]/30 self-start px-2 py-0.5 rounded-md mt-1.5">
+              {/* <View className="bg-[#D4AF37]/10 border border-[#D4AF37]/30 self-start px-2 py-0.5 rounded-md mt-1.5">
                 <Text className="text-[#D4AF37] text-[10px] font-black uppercase tracking-wider">
-                  {user?.roleName || "Thành viên"}
+                  {isCreator ? "CREATOR" : (user?.roleName || "Thành viên")}
                 </Text>
-              </View>
+              </View> */}
             </View>
           </View>
         ) : (
@@ -272,99 +272,39 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ================= CARD 2: HỆ THỐNG SÁNG TÁC (ẨN HOẶC KHÓA KHI LÀ GUEST) ================= */}
-        <View className="w-full bg-[#161618] rounded-[16px] p-4 mb-4 border border-white/5">
-          <Text className="text-white font-black text-[14px] tracking-wide mb-4">
-            Hệ Thống Sáng Tác
-          </Text>
 
-          <View className="flex-row w-full justify-between items-start px-2 opacity-100">
-            {/* Mục 1: Đăng ký Creator */}
-            <TouchableOpacity
-              className="items-center justify-center w-[28%]"
-              activeOpacity={0.7}
-              onPress={() => {
-                if (!isAuthenticated) {
-                  Toast.show({
-                    type: "info",
-                    text1: "Bạn cần đăng nhập để sử dụng tính năng này!",
-                  });
-                  return;
-                }
 
-                navigation.navigate("CreatorGuard");
-              }}
-            >
-              <View className="w-11 h-11 bg-purple-900/10 border border-purple-500/20 rounded-2xl items-center justify-center mb-2">
-                <Feather
-                  name="user-plus"
-                  size={18}
-                  color={isAuthenticated ? "#A855F7" : "#52525b"}
-                />
-              </View>
-              <Text
-                className={`text-[11px] font-bold text-center ${isAuthenticated ? "text-stone-400" : "text-zinc-600"}`}
-                numberOfLines={2}
-              >
-                Trở thành Creator
-              </Text>
-            </TouchableOpacity>
-
-            {/* Mục 2: Gửi truyện */}
-            <TouchableOpacity
-              className="items-center justify-center w-[28%]"
-              activeOpacity={0.7}
-              onPress={() =>
-                !isAuthenticated &&
-                Toast.show({
-                  type: "info",
-                  text1: "Bạn cần đăng nhập để sử dụng tính năng này!",
-                })
-              }
-            >
-              <View className="w-11 h-11 bg-blue-900/10 border border-blue-500/20 rounded-2xl items-center justify-center mb-2">
-                <FontAwesome5
-                  name="book-open"
-                  size={15}
-                  color={isAuthenticated ? "#3B82F6" : "#52525b"}
-                />
-              </View>
-              <Text
-                className={`text-[11px] font-bold text-center ${isAuthenticated ? "text-stone-400" : "text-zinc-600"}`}
-                numberOfLines={2}
-              >
-                Gửi bản thảo Truyện
-              </Text>
-            </TouchableOpacity>
-
-            {/* Mục 3: Gửi phim */}
-            <TouchableOpacity
-              className="items-center justify-center w-[28%]"
-              activeOpacity={0.7}
-              onPress={() =>
-                !isAuthenticated &&
-                Toast.show({
-                  type: "info",
-                  text1: "Bạn cần đăng nhập để sử dụng tính năng này!",
-                })
-              }
-            >
-              <View className="w-11 h-11 bg-amber-900/10 border border-amber-500/20 rounded-2xl items-center justify-center mb-2">
+        {/* ================= CARD 2.5: CREATOR STUDIO (LUÔN HIỆN KHI ĐÃ ĐĂNG NHẬP) ================= */}
+        {isAuthenticated && (
+          <View className="w-full bg-[#161618] rounded-[16px] overflow-hidden mb-4 border border-[#D4AF37]/20 shadow-lg shadow-yellow-500/5">
+            <View className="p-4 flex-row justify-between items-center bg-[#D4AF37]/5 border-b border-[#D4AF37]/10">
+              <View className="flex-row items-center">
                 <MaterialCommunityIcons
-                  name="video-plus-outline"
-                  size={19}
-                  color={isAuthenticated ? "#F59E0B" : "#52525b"}
+                  name="youtube-studio"
+                  size={20}
+                  color="#D4AF37"
                 />
+                <Text className="text-[#D4AF37] font-black text-[14px] tracking-wide ml-2">
+                  Kênh Sáng Tạo
+                </Text>
               </View>
-              <Text
-                className={`text-[11px] font-bold text-center ${isAuthenticated ? "text-stone-400" : "text-zinc-600"}`}
-                numberOfLines={2}
-              >
-                Đăng tải Video Phim
-              </Text>
-            </TouchableOpacity>
+              <View className="bg-[#D4AF37]/20 px-2 py-0.5 rounded">
+                <Text className="text-[#D4AF37] text-[9px] font-bold uppercase">
+                  Studio Active
+                </Text>
+              </View>
+            </View>
+            {renderMenuItem(
+              <MaterialCommunityIcons
+                name="view-dashboard-outline"
+                size={18}
+                color="#A19E95"
+              />,
+              "TaleX Creator Studio",
+              () => navigation.navigate("CreatorDashboard"),
+            )}
           </View>
-        </View>
+        )}
 
         {/* ================= CARD 3: QUYỀN LỢI ================= */}
         <View className="w-full bg-[#161618] rounded-[16px] overflow-hidden mb-4 border border-white/5">
@@ -442,6 +382,11 @@ export default function ProfileScreen() {
           onPress={async () => {
             if (isAuthenticated) {
               await logout();
+              navigation.navigate("MainTabs", { screen: "Home" });
+              Toast.show({
+                type: "success",
+                text1: "Đăng xuất thành công",
+              });
             } else {
               navigation.navigate("LoginScreen");
             }

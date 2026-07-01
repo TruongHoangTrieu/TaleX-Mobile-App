@@ -10,8 +10,28 @@ import ComicDetailScreen from "@/screens/comics/ComicDetailScreen";
 import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
+import SubscriptionPlansScreen from "@/screens/subscription/SubscriptionPlansScreen";
 
-const Stack = createNativeStackNavigator();
+export type RootStackParamList = {
+  MainTabs: { screen?: "Home" | "Comics" | "Movies" | "Profile" } | undefined;
+  Search: undefined;
+  LoginScreen: undefined;
+  RegisterScreen: undefined;
+  OtpVerify:
+    | {
+        email?: string;
+        verificationToken?: string;
+      }
+    | undefined;
+  EditProfileScreen: undefined;
+  ComicDetailScreen: { comicId?: string } | undefined;
+  MovieDetailScreen: { movieId?: string } | undefined;
+  CreatorGuard: undefined;
+  CreatorDashboard: undefined;
+  SubscriptionPlans: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   return (
@@ -33,6 +53,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="CreatorDashboard"
           component={CreatorDashboardScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SubscriptionPlans"
+          component={SubscriptionPlansScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

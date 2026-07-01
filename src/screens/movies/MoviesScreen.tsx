@@ -11,8 +11,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "@/navigation/RootNavigator";
 
 import Header from "@components/Header";
+import FloatingPremiumButton from "@/components/FloatingPremiumButton";
 import MovieCarousel from "@components/MovieCarousel";
 import {
   MovieItem,
@@ -22,7 +25,8 @@ import {
 } from "./movieMockData";
 
 export default function MoviesScreen() {
-  const navigation = useNavigation<any>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [activeCategory, setActiveCategory] = useState("Đề xuất");
 
   const filterContent = (list: MovieItem[]) => {
@@ -134,6 +138,11 @@ export default function MoviesScreen() {
           />
         </View>
       </ScrollView>
+
+      {/* Thêm Nút Nổi tại đây */}
+      <FloatingPremiumButton
+        onPress={() => navigation.navigate("SubscriptionPlans")}
+      />
     </SafeAreaView>
   );
 }

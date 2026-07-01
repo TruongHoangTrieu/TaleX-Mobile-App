@@ -18,10 +18,13 @@ import {
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/context/AuthContext";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "@/navigation/RootNavigator";
 import { useNavigation, useFocusEffect } from "@react-navigation/native"; // Thêm điều hướng sang trang Đăng nhập khi cần
 
 export default function ProfileScreen() {
-  const navigation = useNavigation<any>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const { user, isAuthenticated, loading, refreshProfile, logout } = useAuth();
 
@@ -40,19 +43,27 @@ export default function ProfileScreen() {
     icon: React.ReactNode,
     title: string,
     onPress?: () => void,
-  ) => (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.7}
-      className="flex-row h-14 items-center px-4 justify-between active:bg-zinc-800/30"
-    >
-      <View className="flex-row items-center">
-        <View className="w-6 items-center justify-center mr-3">{icon}</View>
-        <Text className="text-stone-300 text-[14px] font-medium">{title}</Text>
-      </View>
-      <Feather name="chevron-right" size={16} color="#444446" />
-    </TouchableOpacity>
-  );
+  ) => {
+    const handlePress =
+      onPress ||
+      (title.toLowerCase().includes("vip")
+        ? () => navigation.navigate("SubscriptionPlans")
+        : undefined);
+
+    return (
+      <TouchableOpacity
+        onPress={handlePress}
+        activeOpacity={0.7}
+        className="flex-row h-14 items-center px-4 justify-between active:bg-zinc-800/30"
+      >
+        <View className="flex-row items-center">
+          <View className="w-6 items-center justify-center mr-3">{icon}</View>
+          <Text className="text-stone-300 text-[14px] font-medium">{title}</Text>
+        </View>
+        <Feather name="chevron-right" size={16} color="#444446" />
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-[#0F0F0F]">

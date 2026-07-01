@@ -2,9 +2,13 @@ import React, { useState } from 'react';
 import { ScrollView, StatusBar, View, Text, TouchableOpacity, Image, FlatList, ImageSourcePropType } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "@/navigation/RootNavigator";
 
 import Header from '@components/Header';
 import BannerCarousel from '@components/BannerCarousel';
+import FloatingPremiumButton from "@/components/FloatingPremiumButton";
 
 interface MediaItem {
   id: string;
@@ -45,6 +49,9 @@ const topRankMovies: MediaItem[] = [
 ];
 
 export default function HomeScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
   // State quản lý thể loại đang active (Mặc định 'Đề xuất' nghĩa là hiện Tất cả)
   const [activeCategory, setActiveCategory] = useState('Đề xuất');
 
@@ -173,6 +180,10 @@ export default function HomeScreen() {
         </View>
 
       </ScrollView>
+
+      <FloatingPremiumButton
+        onPress={() => navigation.navigate("SubscriptionPlans")}
+      />
     </SafeAreaView>
   );
 }

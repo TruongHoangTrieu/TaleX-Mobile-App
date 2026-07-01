@@ -9,9 +9,12 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type { RootStackParamList } from "@/navigation/RootNavigator";
 
 import ComicCarousel from "@components/ComicCarousel";
+import FloatingPremiumButton from "@/components/FloatingPremiumButton";
 import Header from "@components/Header";
 import {
   ComicItem,
@@ -22,7 +25,8 @@ import {
 } from "./comicMockData";
 
 export default function ComicsScreen() {
-  const navigation = useNavigation<any>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
 
   const filterByCategory = (comicList: ComicItem[]) => {
@@ -136,6 +140,11 @@ export default function ComicsScreen() {
           highlighted
         />
       </ScrollView>
+
+      {/* Thêm Nút Nổi tại đây */}
+      <FloatingPremiumButton
+        onPress={() => navigation.navigate("SubscriptionPlans")}
+      />
     </SafeAreaView>
   );
 }

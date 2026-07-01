@@ -10,6 +10,8 @@ import {
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "@/navigation/RootNavigator";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getMovieById, allMovies } from "./movieMockData";
 
@@ -33,7 +35,8 @@ function MoviePlayer({ videoUrl }: { videoUrl: string }) {
 }
 
 export default function MovieDetailScreen() {
-  const navigation = useNavigation<any>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList, "MovieDetailScreen">>();
   const route = useRoute<any>();
   const { movieId } = (route.params || {}) as MovieDetailRouteParams;
   const movie = getMovieById(movieId);
@@ -79,7 +82,11 @@ export default function MovieDetailScreen() {
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
 
         {/* ===== VIP BANNER ===== */}
-        <View className="flex-row justify-between items-center bg-[#D4AF37]/10 border-y border-[#D4AF37]/20 px-4 py-2">
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate("SubscriptionPlans")}
+          className="flex-row justify-between items-center bg-[#D4AF37]/10 border-y border-[#D4AF37]/20 px-4 py-2"
+        >
           <View className="flex-row items-center">
             <View className="bg-[#D4AF37] px-2 py-0.5 rounded mr-2">
               <Text className="text-[#141210] text-[10px] font-bold">
@@ -94,7 +101,7 @@ export default function MovieDetailScreen() {
           <Text className="text-white font-bold text-xs">
             Ưu Đãi Có Hạn
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* ===== TITLE ===== */}
         <View className="px-4 pt-4">

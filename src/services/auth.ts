@@ -150,6 +150,20 @@ async function parseJsonResponse<T = any>(res: Response, url: string): Promise<T
   }
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
+async function performTokenRefresh(): Promise<string | null> {
+  try {
+    const refreshRes = await refreshToken();
+    return refreshRes.data?.accessToken || null;
+  } catch (e) {
+    await clearTokens();
+    throw e;
+  } finally {
+    refreshPromise = null;
+  }
+}
+
 export async function authFetch(url: string, options: RequestOptions = {}) {
   const buildOptions = async (token?: string | null): Promise<RequestInit> => {
     const headers: Record<string, string> = {
@@ -170,11 +184,13 @@ export async function authFetch(url: string, options: RequestOptions = {}) {
 
   if (res.status !== 401) return res;
 
+  if (!refreshPromise) {
+    refreshPromise = performTokenRefresh();
+  }
+
   try {
-    const refreshRes = await refreshToken();
-    accessToken = refreshRes.data?.accessToken || null;
+    accessToken = await refreshPromise;
   } catch (e) {
-    await clearTokens();
     throw e;
   }
 

@@ -273,7 +273,10 @@ export default function CreatorDashboardScreen() {
 
             {/* Quick Actions Bar */}
             <View className="bg-[#1E1E22] border border-zinc-800 rounded-2xl p-4 mt-2.5 flex-row justify-around">
-              <TouchableOpacity className="items-center justify-center p-2">
+              <TouchableOpacity
+                onPress={() => navigation.navigate("UploadMovie" as any)}
+                className="items-center justify-center p-2"
+              >
                 <View className="w-10 h-10 rounded-full bg-red-500/10 items-center justify-center mb-1">
                   <MaterialCommunityIcons name="video-plus" size={20} color="#FF4E4E" />
                 </View>

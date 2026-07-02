@@ -16,8 +16,9 @@ import {
   type SubscriptionPlan,
 } from "@/services/subscription";
 
+// Chỉnh sửa 9: Định dạng tiền tệ kết thúc bằng 'đ' Thay vì 'VNĐ'
 const formatCurrency = (price: number) =>
-  `${price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")} VNĐ`;
+  `${price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}đ`;
 
 const formatDurationUnit = (unit: SubscriptionDurationUnit) => {
   switch (unit) {
@@ -77,9 +78,15 @@ export default function SubscriptionPlansScreen() {
     return (
       <View
         key={plan.subscriptionId}
-        className={`relative mb-5 rounded-2xl bg-[#1C1A18] px-5 pb-5 pt-6 ${
+        className={`relative mr-4 rounded-2xl bg-[#1C1A18] px-5 pb-5 pt-6 ${
           isPopular ? "border border-[#D4AF37]" : "border border-white/5"
         }`}
+        // Chỉnh sửa 3: Card có chiều cao cố định 390 và rộng 300
+        style={{
+          width: 300,
+          height: 390,
+          overflow: "visible",
+        }}
       >
         {isPopular && (
           <View className="absolute -top-3 self-center rounded-full bg-[#D4AF37] px-4 py-1">
@@ -89,33 +96,34 @@ export default function SubscriptionPlansScreen() {
           </View>
         )}
 
+        {/* Chỉnh sửa 8: Thêm icon vương miện lớn phía trên tên gói */}
+        <View className="mb-5 h-14 w-14 items-center justify-center rounded-2xl bg-[#D4AF37]/10">
+          <MaterialCommunityIcons name="crown" size={30} color="#D4AF37" />
+        </View>
+
         <View className="flex-row items-start justify-between">
           <View className="mr-4 flex-1">
             <Text className="text-xl font-black text-white">{plan.tier}</Text>
-            <Text className="mt-2 text-sm leading-5 text-[#A19E95]">
-              {plan.description}
-            </Text>
-          </View>
-
-          <View className="h-12 w-12 items-center justify-center rounded-2xl bg-[#D4AF37]/10">
-            <MaterialCommunityIcons name="crown" size={25} color="#D4AF37" />
+            {/* Chỉnh sửa 4: Bỏ hoàn toàn phần plan.description cũ ở đây */}
           </View>
         </View>
 
-        <View className="mt-5 flex-row items-end">
-          <Text className="text-3xl font-black text-[#D4AF37]">
+        {/* Chỉnh sửa 9: Cấu trúc hiển thị Giá mới kèm Đơn vị thời hạn bên dưới */}
+        <View className="mt-3">
+          <Text className="text-4xl font-black text-[#D4AF37]">
             {formatCurrency(plan.price)}
+          </Text>
+          <Text className="mt-1 text-sm font-semibold text-[#B7B2AA]">
+            / {plan.duration} {formatDurationUnit(plan.durationUnit)}
           </Text>
         </View>
 
-        <Text className="mt-1 text-sm font-semibold text-[#E5E0D8]">
-          {plan.duration} {formatDurationUnit(plan.durationUnit)}
-        </Text>
-
         <View className="my-5 h-[1px] bg-white/10" />
 
-        <View>
-          {benefits.map((benefit) => (
+        {/* Chỉnh sửa 6: Thêm flex-1 vào View bọc danh sách để chiếm khoảng trống đẩy nút xuống đáy */}
+        <View className="flex-1">
+          {/* Chỉnh sửa 5: Giới hạn chỉ lấy tối đa 3 quyền lợi hiển thị trên Card */}
+          {benefits.slice(0, 3).map((benefit) => (
             <View key={benefit} className="mb-3 flex-row items-start">
               <MaterialCommunityIcons
                 name="check-circle"
@@ -129,12 +137,13 @@ export default function SubscriptionPlansScreen() {
           ))}
         </View>
 
+        {/* Chỉnh sửa 7: Thay mt-3 thành mt-auto giúp Button luôn dính sát dưới đáy Card */}
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() =>
             Alert.alert("Thông báo", `Tiến hành thanh toán gói ${plan.tier}`)
           }
-          className="mt-3 h-12 items-center justify-center rounded-xl bg-[#D4AF37]"
+          className="mt-auto h-12 items-center justify-center rounded-xl bg-[#D4AF37]"
         >
           <Text className="text-sm font-black uppercase tracking-wide text-[#141210]">
             Chọn Gói Này
@@ -154,17 +163,44 @@ export default function SubscriptionPlansScreen() {
           flexGrow: 1,
           paddingHorizontal: 16,
           paddingTop: 28,
-          paddingBottom: 110,
+          paddingBottom: 40, // Đã giảm bớt bottom padding để cân đối với section thanh toán mới
         }}
       >
-        <View className="mb-7">
-          <Text className="text-[32px] font-black text-white">
+        {/* Chỉnh sửa 1: Thay đổi toàn bộ phần Header trung tâm */}
+        <View className="items-center mb-8">
+          <View className="h-20 w-20 items-center justify-center rounded-full bg-[#D4AF37]/10">
+            <MaterialCommunityIcons name="crown" size={42} color="#D4AF37" />
+          </View>
+          <Text className="mt-5 text-[32px] font-black text-white">
             TaleX Premium
           </Text>
-          <Text className="mt-2 text-sm leading-5 text-[#A19E95]">
-            Mở khóa trải nghiệm giải trí trọn vẹn với phim, truyện tranh và đặc
-            quyền không quảng cáo.
+          <Text className="mt-3 text-center text-base leading-6 text-[#A19E95]">
+            Mở khóa toàn bộ trải nghiệm phim và truyện, thưởng thức nội dung
+            chất lượng cao không quảng cáo.
           </Text>
+        </View>
+
+        {/* Chỉnh sửa 2: Bổ sung Section "Premium bao gồm" tổng quát ngay dưới Header */}
+        <View className="mb-8 rounded-3xl bg-[#1C1A18] p-5">
+          <Text className="mb-4 text-lg font-black text-white">
+            Premium bao gồm
+          </Text>
+          {[
+            "Không quảng cáo",
+            "Mở khóa toàn bộ phim & series",
+            "Đọc truyện không giới hạn",
+            "4K HDR & Âm thanh vòm",
+            "Ưu tiên nội dung mới",
+          ].map((item) => (
+            <View key={item} className="mb-4 flex-row items-center">
+              <MaterialCommunityIcons
+                name="check-circle"
+                size={20}
+                color="#D4AF37"
+              />
+              <Text className="ml-3 text-base text-[#E5E0D8]">{item}</Text>
+            </View>
+          ))}
         </View>
 
         {loading ? (
@@ -204,8 +240,30 @@ export default function SubscriptionPlansScreen() {
             </Text>
           </View>
         ) : (
-          plans.map(renderPlanCard)
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingRight: 16,
+              paddingTop: 12,
+              paddingBottom: 12,
+            }}
+          >
+            {plans.map(renderPlanCard)}
+          </ScrollView>
         )}
+
+        {/* Chỉnh sửa 10: Thêm phần chân trang "Thanh toán an toàn" bảo mật cuối màn hình */}
+        <View className="mt-8 items-center">
+          <MaterialCommunityIcons
+            name="shield-check"
+            size={26}
+            color="#D4AF37"
+          />
+          <Text className="mt-2 text-center text-[#A19E95]">
+            Thanh toán an toàn • Hủy bất cứ lúc nào
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

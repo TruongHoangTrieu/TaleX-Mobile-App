@@ -11,6 +11,7 @@ import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
 import SubscriptionPlansScreen from "@/screens/subscription/SubscriptionPlansScreen";
+import UploadMovieScreen from "@/screens/creator/UploadMovieScreen";
 import { navigationRef } from "./navigationRef";
 import type { SeriesItem } from "@/services/series";
 
@@ -36,6 +37,7 @@ export type RootStackParamList = {
   CreatorGuard: undefined;
   CreatorDashboard: undefined;
   SubscriptionPlans: undefined;
+  UploadMovie: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -65,6 +67,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="SubscriptionPlans"
           component={SubscriptionPlansScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="UploadMovie"
+          component={UploadMovieScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

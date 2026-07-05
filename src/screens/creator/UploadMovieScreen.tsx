@@ -101,9 +101,10 @@ export default function UploadMovieScreen() {
       try {
         setLoadingSeries(true);
         const list = await listSeriesByCreator();
-        setSeriesList(list);
-        if (list.length > 0) {
-          setSelectedSeriesId(list[0].seriesId);
+        const videoSeries = list.filter((s) => s.contentType === "VIDEO");
+        setSeriesList(videoSeries);
+        if (videoSeries.length > 0) {
+          setSelectedSeriesId(videoSeries[0].seriesId);
         }
       } catch (err: any) {
         console.error("Lỗi tải danh sách series:", err);
@@ -402,13 +403,14 @@ export default function UploadMovieScreen() {
           setSubmitMsg("Đang tải ảnh bìa lên S3...");
           let coverUrl = "";
           if (seriesCover) {
-            coverUrl = await uploadImageToS3(
+            const uploadRes = await uploadImageToS3(
               seriesCover.uri,
               seriesCover.name,
               seriesCover.size,
               seriesCover.type,
               "cover"
             );
+            coverUrl = uploadRes.publicUrl;
           }
           setSubmitMsg("Đang tạo Series...");
           const newSeries = await createSeries({

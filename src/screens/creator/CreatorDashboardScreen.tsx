@@ -23,7 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 const { width } = Dimensions.get("window");
 
 export default function CreatorDashboardScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"overview" | "content" | "comments" | "revenue">(
     "overview"
@@ -283,7 +283,10 @@ export default function CreatorDashboardScreen() {
                 <Text className="text-stone-300 text-[10px] font-bold">Đăng video</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity className="items-center justify-center p-2">
+              <TouchableOpacity
+                onPress={() => navigation.navigate("UploadComic" as any)}
+                className="items-center justify-center p-2"
+              >
                 <View className="w-10 h-10 rounded-full bg-green-500/10 items-center justify-center mb-1">
                   <MaterialCommunityIcons name="book-plus" size={20} color="#10B981" />
                 </View>

@@ -292,8 +292,8 @@ export async function uploadImageToS3(
   fileName: string,
   fileSize: number,
   mimeType: string,
-  imageContext: "cover" | "banner",
-): Promise<string> {
+  imageContext: "cover" | "banner" | "comic-page" | "avatar",
+): Promise<{ publicUrl: string; key: string }> {
   // 1. Get presigned upload URL
   const presigned = await getImagePresignedUpload({
     fileName,
@@ -319,7 +319,7 @@ export async function uploadImageToS3(
     throw new Error(`S3 upload failed: ${s3Res.status}`);
   }
 
-  return presigned.publicUrl;
+  return { publicUrl: presigned.publicUrl, key: presigned.key };
 }
 
 // -------------------------------------------------------------
@@ -386,3 +386,64 @@ export async function fetchMediaViolations(mediaId: string): Promise<MediaViolat
   const res = await authFetch(url, { method: "GET" });
   return handleResponse<MediaViolationsResponse>(res);
 }
+
+// -------------------------------------------------------------
+// COMIC UPLOAD & MEDIA MANAGEMENT APIs
+// -------------------------------------------------------------
+export type MediaComicPageRequest = {
+  fileUrl: string;
+  displayOrder: number;
+  mimeType: string;
+  fileSize: number;
+  checksum?: string;
+  externalPublicId?: string;
+  storageProvider?: string;
+  width?: number;
+  height?: number;
+  resolution?: string;
+};
+
+export type MediaReorderRequest = {
+  items: Array<{
+    mediaId: string;
+    displayOrder: number;
+  }>;
+  actorId?: string;
+};
+
+export async function createComicPageMedia(
+  episodeId: string,
+  pages: MediaComicPageRequest[],
+  actorId?: string,
+): Promise<MediaResponse[]> {
+  const url = apiUrl(`/api/v1/episodes/${episodeId}/media/comic-pages`);
+  const res = await authFetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pages, actorId }),
+  });
+  return handleResponse<MediaResponse[]>(res);
+}
+
+export async function reorderEpisodeMedia(
+  episodeId: string,
+  request: MediaReorderRequest,
+): Promise<MediaResponse[]> {
+  const url = apiUrl(`/api/v1/episodes/${episodeId}/media/reorder`);
+  const res = await authFetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<MediaResponse[]>(res);
+}
+
+export async function deleteMedia(mediaId: string, actorId?: string): Promise<void> {
+  const query = actorId ? `?actorId=${actorId}` : "";
+  const url = apiUrl(`/api/v1/media/${mediaId}${query}`);
+  const res = await authFetch(url, {
+    method: "DELETE",
+  });
+  return handleResponse<void>(res);
+}
+

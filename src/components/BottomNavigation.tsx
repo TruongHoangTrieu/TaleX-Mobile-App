@@ -61,6 +61,8 @@ export default function BottomNavigation({
     console.log(`Chuyển hướng đến màn hình: ${screenName}`);
     if (screenName === 'PostMovie') {
       navigation.navigate('UploadMovie');
+    } else if (screenName === 'PostComic') {
+      navigation.navigate('UploadComic');
     }
   };
 

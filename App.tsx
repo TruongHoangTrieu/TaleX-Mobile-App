@@ -8,7 +8,7 @@ export default function App() {
   return (
     <AuthProvider>
       <RootNavigator />
-      <Toast config={toastConfig} visibilityTime={2000} />
+      <Toast config={toastConfig} visibilityTime={500} />
     </AuthProvider>
   );
 }

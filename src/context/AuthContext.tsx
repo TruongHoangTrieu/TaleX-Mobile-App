@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import Toast from "react-native-toast-message";
 import {
   login as loginService,
@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({
 
   const isAuthenticated = !!user;
 
-  const loadFromToken = async () => {
+  const loadFromToken = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -68,13 +68,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadFromToken();
-  }, []);
+  }, [loadFromToken]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -94,9 +94,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadFromToken]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -113,9 +113,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -123,7 +123,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadFromToken]);
 
   return (
     <AuthContext.Provider

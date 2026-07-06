@@ -15,7 +15,6 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootNavigator";
 
 import Header from "@components/Header";
-import FloatingPremiumButton from "@/components/FloatingPremiumButton";
 import MovieCarousel from "@components/MovieCarousel";
 import {
   MovieItem,
@@ -223,11 +222,6 @@ export default function MoviesScreen() {
           />
         </View>
       </ScrollView>
-
-      {/* Thêm Nút Nổi tại đây */}
-      <FloatingPremiumButton
-        onPress={() => navigation.navigate("SubscriptionPlans")}
-      />
     </SafeAreaView>
   );
 }

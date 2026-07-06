@@ -110,11 +110,25 @@ export default function ProfileScreen() {
               <Text className="text-white text-lg font-bold tracking-wide">
                 {user?.username || user?.fullName || "Người dùng"}
               </Text>
-              {/* <View className="bg-[#D4AF37]/10 border border-[#D4AF37]/30 self-start px-2 py-0.5 rounded-md mt-1.5">
-                <Text className="text-[#D4AF37] text-[10px] font-black uppercase tracking-wider">
-                  {isCreator ? "CREATOR" : (user?.roleName || "Thành viên")}
+              <View className="flex-row items-center mt-0.5 w-full">
+                <Text
+                  className="text-zinc-500 text-xs font-medium shrink"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {user?.email || "Email không xác định"}
                 </Text>
-              </View> */}
+                <Text className="text-zinc-500 text-xs mx-1.5">•</Text>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate("CreatorChannel")}
+                  className="flex-row items-center"
+                  style={{ flexShrink: 0 }}
+                >
+                  <Text className="text-[#D4AF37] text-xs font-bold">Xem kênh</Text>
+                  <Feather name="chevron-right" size={12} color="#D4AF37" style={{ marginLeft: 1 }} />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         ) : (

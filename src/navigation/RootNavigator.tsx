@@ -7,9 +7,11 @@ import RegisterScreen from "@screens/auth/RegisterScreen";
 import OtpVerifyScreen from "@/screens/auth/OtpVerifyScreen";
 import EditProfileScreen from "@/screens/profile/EditProfileScreen";
 import ComicDetailScreen from "@/screens/comics/ComicDetailScreen";
+import ComicReaderScreen from "@/screens/comics/ComicReaderScreen";
 import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
+import CreatorChannelScreen from "@/screens/creator/CreatorChannelScreen";
 import SubscriptionPlansScreen from "@/screens/subscription/SubscriptionPlansScreen";
 import UploadMovieScreen from "@/screens/creator/UploadMovieScreen";
 import UploadComicScreen from "@/screens/creator/UploadComicScreen";
@@ -29,6 +31,14 @@ export type RootStackParamList = {
     | undefined;
   EditProfileScreen: undefined;
   ComicDetailScreen: { comicId?: string } | undefined;
+  ComicReader:
+    | {
+        comicId?: string;
+        chapterTitle?: string;
+        episodeTitle?: string;
+        episodeIndex?: number;
+      }
+    | undefined;
   MovieDetailScreen:
     | {
         movieId?: string;
@@ -37,6 +47,7 @@ export type RootStackParamList = {
     | undefined;
   CreatorGuard: undefined;
   CreatorDashboard: undefined;
+  CreatorChannel: undefined;
   SubscriptionPlans: undefined;
   UploadMovie: undefined;
   UploadComic: undefined;
@@ -79,6 +90,16 @@ export default function RootNavigator() {
         <Stack.Screen
           name="UploadComic"
           component={UploadComicScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="CreatorChannel"
+          component={CreatorChannelScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ComicReader"
+          component={ComicReaderScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

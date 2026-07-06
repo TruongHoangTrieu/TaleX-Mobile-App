@@ -164,6 +164,14 @@ export default function ComicDetailScreen() {
                       {chapter.episodes.map((episode, epIndex) => (
                         <TouchableOpacity
                           key={episode}
+                          onPress={() =>
+                            navigation.navigate("ComicReader", {
+                              comicId: comic.id,
+                              chapterTitle: chapter.title,
+                              episodeTitle: episode,
+                              episodeIndex: epIndex,
+                            })
+                          }
                           className="py-3 flex-row items-center justify-between border-b border-white/5 last:border-b-0"
                           activeOpacity={0.7}
                         >
@@ -190,7 +198,21 @@ export default function ComicDetailScreen() {
       </ScrollView>
 
       <View className="h-[70px] bg-[#1F1C1A] px-4 justify-center border-t border-white/5">
-        <TouchableOpacity className="h-[48px] bg-[#D4AF37] rounded-full items-center justify-center">
+        <TouchableOpacity
+          onPress={() => {
+            const firstChapter = comic.chapters[0];
+            const firstEpisode = firstChapter?.episodes[0];
+            if (firstChapter && firstEpisode) {
+              navigation.navigate("ComicReader", {
+                comicId: comic.id,
+                chapterTitle: firstChapter.title,
+                episodeTitle: firstEpisode,
+                episodeIndex: 0,
+              });
+            }
+          }}
+          className="h-[48px] bg-[#D4AF37] rounded-full items-center justify-center"
+        >
           <Text className="text-[#141210] font-bold text-[15px]">
             ĐỌC NGAY CHƯƠNG 1
           </Text>

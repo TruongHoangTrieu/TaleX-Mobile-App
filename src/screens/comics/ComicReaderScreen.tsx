@@ -1,0 +1,349 @@
+import React, { useState, useRef } from "react";
+import {
+  View,
+  Text,
+  Image,
+  ScrollView,
+  StatusBar,
+  TouchableOpacity,
+  Dimensions,
+  FlatList,
+  Modal,
+  StyleSheet,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { getComicById } from "./comicMockData";
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+
+// Mock trang truyện tranh lấy từ assets
+const comicPagesMock = [
+  require("@assets/comic1.webp"),
+  require("@assets/comic2.webp"),
+  require("@assets/comic3.webp"),
+  require("@assets/comic4.webp"),
+  require("@assets/comic5.webp"),
+  require("@assets/comic6.webp"),
+  require("@assets/comic7.webp"),
+  require("@assets/comic2.webp"),
+  require("@assets/comic3.webp"),
+  require("@assets/comic5.webp"),
+  require("@assets/comic1.webp"),
+  require("@assets/comic6.webp"),
+  require("@assets/comic4.webp"),
+  require("@assets/comic7.webp"),
+  require("@assets/comic3.webp"),
+  require("@assets/comic2.webp"),
+  require("@assets/comic5.webp"),
+  require("@assets/comic1.webp"),
+];
+
+export default function ComicReaderScreen() {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
+  
+  const { comicId, chapterTitle, episodeTitle, episodeIndex = 0 } = route.params || {};
+  const comic = getComicById(comicId);
+
+  // States
+  const [showControls, setShowControls] = useState(true);
+  const [readingMode, setReadingMode] = useState<"vertical" | "horizontal">("vertical");
+  const [currentPage, setCurrentPage] = useState(0);
+  const [showMenuModal, setShowMenuModal] = useState(false);
+
+  // Refs
+  const flatListRef = useRef<FlatList>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Lấy tất cả tập con (episodes) phẳng của toàn bộ truyện để chuyển tập nhanh
+  const allEpisodes: { chapterTitle: string; title: string; index: number }[] = [];
+  comic.chapters.forEach((chap) => {
+    chap.episodes.forEach((ep, idx) => {
+      allEpisodes.push({
+        chapterTitle: chap.title,
+        title: ep,
+        index: idx,
+      });
+    });
+  });
+
+  const currentEpisodeIdx = allEpisodes.findIndex(
+    (e) => e.title === episodeTitle
+  ) !== -1 ? allEpisodes.findIndex((e) => e.title === episodeTitle) : 0;
+
+  const currentEp = allEpisodes[currentEpisodeIdx] || allEpisodes[0];
+
+  // Chuyển tập tiếp theo hoặc tập trước
+  const navigateEpisode = (direction: "prev" | "next") => {
+    let nextIdx = currentEpisodeIdx;
+    if (direction === "prev" && currentEpisodeIdx > 0) {
+      nextIdx = currentEpisodeIdx - 1;
+    } else if (direction === "next" && currentEpisodeIdx < allEpisodes.length - 1) {
+      nextIdx = currentEpisodeIdx + 1;
+    }
+
+    if (nextIdx !== currentEpisodeIdx) {
+      const targetEp = allEpisodes[nextIdx];
+      // Reset trang đọc
+      setCurrentPage(0);
+      flatListRef.current?.scrollToIndex({ index: 0, animated: false });
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+
+      navigation.replace("ComicReader", {
+        comicId,
+        chapterTitle: targetEp.chapterTitle,
+        episodeTitle: targetEp.title,
+        episodeIndex: targetEp.index,
+      });
+    }
+  };
+
+  // Xử lý sự kiện vuốt ngang thay đổi trang
+  const handleHorizontalScroll = (event: any) => {
+    const slideSize = event.nativeEvent.layoutMeasurement.width;
+    const index = event.nativeEvent.contentOffset.x / slideSize;
+    const roundIndex = Math.round(index);
+    if (roundIndex !== currentPage) {
+      setCurrentPage(roundIndex);
+    }
+  };
+
+  // Nhấn vào giữa màn hình để hiển thị/ẩn thanh công cụ
+  const toggleControls = () => {
+    setShowControls(!showControls);
+  };
+
+  return (
+    <View className="flex-1 bg-[#09090A]">
+      <StatusBar hidden={!showControls} barStyle="light-content" backgroundColor="#09090A" />
+
+      {/* HEADER OVERLAY */}
+      {showControls && (
+        <View 
+          className="absolute top-0 left-0 right-0 bg-[#141416]/95 flex-row items-center justify-between px-4 z-50 border-b border-white/5 shadow-md"
+          style={{ paddingTop: insets.top, height: 56 + insets.top }}
+        >
+          <TouchableOpacity onPress={() => navigation.goBack()} className="p-1 active:opacity-70">
+            <Feather name="arrow-left" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          
+          <View className="items-center flex-1 mx-4">
+            <Text className="text-white text-[14px] font-extrabold" numberOfLines={1}>
+              {comic.title}
+            </Text>
+            <Text className="text-zinc-400 text-[11px] mt-0.5" numberOfLines={1}>
+              {currentEp.chapterTitle} • {currentEp.title}
+            </Text>
+          </View>
+
+          <TouchableOpacity onPress={() => setShowMenuModal(true)} className="p-1 active:opacity-70">
+            <Feather name="list" size={22} color="#D4AF37" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* VIEW TRANG ĐỌC TRUYỆN */}
+      <View className="flex-1 justify-center items-center w-full bg-black">
+        {readingMode === "vertical" ? (
+          // Chế độ Webtoon cuộn dọc mượt mà
+          <ScrollView
+            ref={scrollRef}
+            className="w-full"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ 
+              paddingTop: showControls ? 56 + insets.top : 0, 
+              paddingBottom: showControls ? 80 + insets.bottom : 0 
+            }}
+          >
+            {comicPagesMock.map((page, idx) => (
+              <TouchableOpacity
+                key={`vertical-${idx}`}
+                activeOpacity={1}
+                onPress={toggleControls}
+              >
+                <Image
+                  source={page}
+                  style={{ width: screenWidth, height: screenWidth * 1.5 }}
+                  resizeMode="contain"
+                  className="bg-black"
+                />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : (
+          // Chế độ vuốt ngang (FlatList paging)
+          <FlatList
+            ref={flatListRef}
+            horizontal
+            pagingEnabled
+            data={comicPagesMock}
+            keyExtractor={(_, index) => `horizontal-${index}`}
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleHorizontalScroll}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={toggleControls}
+                style={{ width: screenWidth, height: screenHeight }}
+                className="justify-center bg-black"
+              >
+                <Image
+                  source={item}
+                  style={{ width: screenWidth, height: screenHeight - 120 }}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </View>
+
+      {/* BOTTOM CONTROL OVERLAY */}
+      {showControls && (
+        <View 
+          className="absolute bottom-0 left-0 right-0 bg-[#141416]/95 z-50 border-t border-white/5 px-4 shadow-lg"
+          style={{ paddingBottom: insets.bottom + 12, paddingTop: 14 }}
+        >
+          {/* Progress Slider (Giả lập chỉ số trang) */}
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-zinc-500 text-[11px] font-bold">
+              Trang {currentPage + 1}/{comicPagesMock.length}
+            </Text>
+            <View className="flex-1 mx-3 h-1 bg-zinc-800 rounded-full overflow-hidden">
+              <View
+                className="h-full bg-[#D4AF37]"
+                style={{ width: `${((currentPage + 1) / comicPagesMock.length) * 100}%` }}
+              />
+            </View>
+            <TouchableOpacity
+              onPress={() => setReadingMode(readingMode === "vertical" ? "horizontal" : "vertical")}
+              className="px-2.5 py-1 rounded bg-zinc-800 flex-row items-center active:bg-zinc-700"
+            >
+              <MaterialCommunityIcons
+                name={readingMode === "vertical" ? "page-layout-body" : "pan-horizontal"}
+                size={12}
+                color="#D4AF37"
+              />
+              <Text className="text-[#D4AF37] text-[10px] font-extrabold ml-1 uppercase">
+                {readingMode === "vertical" ? "Cuộn dọc" : "Vuốt ngang"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Điều hướng chương cũ/mới */}
+          <View className="flex-row items-center justify-between">
+            <TouchableOpacity
+              disabled={currentEpisodeIdx === 0}
+              onPress={() => navigateEpisode("prev")}
+              className={`flex-row items-center px-4 py-2 rounded-full border ${
+                currentEpisodeIdx === 0 ? "border-zinc-800 opacity-30" : "border-white/10 bg-zinc-900 active:bg-zinc-800"
+              }`}
+            >
+              <Feather name="arrow-left" size={14} color="#E5E0D8" />
+              <Text className="text-stone-300 text-[12px] font-bold ml-1.5">Tập trước</Text>
+            </TouchableOpacity>
+
+            <View className="bg-zinc-900 border border-white/5 px-4 py-1.5 rounded-full">
+              <Text className="text-[#D4AF37] text-[12px] font-bold">
+                {currentEp.title}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              disabled={currentEpisodeIdx === allEpisodes.length - 1}
+              onPress={() => navigateEpisode("next")}
+              className={`flex-row items-center px-4 py-2 rounded-full border ${
+                currentEpisodeIdx === allEpisodes.length - 1 ? "border-zinc-800 opacity-30" : "border-white/10 bg-zinc-900 active:bg-zinc-800"
+              }`}
+            >
+              <Text className="text-stone-300 text-[12px] font-bold mr-1.5">Tập sau</Text>
+              <Feather name="arrow-right" size={14} color="#E5E0D8" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* MODAL DANH SÁCH CHƯƠNG/TẬP (MỤC LỤC) */}
+      <Modal
+        visible={showMenuModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowMenuModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Header Sheet */}
+            <View className="flex-row items-center justify-between pb-4 border-b border-white/5 mb-4">
+              <Text className="text-white text-base font-extrabold">Mục lục tác phẩm</Text>
+              <TouchableOpacity onPress={() => setShowMenuModal(false)} className="p-1">
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={allEpisodes}
+              keyExtractor={(item) => `modal-ep-${item.chapterTitle}-${item.title}`}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item, index }) => {
+                const isActive = item.title === episodeTitle;
+                return (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowMenuModal(false);
+                      setCurrentPage(0);
+                      navigation.replace("ComicReader", {
+                        comicId,
+                        chapterTitle: item.chapterTitle,
+                        episodeTitle: item.title,
+                        episodeIndex: item.index,
+                      });
+                    }}
+                    className={`py-3.5 px-4 rounded-xl mb-2 flex-row items-center justify-between border ${
+                      isActive ? "bg-[#D4AF37]/10 border-[#D4AF37]/30" : "bg-zinc-900/50 border-white/5 active:bg-zinc-900"
+                    }`}
+                  >
+                    <View>
+                      <Text className={`font-semibold text-sm ${isActive ? "text-[#D4AF37]" : "text-stone-300"}`}>
+                        {item.title}
+                      </Text>
+                      <Text className="text-zinc-500 text-[10px] mt-0.5">
+                        {item.chapterTitle}
+                      </Text>
+                    </View>
+                    <Feather
+                      name={isActive ? "book-open" : "play"}
+                      size={14}
+                      color={isActive ? "#D4AF37" : "#71717A"}
+                    />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    height: screenHeight * 0.6,
+    backgroundColor: "#141416",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+  },
+});

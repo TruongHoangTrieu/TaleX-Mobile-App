@@ -32,8 +32,15 @@ export interface SeriesResponse {
   };
 }
 
-export async function getPublicSeries(page = 1, pageSize = 20): Promise<SeriesResponse> {
-  const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/series?page=${page}&pageSize=${pageSize}`;
+export async function getPublicSeries(
+  page = 1,
+  pageSize = 20,
+  contentType?: "VIDEO" | "COMIC" | "video" | "comic",
+): Promise<SeriesResponse> {
+  let url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/series?page=${page}&pageSize=${pageSize}`;
+  if (contentType) {
+    url += `&contentType=${contentType}`;
+  }
   const res = await fetch(url, {
     method: "GET",
     headers: {
@@ -170,6 +177,22 @@ export async function getEpisodePlayback(
 
   if (!res.ok) {
     throw new Error(`Failed to fetch playback details: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export async function getPublicEpisodeMedia(episodeId: string): Promise<any> {
+  const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/episodes/${episodeId}/media`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "*/*",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch public episode media: ${res.status}`);
   }
 
   return res.json();

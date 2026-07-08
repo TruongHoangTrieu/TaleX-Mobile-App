@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FlatList,
   Image,
@@ -22,22 +22,37 @@ import {
   newComics,
   recommendedComics,
 } from "./comicMockData";
+import { getPublicSeries } from "@/services/series";
 
 export default function ComicsScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
+  const [apiComics, setApiComics] = useState<any[]>([]);
+
+  useEffect(() => {
+    getPublicSeries(1, 100)
+      .then((res) => {
+        if (res && res.data && res.data.content) {
+          const filtered = res.data.content.filter(
+            (item: any) => item.contentType === "COMIC" || item.contentType === "comic"
+          );
+          setApiComics(filtered);
+        }
+      })
+      .catch((err) => console.error("Lỗi lấy danh sách truyện từ API:", err));
+  }, []);
 
   const filterByCategory = (comicList: ComicItem[]) => {
     if (selectedCategory === "Tất cả") return comicList;
     return comicList.filter((comic) => comic.category === selectedCategory);
   };
 
-  const openComicDetail = (comic: ComicItem) => {
+  const openComicDetail = (comic: any) => {
     navigation.navigate("ComicDetailScreen", { comicId: comic.id });
   };
 
-  const renderComicCard = ({ item }: { item: ComicItem }) => (
+  const renderComicCard = ({ item }: { item: any }) => (
     <TouchableOpacity
       className="mr-4 w-[135px] relative"
       activeOpacity={0.85}
@@ -116,6 +131,24 @@ export default function ComicsScreen() {
         <View className="mt-3">
           <ComicCarousel />
         </View>
+
+        <ComicSection
+          title="Truyện Tranh Hệ Thống (Mới Lên Sóng)"
+          data={apiComics.map((item) => ({
+            id: item.seriesId || item.id,
+            title: item.title,
+            image: item.coverUrl ? { uri: item.coverUrl } : require("@assets/comic1.webp"),
+            category: "Tất cả",
+            author: item.author || "TaleX Creator",
+            status: item.status === "PUBLISHED" ? "Đã xuất bản" : "Đang tiến hành",
+            views: item.views || "0",
+            rating: item.rating || "10.0",
+            chapters: [],
+            description: item.description || "",
+          }))}
+          renderItem={renderComicCard}
+          emptyText="Chưa có truyện tranh hệ thống nào"
+        />
 
         <ComicSection
           title="Nội Dung Mới - Xem Ngay"

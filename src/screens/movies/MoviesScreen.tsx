@@ -36,7 +36,10 @@ export default function MoviesScreen() {
     getPublicSeries(1, 20)
       .then((res) => {
         if (res && res.code === 200 && res.data && res.data.content) {
-          setApiSeries(res.data.content);
+          const filtered = res.data.content.filter(
+            (item) => item.contentType === "VIDEO" || item.contentType === "video"
+          );
+          setApiSeries(filtered);
         }
       })
       .catch((err) => {

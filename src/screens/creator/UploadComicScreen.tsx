@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ScrollView,
   StatusBar,
@@ -26,6 +26,7 @@ import {
   uploadImageToS3,
   createComicPageMedia,
   publishEpisode,
+  listMediaByEpisode,
   SeriesItem,
   SeasonItem,
   MediaComicPageRequest,
@@ -33,7 +34,15 @@ import {
 import { getOwnCreator } from "@/services/creator";
 import { useAuth } from "@/context/AuthContext";
 
-const genresList = ["Hành động", "Viễn tưởng", "Tình cảm", "Hài hước", "Kinh dị", "Trinh thám", "Đời thường"];
+const genresList = [
+  "Hành động",
+  "Viễn tưởng",
+  "Tình cảm",
+  "Hài hước",
+  "Kinh dị",
+  "Trinh thám",
+  "Đời thường",
+];
 
 type LocalComicPage = {
   id: string;
@@ -45,7 +54,9 @@ type LocalComicPage = {
   height: number;
 };
 
-const getImageDimensions = (uri: string): Promise<{ width: number; height: number }> => {
+const getImageDimensions = (
+  uri: string,
+): Promise<{ width: number; height: number }> => {
   return new Promise((resolve) => {
     Image.getSize(
       uri,
@@ -54,7 +65,7 @@ const getImageDimensions = (uri: string): Promise<{ width: number; height: numbe
       },
       () => {
         resolve({ width: 0, height: 0 });
-      }
+      },
     );
   });
 };
@@ -96,7 +107,9 @@ export default function UploadComicScreen() {
   const [episodeNumber, setEpisodeNumber] = useState("");
   const [episodeTitle, setEpisodeTitle] = useState("");
   const [episodeDesc, setEpisodeDesc] = useState("");
-  const [releaseType, setReleaseType] = useState<"free" | "premium" | "coin">("free");
+  const [releaseType, setReleaseType] = useState<"free" | "premium" | "coin">(
+    "free",
+  );
   const [coinPrice, setCoinPrice] = useState("5");
   const [createdEpisodeId, setCreatedEpisodeId] = useState<string | null>(null);
 
@@ -108,6 +121,79 @@ export default function UploadComicScreen() {
 
   const [creatorId, setCreatorId] = useState("");
   const actorId = user?.accountId || "";
+
+  const [moderationStatus, setModerationStatus] = useState<string | null>(null);
+  const [isModerationDone, setIsModerationDone] = useState(false);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clean polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+      }
+    };
+  }, []);
+
+  const startPollingPipeline = (episodeId: string) => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+    }
+
+    setModerationStatus("Đang kiểm duyệt các trang ảnh bằng AI...");
+    setIsModerationDone(false);
+
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const mediaList = await listMediaByEpisode(episodeId);
+        if (mediaList.length > 0) {
+          const total = mediaList.length;
+          const approvedCount = mediaList.filter(
+            (m) => m.approvalStatus === "APPROVED",
+          ).length;
+          const rejectedCount = mediaList.filter(
+            (m) => m.approvalStatus === "REJECTED",
+          ).length;
+
+          if (rejectedCount > 0) {
+            setModerationStatus(
+              `Từ chối: Phát hiện ${rejectedCount} trang vi phạm chính sách!`,
+            );
+            setIsModerationDone(false);
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
+            Toast.show({
+              type: "error",
+              text1: "Kiểm duyệt thất bại",
+              text2: "Một số ảnh vi phạm chính sách và bị từ chối.",
+            });
+          } else if (approvedCount === total) {
+            setModerationStatus(
+              "Đạt: Toàn bộ ảnh đã được kiểm duyệt và an toàn.",
+            );
+            setIsModerationDone(true);
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
+            Toast.show({
+              type: "success",
+              text1: "Kiểm duyệt hoàn tất",
+              text2: "Tất cả các trang truyện đã được phê duyệt.",
+            });
+          } else {
+            setModerationStatus(
+              `Đang duyệt ảnh bằng AI: ${approvedCount}/${total} trang đã đạt...`,
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Lỗi đồng bộ kiểm duyệt truyện:", err);
+      }
+    }, 4000);
+  };
 
   // Load Creator Profile (creatorId & actorId)
   useEffect(() => {
@@ -196,9 +282,13 @@ export default function UploadComicScreen() {
   // Image Picker for Cover Art
   const handleSelectCover = async () => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert("Cấp quyền", "Vui lòng cấp quyền thư viện ảnh để chọn ảnh bìa.");
+        Alert.alert(
+          "Cấp quyền",
+          "Vui lòng cấp quyền thư viện ảnh để chọn ảnh bìa.",
+        );
         return;
       }
 
@@ -226,9 +316,13 @@ export default function UploadComicScreen() {
   // Multiple Image Picker for Comic Pages
   const handleSelectPages = async () => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert("Cấp quyền", "Vui lòng cấp quyền thư viện ảnh để chọn trang truyện.");
+        Alert.alert(
+          "Cấp quyền",
+          "Vui lòng cấp quyền thư viện ảnh để chọn trang truyện.",
+        );
         return;
       }
 
@@ -311,7 +405,7 @@ export default function UploadComicScreen() {
               seriesCover.name,
               seriesCover.size,
               seriesCover.type,
-              "cover"
+              "cover",
             );
             coverUrl = uploadRes.publicUrl;
           }
@@ -406,7 +500,7 @@ export default function UploadComicScreen() {
           page.name,
           page.size,
           page.type,
-          "comic-page"
+          "comic-page",
         );
 
         uploadedPages.push({
@@ -423,9 +517,14 @@ export default function UploadComicScreen() {
       }
 
       setSubmitMsg("Đang liên kết các trang truyện...");
-      await createComicPageMedia(createdEpisodeId, uploadedPages, actorId || undefined);
+      await createComicPageMedia(
+        createdEpisodeId,
+        uploadedPages,
+        actorId || undefined,
+      );
 
       setIsSuccess(true);
+      startPollingPipeline(createdEpisodeId);
       Toast.show({
         type: "success",
         text1: "Thành công",
@@ -433,7 +532,10 @@ export default function UploadComicScreen() {
       });
     } catch (err: any) {
       console.error("Lỗi trong quá trình upload ảnh:", err);
-      Alert.alert("Lỗi upload", "Không thể tải lên ảnh trang truyện: " + err.message);
+      Alert.alert(
+        "Lỗi upload",
+        "Không thể tải lên ảnh trang truyện: " + err.message,
+      );
     } finally {
       setUploading(false);
     }
@@ -452,7 +554,10 @@ export default function UploadComicScreen() {
       navigation.goBack();
     } catch (err: any) {
       console.error("Lỗi xuất bản tập truyện:", err);
-      Alert.alert("Lỗi xuất bản", "Không thể xuất bản tập truyện: " + err.message);
+      Alert.alert(
+        "Lỗi xuất bản",
+        "Không thể xuất bản tập truyện: " + err.message,
+      );
     } finally {
       setPublishing(false);
     }
@@ -460,7 +565,10 @@ export default function UploadComicScreen() {
 
   const getSeriesTitle = () => {
     if (seriesMode === "select") {
-      return seriesList.find((s) => s.seriesId === selectedSeriesId)?.title || "Chưa chọn";
+      return (
+        seriesList.find((s) => s.seriesId === selectedSeriesId)?.title ||
+        "Chưa chọn"
+      );
     }
     return newSeriesTitle || "Series mới chưa đặt tên";
   };
@@ -468,9 +576,13 @@ export default function UploadComicScreen() {
   const getSeasonTitle = () => {
     if (seasonMode === "select") {
       const se = seasonList.find((s) => s.seasonId === selectedSeasonId);
-      return se ? `Season ${se.seasonNumber}: ${se.title || "Không có tiêu đề"}` : "Chưa chọn";
+      return se
+        ? `Season ${se.seasonNumber}: ${se.title || "Không có tiêu đề"}`
+        : "Chưa chọn";
     }
-    return newSeasonNumber ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}` : "Season mới";
+    return newSeasonNumber
+      ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}`
+      : "Season mới";
   };
 
   const renderStepIndicator = () => {
@@ -495,28 +607,36 @@ export default function UploadComicScreen() {
                     isActive
                       ? "bg-[#FF4E4E] border border-[#FF4E4E]"
                       : isCompleted
-                      ? "bg-[#D4AF37]"
-                      : "bg-[#252830] border border-zinc-700"
+                        ? "bg-[#D4AF37]"
+                        : "bg-[#252830] border border-zinc-700"
                   }`}
                 >
                   {isCompleted ? (
                     <Feather name="check" size={14} color="#141210" />
                   ) : (
-                    <Text className={`text-xs font-bold ${isActive ? "text-white" : "text-zinc-500"}`}>
+                    <Text
+                      className={`text-xs font-bold ${isActive ? "text-white" : "text-zinc-500"}`}
+                    >
                       {s.num}
                     </Text>
                   )}
                 </View>
                 <Text
                   className={`text-[10px] font-bold mt-1.5 ${
-                    isActive ? "text-[#FF4E4E]" : isCompleted ? "text-[#D4AF37]" : "text-zinc-500"
+                    isActive
+                      ? "text-[#FF4E4E]"
+                      : isCompleted
+                        ? "text-[#D4AF37]"
+                        : "text-zinc-500"
                   }`}
                 >
                   {s.label}
                 </Text>
               </View>
               {idx < steps.length - 1 && (
-                <View className={`h-[2px] flex-1 mx-2 -mt-4 ${step > s.num ? "bg-[#D4AF37]" : "bg-zinc-800"}`} />
+                <View
+                  className={`h-[2px] flex-1 mx-2 -mt-4 ${step > s.num ? "bg-[#D4AF37]" : "bg-zinc-800"}`}
+                />
               )}
             </React.Fragment>
           );
@@ -531,10 +651,15 @@ export default function UploadComicScreen() {
 
       {/* HEADER */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-zinc-950 bg-[#0F0F10]">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 active:opacity-60">
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          className="p-2 active:opacity-60"
+        >
           <Feather name="arrow-left" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text className="text-white text-lg font-black tracking-tight">Đăng Truyện Lên TaleX</Text>
+        <Text className="text-white text-lg font-black tracking-tight">
+          Đăng Truyện Lên TaleX
+        </Text>
         <View className="w-10" />
       </View>
 
@@ -558,8 +683,12 @@ export default function UploadComicScreen() {
         {/* ================= STEP 1: SERIES ================= */}
         {step === 1 && (
           <View>
-            <Text className="text-white text-base font-black mb-1">Bước 1: Chọn hoặc Tạo Series</Text>
-            <Text className="text-zinc-500 text-xs mb-4">Mỗi chương truyện phải thuộc về một Series (Bộ truyện).</Text>
+            <Text className="text-white text-base font-black mb-1">
+              Bước 1: Chọn hoặc Tạo Series
+            </Text>
+            <Text className="text-zinc-500 text-xs mb-4">
+              Mỗi chương truyện phải thuộc về một Series (Bộ truyện).
+            </Text>
 
             {/* Mode Selectors */}
             <View className="flex-row bg-[#1E1E22] rounded-xl p-1 mb-5 border border-zinc-800">
@@ -567,7 +696,9 @@ export default function UploadComicScreen() {
                 onPress={() => setSeriesMode("select")}
                 className={`flex-1 py-2.5 rounded-lg items-center ${seriesMode === "select" ? "bg-[#FF4E4E]" : ""}`}
               >
-                <Text className={`text-xs font-bold ${seriesMode === "select" ? "text-white" : "text-zinc-400"}`}>
+                <Text
+                  className={`text-xs font-bold ${seriesMode === "select" ? "text-white" : "text-zinc-400"}`}
+                >
                   Chọn Series Có Sẵn
                 </Text>
               </TouchableOpacity>
@@ -575,7 +706,9 @@ export default function UploadComicScreen() {
                 onPress={() => setSeriesMode("create")}
                 className={`flex-1 py-2.5 rounded-lg items-center ${seriesMode === "create" ? "bg-[#FF4E4E]" : ""}`}
               >
-                <Text className={`text-xs font-bold ${seriesMode === "create" ? "text-white" : "text-zinc-400"}`}>
+                <Text
+                  className={`text-xs font-bold ${seriesMode === "create" ? "text-white" : "text-zinc-400"}`}
+                >
                   Tạo Series Mới
                 </Text>
               </TouchableOpacity>
@@ -583,7 +716,9 @@ export default function UploadComicScreen() {
 
             {seriesMode === "select" ? (
               <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-2">Danh sách Series của bạn:</Text>
+                <Text className="text-zinc-400 text-xs font-bold mb-2">
+                  Danh sách Series của bạn:
+                </Text>
                 {loadingSeries ? (
                   <View className="py-10 items-center">
                     <ActivityIndicator size="small" color="#FF4E4E" />
@@ -591,7 +726,8 @@ export default function UploadComicScreen() {
                 ) : seriesList.length === 0 ? (
                   <View className="bg-[#1E1E22] border border-zinc-800 p-8 rounded-2xl items-center">
                     <Text className="text-zinc-500 text-xs text-center font-medium leading-5">
-                      Bạn chưa có Series truyện nào. Vui lòng chọn "Tạo Series Mới" ở trên.
+                      Bạn chưa có Series truyện nào. Vui lòng chọn "Tạo Series
+                      Mới" ở trên.
                     </Text>
                   </View>
                 ) : (
@@ -604,24 +740,39 @@ export default function UploadComicScreen() {
                           setSelectedSeriesId(s.seriesId);
                         }}
                         className={`flex-row items-center p-4 rounded-2xl border ${
-                          isSelected ? "bg-[#FF4E4E]/10 border-[#FF4E4E]" : "bg-[#1E1E22] border-zinc-800"
+                          isSelected
+                            ? "bg-[#FF4E4E]/10 border-[#FF4E4E]"
+                            : "bg-[#1E1E22] border-zinc-800"
                         } mb-3`}
                       >
                         <View className="w-12 h-12 rounded-xl bg-zinc-800 items-center justify-center mr-4">
-                          <MaterialCommunityIcons name="book-open-outline" size={24} color="#D4AF37" />
+                          <MaterialCommunityIcons
+                            name="book-open-outline"
+                            size={24}
+                            color="#D4AF37"
+                          />
                         </View>
                         <View className="flex-1">
-                          <Text className="text-white text-sm font-bold">{s.title}</Text>
-                          <Text className="text-zinc-500 text-xs mt-0.5" numberOfLines={1}>
+                          <Text className="text-white text-sm font-bold">
+                            {s.title}
+                          </Text>
+                          <Text
+                            className="text-zinc-500 text-xs mt-0.5"
+                            numberOfLines={1}
+                          >
                             {s.description || "Không có mô tả"}
                           </Text>
                         </View>
                         <View
                           className={`w-5 h-5 rounded-full border items-center justify-center ${
-                            isSelected ? "border-[#FF4E4E] bg-[#FF4E4E]" : "border-zinc-600"
+                            isSelected
+                              ? "border-[#FF4E4E] bg-[#FF4E4E]"
+                              : "border-zinc-600"
                           }`}
                         >
-                          {isSelected && <Feather name="check" size={12} color="white" />}
+                          {isSelected && (
+                            <Feather name="check" size={12} color="white" />
+                          )}
                         </View>
                       </TouchableOpacity>
                     );
@@ -632,7 +783,9 @@ export default function UploadComicScreen() {
               <View>
                 {/* Title */}
                 <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Tên Series truyện mới *</Text>
+                  <Text className="text-zinc-400 text-xs font-bold mb-2">
+                    Tên Series truyện mới *
+                  </Text>
                   <TextInput
                     placeholder="Nhập tên bộ truyện..."
                     placeholderTextColor="#7C766B"
@@ -644,7 +797,9 @@ export default function UploadComicScreen() {
 
                 {/* Description */}
                 <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Mô tả Series</Text>
+                  <Text className="text-zinc-400 text-xs font-bold mb-2">
+                    Mô tả Series
+                  </Text>
                   <TextInput
                     placeholder="Viết mô tả tóm tắt nội dung truyện..."
                     placeholderTextColor="#7C766B"
@@ -659,7 +814,9 @@ export default function UploadComicScreen() {
 
                 {/* Cover Picker */}
                 <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Ảnh bìa Series (Cover Art - Tỉ lệ 2:3)</Text>
+                  <Text className="text-zinc-400 text-xs font-bold mb-2">
+                    Ảnh bìa Series (Cover Art - Tỉ lệ 2:3)
+                  </Text>
                   {seriesCover ? (
                     <View className="flex-row bg-[#1E1E22] border border-zinc-800 rounded-2xl p-3 items-center">
                       <Image
@@ -668,18 +825,25 @@ export default function UploadComicScreen() {
                         resizeMode="cover"
                       />
                       <View className="flex-1 ml-4">
-                        <Text className="text-white text-sm font-bold" numberOfLines={1}>
+                        <Text
+                          className="text-white text-sm font-bold"
+                          numberOfLines={1}
+                        >
                           {seriesCover.name}
                         </Text>
                         <Text className="text-zinc-500 text-xs mt-1">
                           Dung lượng: {(seriesCover.size / 1024).toFixed(0)} KB
                         </Text>
-                        <Text className="text-zinc-500 text-xs">Tỉ lệ ảnh: 2:3 (Dọc)</Text>
+                        <Text className="text-zinc-500 text-xs">
+                          Tỉ lệ ảnh: 2:3 (Dọc)
+                        </Text>
                         <TouchableOpacity
                           onPress={handleSelectCover}
                           className="mt-3 bg-zinc-850 px-3 py-1.5 rounded-lg self-start active:opacity-60"
                         >
-                          <Text className="text-white text-[11px] font-bold">Thay đổi ảnh bìa</Text>
+                          <Text className="text-white text-[11px] font-bold">
+                            Thay đổi ảnh bìa
+                          </Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -689,11 +853,19 @@ export default function UploadComicScreen() {
                       className="w-full h-32 bg-[#1E1E22] border border-dashed border-zinc-700 rounded-2xl items-center justify-center flex-row px-6 overflow-hidden active:opacity-80"
                     >
                       <View className="w-12 h-12 rounded-full bg-[#FF4E4E]/10 items-center justify-center mr-4">
-                        <Feather name="upload-cloud" size={24} color="#FF4E4E" />
+                        <Feather
+                          name="upload-cloud"
+                          size={24}
+                          color="#FF4E4E"
+                        />
                       </View>
                       <View className="flex-1">
-                        <Text className="text-white text-xs font-bold">Chọn ảnh bìa truyện từ thư viện</Text>
-                        <Text className="text-zinc-500 text-[10px] mt-0.5">Tỉ lệ 2:3 dọc (VD: Bìa truyện tranh)</Text>
+                        <Text className="text-white text-xs font-bold">
+                          Chọn ảnh bìa truyện từ thư viện
+                        </Text>
+                        <Text className="text-zinc-500 text-[10px] mt-0.5">
+                          Tỉ lệ 2:3 dọc (VD: Bìa truyện tranh)
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   )}
@@ -701,7 +873,9 @@ export default function UploadComicScreen() {
 
                 {/* Genres */}
                 <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Thể loại</Text>
+                  <Text className="text-zinc-400 text-xs font-bold mb-2">
+                    Thể loại
+                  </Text>
                   <View className="flex-row flex-wrap">
                     {genresList.map((g) => {
                       const isSelected = selectedGenres.includes(g);
@@ -710,10 +884,14 @@ export default function UploadComicScreen() {
                           key={g}
                           onPress={() => toggleGenre(g)}
                           className={`px-3 py-1.5 rounded-full mr-2 mb-2 border ${
-                            isSelected ? "bg-[#D4AF37]/15 border-[#D4AF37]" : "bg-[#1E1E22] border-zinc-800"
+                            isSelected
+                              ? "bg-[#D4AF37]/15 border-[#D4AF37]"
+                              : "bg-[#1E1E22] border-zinc-800"
                           }`}
                         >
-                          <Text className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-500"}`}>
+                          <Text
+                            className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-500"}`}
+                          >
                             {g}
                           </Text>
                         </TouchableOpacity>
@@ -730,8 +908,15 @@ export default function UploadComicScreen() {
                 onPress={handleNextStep}
                 className="h-12 bg-[#FF4E4E] rounded-xl items-center justify-center flex-row"
               >
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Tiếp Tục</Text>
-                <Feather name="arrow-right" size={16} color="white" style={{ marginLeft: 6 }} />
+                <Text className="text-white text-sm font-bold uppercase tracking-wider">
+                  Tiếp Tục
+                </Text>
+                <Feather
+                  name="arrow-right"
+                  size={16}
+                  color="white"
+                  style={{ marginLeft: 6 }}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -740,8 +925,12 @@ export default function UploadComicScreen() {
         {/* ================= STEP 2: SEASON ================= */}
         {step === 2 && (
           <View>
-            <Text className="text-white text-base font-black mb-1">Bước 2: Chọn hoặc Tạo Season</Text>
-            <Text className="text-zinc-500 text-xs mb-4">Các tập truyện được nhóm theo Season / Phần phát hành.</Text>
+            <Text className="text-white text-base font-black mb-1">
+              Bước 2: Chọn hoặc Tạo Season
+            </Text>
+            <Text className="text-zinc-500 text-xs mb-4">
+              Các tập truyện được nhóm theo Season / Phần phát hành.
+            </Text>
 
             {/* Mode Selectors */}
             <View className="flex-row bg-[#1E1E22] rounded-xl p-1 mb-5 border border-zinc-800">
@@ -749,7 +938,9 @@ export default function UploadComicScreen() {
                 onPress={() => setSeasonMode("select")}
                 className={`flex-1 py-2.5 rounded-lg items-center ${seasonMode === "select" ? "bg-[#FF4E4E]" : ""}`}
               >
-                <Text className={`text-xs font-bold ${seasonMode === "select" ? "text-white" : "text-zinc-400"}`}>
+                <Text
+                  className={`text-xs font-bold ${seasonMode === "select" ? "text-white" : "text-zinc-400"}`}
+                >
                   Chọn Season Có Sẵn
                 </Text>
               </TouchableOpacity>
@@ -757,7 +948,9 @@ export default function UploadComicScreen() {
                 onPress={() => setSeasonMode("create")}
                 className={`flex-1 py-2.5 rounded-lg items-center ${seasonMode === "create" ? "bg-[#FF4E4E]" : ""}`}
               >
-                <Text className={`text-xs font-bold ${seasonMode === "create" ? "text-white" : "text-zinc-400"}`}>
+                <Text
+                  className={`text-xs font-bold ${seasonMode === "create" ? "text-white" : "text-zinc-400"}`}
+                >
                   Tạo Season Mới
                 </Text>
               </TouchableOpacity>
@@ -765,7 +958,9 @@ export default function UploadComicScreen() {
 
             {seasonMode === "select" ? (
               <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-2">Danh sách Season hiện có:</Text>
+                <Text className="text-zinc-400 text-xs font-bold mb-2">
+                  Danh sách Season hiện có:
+                </Text>
                 {loadingSeasons ? (
                   <View className="py-10 items-center">
                     <ActivityIndicator size="small" color="#FF4E4E" />
@@ -773,7 +968,8 @@ export default function UploadComicScreen() {
                 ) : seasonList.length === 0 ? (
                   <View className="bg-[#1E1E22] border border-zinc-800 p-8 rounded-2xl items-center">
                     <Text className="text-zinc-500 text-xs text-center font-medium leading-5">
-                      Chưa có Season nào được tạo cho Series này. Vui lòng chọn "Tạo Season Mới" ở trên.
+                      Chưa có Season nào được tạo cho Series này. Vui lòng chọn
+                      "Tạo Season Mới" ở trên.
                     </Text>
                   </View>
                 ) : (
@@ -786,22 +982,36 @@ export default function UploadComicScreen() {
                           setSelectedSeasonId(s.seasonId);
                         }}
                         className={`flex-row items-center p-4 rounded-2xl border ${
-                          isSelected ? "bg-[#FF4E4E]/10 border-[#FF4E4E]" : "bg-[#1E1E22] border-zinc-800"
+                          isSelected
+                            ? "bg-[#FF4E4E]/10 border-[#FF4E4E]"
+                            : "bg-[#1E1E22] border-zinc-800"
                         } mb-3`}
                       >
                         <View className="w-10 h-10 rounded-xl bg-zinc-800 items-center justify-center mr-4">
-                          <MaterialCommunityIcons name="layers-outline" size={20} color="#D4AF37" />
+                          <MaterialCommunityIcons
+                            name="layers-outline"
+                            size={20}
+                            color="#D4AF37"
+                          />
                         </View>
                         <View className="flex-1">
-                          <Text className="text-white text-sm font-bold">Season {s.seasonNumber}</Text>
-                          <Text className="text-zinc-500 text-xs mt-0.5">{s.title || "Không tiêu đề"}</Text>
+                          <Text className="text-white text-sm font-bold">
+                            Season {s.seasonNumber}
+                          </Text>
+                          <Text className="text-zinc-500 text-xs mt-0.5">
+                            {s.title || "Không tiêu đề"}
+                          </Text>
                         </View>
                         <View
                           className={`w-5 h-5 rounded-full border items-center justify-center ${
-                            isSelected ? "border-[#FF4E4E] bg-[#FF4E4E]" : "border-zinc-600"
+                            isSelected
+                              ? "border-[#FF4E4E] bg-[#FF4E4E]"
+                              : "border-zinc-600"
                           }`}
                         >
-                          {isSelected && <Feather name="check" size={12} color="white" />}
+                          {isSelected && (
+                            <Feather name="check" size={12} color="white" />
+                          )}
                         </View>
                       </TouchableOpacity>
                     );
@@ -811,7 +1021,9 @@ export default function UploadComicScreen() {
             ) : (
               <View className="space-y-4">
                 <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">Season số mấy (VD: 1, 2) *</Text>
+                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">
+                    Season số mấy (VD: 1, 2) *
+                  </Text>
                   <TextInput
                     placeholder="Nhập số thứ tự Season..."
                     placeholderTextColor="#7C766B"
@@ -823,7 +1035,9 @@ export default function UploadComicScreen() {
                 </View>
 
                 <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">Tiêu đề Season *</Text>
+                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">
+                    Tiêu đề Season *
+                  </Text>
                   <TextInput
                     placeholder="Nhập tiêu đề phần truyện (Ví dụ: Phần mở đầu)..."
                     placeholderTextColor="#7C766B"
@@ -834,7 +1048,9 @@ export default function UploadComicScreen() {
                 </View>
 
                 <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">Mô tả Season</Text>
+                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">
+                    Mô tả Season
+                  </Text>
                   <TextInput
                     placeholder="Mô tả nội dung của phần này..."
                     placeholderTextColor="#7C766B"
@@ -855,15 +1071,29 @@ export default function UploadComicScreen() {
                 onPress={() => setStep(1)}
                 className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
               >
-                <Feather name="arrow-left" size={16} color="white" style={{ marginRight: 6 }} />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Quay lại</Text>
+                <Feather
+                  name="arrow-left"
+                  size={16}
+                  color="white"
+                  style={{ marginRight: 6 }}
+                />
+                <Text className="text-white text-sm font-bold uppercase tracking-wider">
+                  Quay lại
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleNextStep}
                 className="flex-1 h-12 bg-[#FF4E4E] rounded-xl items-center justify-center flex-row"
               >
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Tiếp Tục</Text>
-                <Feather name="arrow-right" size={16} color="white" style={{ marginLeft: 6 }} />
+                <Text className="text-white text-sm font-bold uppercase tracking-wider">
+                  Tiếp Tục
+                </Text>
+                <Feather
+                  name="arrow-right"
+                  size={16}
+                  color="white"
+                  style={{ marginLeft: 6 }}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -872,11 +1102,17 @@ export default function UploadComicScreen() {
         {/* ================= STEP 3: CHAPTER DETAILS ================= */}
         {step === 3 && (
           <View className="space-y-4">
-            <Text className="text-white text-base font-black mb-1">Bước 3: Nhập thông tin Chương mới</Text>
-            <Text className="text-zinc-500 text-xs mb-2">Điền thông tin chi tiết cho tập/chương truyện chuẩn bị tải lên.</Text>
+            <Text className="text-white text-base font-black mb-1">
+              Bước 3: Nhập thông tin Chương mới
+            </Text>
+            <Text className="text-zinc-500 text-xs mb-2">
+              Điền thông tin chi tiết cho tập/chương truyện chuẩn bị tải lên.
+            </Text>
 
             <View>
-              <Text className="text-zinc-400 text-xs font-bold mb-1.5">Chương số mấy (VD: 1, 2) *</Text>
+              <Text className="text-zinc-400 text-xs font-bold mb-1.5">
+                Chương số mấy (VD: 1, 2) *
+              </Text>
               <TextInput
                 placeholder="Nhập số chương..."
                 placeholderTextColor="#7C766B"
@@ -888,7 +1124,9 @@ export default function UploadComicScreen() {
             </View>
 
             <View>
-              <Text className="text-zinc-400 text-xs font-bold mb-1.5">Tiêu đề chương *</Text>
+              <Text className="text-zinc-400 text-xs font-bold mb-1.5">
+                Tiêu đề chương *
+              </Text>
               <TextInput
                 placeholder="Nhập tên chương..."
                 placeholderTextColor="#7C766B"
@@ -899,7 +1137,9 @@ export default function UploadComicScreen() {
             </View>
 
             <View>
-              <Text className="text-zinc-400 text-xs font-bold mb-1.5">Mô tả ngắn</Text>
+              <Text className="text-zinc-400 text-xs font-bold mb-1.5">
+                Mô tả ngắn
+              </Text>
               <TextInput
                 placeholder="Tóm tắt nội dung chương..."
                 placeholderTextColor="#7C766B"
@@ -914,20 +1154,31 @@ export default function UploadComicScreen() {
 
             {/* Release Type (Free, Premium, Coin) */}
             <View>
-              <Text className="text-zinc-400 text-xs font-bold mb-2">Chế độ xem của chương</Text>
+              <Text className="text-zinc-400 text-xs font-bold mb-2">
+                Chế độ xem của chương
+              </Text>
               <View className="flex-row space-x-2">
                 {["free", "premium", "coin"].map((type) => {
                   const isSelected = releaseType === type;
-                  const label = type === "free" ? "Miễn phí" : type === "premium" ? "Premium" : "Bán xu";
+                  const label =
+                    type === "free"
+                      ? "Miễn phí"
+                      : type === "premium"
+                        ? "Premium"
+                        : "Bán xu";
                   return (
                     <TouchableOpacity
                       key={type}
                       onPress={() => setReleaseType(type as any)}
                       className={`flex-1 py-3 rounded-xl border items-center justify-center ${
-                        isSelected ? "bg-[#D4AF37]/15 border-[#D4AF37]" : "bg-[#1E1E22] border-zinc-800"
+                        isSelected
+                          ? "bg-[#D4AF37]/15 border-[#D4AF37]"
+                          : "bg-[#1E1E22] border-zinc-800"
                       }`}
                     >
-                      <Text className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-400"}`}>
+                      <Text
+                        className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-400"}`}
+                      >
                         {label}
                       </Text>
                     </TouchableOpacity>
@@ -938,7 +1189,9 @@ export default function UploadComicScreen() {
 
             {releaseType === "coin" && (
               <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-1.5">Giá bán (Xu) *</Text>
+                <Text className="text-zinc-400 text-xs font-bold mb-1.5">
+                  Giá bán (Xu) *
+                </Text>
                 <TextInput
                   placeholder="Nhập số xu cần mua..."
                   placeholderTextColor="#7C766B"
@@ -956,15 +1209,29 @@ export default function UploadComicScreen() {
                 onPress={() => setStep(2)}
                 className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
               >
-                <Feather name="arrow-left" size={16} color="white" style={{ marginRight: 6 }} />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Quay lại</Text>
+                <Feather
+                  name="arrow-left"
+                  size={16}
+                  color="white"
+                  style={{ marginRight: 6 }}
+                />
+                <Text className="text-white text-sm font-bold uppercase tracking-wider">
+                  Quay lại
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleNextStep}
                 className="flex-1 h-12 bg-[#FF4E4E] rounded-xl items-center justify-center flex-row"
               >
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Khởi Tạo</Text>
-                <Feather name="arrow-right" size={16} color="white" style={{ marginLeft: 6 }} />
+                <Text className="text-white text-sm font-bold uppercase tracking-wider">
+                  Khởi Tạo
+                </Text>
+                <Feather
+                  name="arrow-right"
+                  size={16}
+                  color="white"
+                  style={{ marginLeft: 6 }}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -975,27 +1242,45 @@ export default function UploadComicScreen() {
           <View>
             {/* Episode Brief */}
             <View className="bg-[#1E1E22] border border-zinc-800 rounded-3xl p-4 mb-5 space-y-2">
-              <Text className="text-[#D4AF37] text-xs font-black uppercase">ĐÃ KHỞI TẠO CHƯƠNG THÀNH CÔNG:</Text>
+              <Text className="text-[#D4AF37] text-xs font-black uppercase">
+                ĐÃ KHỞI TẠO CHƯƠNG THÀNH CÔNG:
+              </Text>
               <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">Vị trí:</Text>
+                <Text className="text-zinc-500 text-xs font-bold w-20">
+                  Vị trí:
+                </Text>
                 <Text className="text-white text-xs font-semibold flex-1">
                   {getSeasonTitle()} • Tập {episodeNumber}
                 </Text>
               </View>
               <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">Tên tập:</Text>
-                <Text className="text-white text-xs font-semibold flex-1">{episodeTitle}</Text>
+                <Text className="text-zinc-500 text-xs font-bold w-20">
+                  Tên tập:
+                </Text>
+                <Text className="text-white text-xs font-semibold flex-1">
+                  {episodeTitle}
+                </Text>
               </View>
               <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">Chế độ xem:</Text>
+                <Text className="text-zinc-500 text-xs font-bold w-20">
+                  Chế độ xem:
+                </Text>
                 <Text className="text-[#D4AF37] text-xs font-black uppercase flex-1">
-                  {releaseType === "free" ? "Miễn phí" : releaseType === "premium" ? "Premium" : `${coinPrice} Xu`}
+                  {releaseType === "free"
+                    ? "Miễn phí"
+                    : releaseType === "premium"
+                      ? "Premium"
+                      : `${coinPrice} Xu`}
                 </Text>
               </View>
             </View>
 
-            <Text className="text-white text-base font-black mb-1">Bước 4: Tải lên các trang truyện</Text>
-            <Text className="text-zinc-500 text-xs mb-5">Chọn các trang ảnh truyện từ thư viện để tải lên.</Text>
+            <Text className="text-white text-base font-black mb-1">
+              Bước 4: Tải lên các trang truyện
+            </Text>
+            <Text className="text-zinc-500 text-xs mb-5">
+              Chọn các trang ảnh truyện từ thư viện để tải lên.
+            </Text>
 
             {comicPages.length === 0 ? (
               <TouchableOpacity
@@ -1005,35 +1290,67 @@ export default function UploadComicScreen() {
                 <View className="w-16 h-16 rounded-full bg-[#FF4E4E]/10 items-center justify-center mb-4">
                   <Feather name="image" size={32} color="#FF4E4E" />
                 </View>
-                <Text className="text-white text-sm font-bold text-center">Bấm vào đây để chọn các trang truyện</Text>
-                <Text className="text-zinc-500 text-xs text-center mt-1.5">Hỗ trợ chọn nhiều ảnh cùng lúc</Text>
+                <Text className="text-white text-sm font-bold text-center">
+                  Bấm vào đây để chọn các trang truyện
+                </Text>
+                <Text className="text-zinc-500 text-xs text-center mt-1.5">
+                  Hỗ trợ chọn nhiều ảnh cùng lúc
+                </Text>
               </TouchableOpacity>
             ) : (
               <View className="space-y-4 mb-5">
                 {/* Pages List */}
                 <View className="bg-[#1E1E22] border border-zinc-800 rounded-3xl p-4">
                   <View className="flex-row items-center justify-between border-b border-zinc-800 pb-3 mb-3">
-                    <Text className="text-white text-xs font-bold">Danh sách trang ({comicPages.length})</Text>
-                    <TouchableOpacity onPress={handleSelectPages} className="flex-row items-center bg-zinc-800 px-3 py-1.5 rounded-lg active:opacity-60">
+                    <Text className="text-white text-xs font-bold">
+                      Danh sách trang ({comicPages.length})
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handleSelectPages}
+                      className="flex-row items-center bg-zinc-800 px-3 py-1.5 rounded-lg active:opacity-60"
+                    >
                       <Feather name="plus" size={14} color="white" />
-                      <Text className="text-white text-[10px] font-bold ml-1">Thêm trang</Text>
+                      <Text className="text-white text-[10px] font-bold ml-1">
+                        Thêm trang
+                      </Text>
                     </TouchableOpacity>
                   </View>
 
                   <ScrollView style={{ maxHeight: 300 }}>
                     {comicPages.map((page, index) => (
-                      <View key={page.id} className="flex-row items-center justify-between py-2 border-b border-zinc-900/50">
+                      <View
+                        key={page.id}
+                        className="flex-row items-center justify-between py-2 border-b border-zinc-900/50"
+                      >
                         <View className="flex-row items-center flex-1 mr-3">
-                          <Image source={{ uri: page.uri }} className="w-12 h-16 rounded-md mr-3 bg-zinc-900" resizeMode="cover" />
+                          <Image
+                            source={{ uri: page.uri }}
+                            className="w-12 h-16 rounded-md mr-3 bg-zinc-900"
+                            resizeMode="cover"
+                          />
                           <View className="flex-1">
-                            <Text className="text-white text-xs font-bold" numberOfLines={1}>Trang {index + 1}</Text>
-                            <Text className="text-zinc-500 text-[10px]" numberOfLines={1}>{page.name}</Text>
-                            <Text className="text-zinc-500 text-[10px]">{(page.size / 1024).toFixed(0)} KB</Text>
+                            <Text
+                              className="text-white text-xs font-bold"
+                              numberOfLines={1}
+                            >
+                              Trang {index + 1}
+                            </Text>
+                            <Text
+                              className="text-zinc-500 text-[10px]"
+                              numberOfLines={1}
+                            >
+                              {page.name}
+                            </Text>
+                            <Text className="text-zinc-500 text-[10px]">
+                              {(page.size / 1024).toFixed(0)} KB
+                            </Text>
                           </View>
                         </View>
                         <TouchableOpacity
                           onPress={() => {
-                            setComicPages((prev) => prev.filter((p) => p.id !== page.id));
+                            setComicPages((prev) =>
+                              prev.filter((p) => p.id !== page.id),
+                            );
                           }}
                           className="p-2 active:opacity-60"
                         >
@@ -1048,16 +1365,50 @@ export default function UploadComicScreen() {
                 {uploading ? (
                   <View className="bg-[#1E1E22] border border-[#D4AF37]/30 rounded-2xl p-4 items-center">
                     <ActivityIndicator size="small" color="#D4AF37" />
-                    <Text className="text-stone-300 text-xs font-medium mt-2">{submitMsg}</Text>
+                    <Text className="text-stone-300 text-xs font-medium mt-2">
+                      {submitMsg}
+                    </Text>
                   </View>
                 ) : isSuccess ? (
-                  <View className="bg-[#10B981]/10 border border-[#10B981]/30 rounded-2xl p-4 flex-row items-center">
-                    <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-                    <View className="ml-3 flex-1">
-                      <Text className="text-[#10B981] text-sm font-bold">Tải lên hoàn tất!</Text>
-                      <Text className="text-emerald-500/80 text-[10px] mt-0.5">
-                        Đã lưu {comicPages.length} trang truyện vào chương mới của bạn.
+                  <View className="space-y-3">
+                    <View className="bg-[#10B981]/10 border border-[#10B981]/30 rounded-2xl p-4 flex-row items-center">
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={24}
+                        color="#10B981"
+                      />
+                      <View className="ml-3 flex-1">
+                        <Text className="text-[#10B981] text-sm font-bold">
+                          Tải lên hoàn tất!
+                        </Text>
+                        <Text className="text-emerald-500/80 text-[10px] mt-0.5">
+                          Đã lưu {comicPages.length} trang truyện vào chương mới
+                          của bạn.
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* AI Moderation Progress Panel */}
+                    <View className="bg-[#1E1E22] border border-zinc-800 rounded-2xl p-4">
+                      <Text className="text-[#D4AF37] text-xs font-bold mb-2">
+                        TIẾN TRÌNH KIỂM DUYỆT ẢNH AI:
                       </Text>
+                      <View className="flex-row items-center justify-between mb-1">
+                        <Text className="text-zinc-400 text-xs font-semibold">
+                          Trạng thái:
+                        </Text>
+                        <Text
+                          className={`text-xs font-bold ${
+                            moderationStatus?.includes("Từ chối")
+                              ? "text-red-500"
+                              : moderationStatus?.includes("Đạt")
+                                ? "text-green-400"
+                                : "text-amber-400"
+                          }`}
+                        >
+                          {moderationStatus || "Đang kết nối..."}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                 ) : (
@@ -1065,8 +1416,15 @@ export default function UploadComicScreen() {
                     onPress={handleStartUpload}
                     className="h-12 bg-zinc-800 rounded-xl items-center justify-center flex-row"
                   >
-                    <Feather name="upload" size={16} color="white" style={{ marginRight: 6 }} />
-                    <Text className="text-white text-xs font-bold">Bắt Đầu Tải Lên Hệ Thống</Text>
+                    <Feather
+                      name="upload"
+                      size={16}
+                      color="white"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text className="text-white text-xs font-bold">
+                      Bắt Đầu Tải Lên Hệ Thống
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -1078,25 +1436,41 @@ export default function UploadComicScreen() {
                 onPress={() => setStep(3)}
                 className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
               >
-                <Feather name="arrow-left" size={16} color="white" style={{ marginRight: 6 }} />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Quay lại</Text>
+                <Feather
+                  name="arrow-left"
+                  size={16}
+                  color="white"
+                  style={{ marginRight: 6 }}
+                />
+                <Text className="text-white text-sm font-bold uppercase tracking-wider">
+                  Quay lại
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={() => setStep(5)}
-                disabled={!isSuccess}
+                disabled={!isSuccess || !isModerationDone}
                 className={`flex-1 h-12 rounded-xl items-center justify-center flex-row ${
-                  isSuccess ? "bg-[#FF4E4E]" : "bg-zinc-800 opacity-50"
+                  isSuccess && isModerationDone
+                    ? "bg-[#FF4E4E]"
+                    : "bg-zinc-800 opacity-50"
                 }`}
               >
                 <Text
                   className={`text-sm font-bold uppercase tracking-wider ${
-                    isSuccess ? "text-white" : "text-zinc-500"
+                    isSuccess && isModerationDone
+                      ? "text-white"
+                      : "text-zinc-500"
                   }`}
                 >
                   Tiếp Tục
                 </Text>
-                <Feather name="arrow-right" size={16} color={isSuccess ? "white" : "#71717A"} style={{ marginLeft: 6 }} />
+                <Feather
+                  name="arrow-right"
+                  size={16}
+                  color={isSuccess && isModerationDone ? "white" : "#71717A"}
+                  style={{ marginLeft: 6 }}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -1107,42 +1481,73 @@ export default function UploadComicScreen() {
           <View>
             <View className="bg-[#1E1E22] p-5 rounded-3xl border border-zinc-800 space-y-4 mb-6">
               <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Tên Bộ Truyện / Series</Text>
-                <Text className="text-white text-sm font-bold mt-1">{getSeriesTitle()}</Text>
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">
+                  Tên Bộ Truyện / Series
+                </Text>
+                <Text className="text-white text-sm font-bold mt-1">
+                  {getSeriesTitle()}
+                </Text>
               </View>
 
               <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Season</Text>
-                <Text className="text-white text-sm font-bold mt-1">{getSeasonTitle()}</Text>
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">
+                  Season
+                </Text>
+                <Text className="text-white text-sm font-bold mt-1">
+                  {getSeasonTitle()}
+                </Text>
               </View>
 
               <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Tên chương (Chương {episodeNumber})</Text>
-                <Text className="text-white text-sm font-bold mt-1">{episodeTitle || "Không có tiêu đề"}</Text>
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">
+                  Tên chương (Chương {episodeNumber})
+                </Text>
+                <Text className="text-white text-sm font-bold mt-1">
+                  {episodeTitle || "Không có tiêu đề"}
+                </Text>
               </View>
 
               {episodeDesc ? (
                 <View className="border-b border-zinc-850 pb-3">
-                  <Text className="text-zinc-500 text-[10px] font-black uppercase">Mô tả chương truyện</Text>
-                  <Text className="text-[#A19E95] text-xs font-semibold mt-1 leading-5">{episodeDesc}</Text>
+                  <Text className="text-zinc-500 text-[10px] font-black uppercase">
+                    Mô tả chương truyện
+                  </Text>
+                  <Text className="text-[#A19E95] text-xs font-semibold mt-1 leading-5">
+                    {episodeDesc}
+                  </Text>
                 </View>
               ) : null}
 
               <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Chế độ phát hành</Text>
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">
+                  Chế độ phát hành
+                </Text>
                 <Text className="text-[#D4AF37] text-sm font-black uppercase mt-1">
-                  {releaseType === "free" ? "Miễn phí" : releaseType === "premium" ? "Premium" : `${coinPrice} Xu`}
+                  {releaseType === "free"
+                    ? "Miễn phí"
+                    : releaseType === "premium"
+                      ? "Premium"
+                      : `${coinPrice} Xu`}
                 </Text>
               </View>
 
               <View className="pb-1">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Số lượng trang ảnh</Text>
-                <Text className="text-white text-sm font-bold mt-1">{comicPages.length} trang</Text>
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">
+                  Số lượng trang ảnh
+                </Text>
+                <Text className="text-white text-sm font-bold mt-1">
+                  {comicPages.length} trang
+                </Text>
               </View>
             </View>
 
-            <Text className="text-white text-base font-black mb-1">Bước 5: Xác nhận & Xuất bản</Text>
-            <Text className="text-zinc-500 text-xs mb-5">Xem lại toàn bộ thông tin chương truyện của bạn trước khi nhấn nút xuất bản trực tuyến.</Text>
+            <Text className="text-white text-base font-black mb-1">
+              Bước 5: Xác nhận & Xuất bản
+            </Text>
+            <Text className="text-zinc-500 text-xs mb-5">
+              Xem lại toàn bộ thông tin chương truyện của bạn trước khi nhấn nút
+              xuất bản trực tuyến.
+            </Text>
 
             {/* Nav Buttons */}
             <View className="flex-row mt-8 space-x-3">
@@ -1150,8 +1555,15 @@ export default function UploadComicScreen() {
                 onPress={() => setStep(4)}
                 className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
               >
-                <Feather name="arrow-left" size={16} color="white" style={{ marginRight: 6 }} />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Quay lại</Text>
+                <Feather
+                  name="arrow-left"
+                  size={16}
+                  color="white"
+                  style={{ marginRight: 6 }}
+                />
+                <Text className="text-white text-sm font-bold uppercase tracking-wider">
+                  Quay lại
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1166,7 +1578,12 @@ export default function UploadComicScreen() {
                     <Text className="text-[#141210] text-sm font-black uppercase tracking-wider">
                       Xuất Bản Truyện
                     </Text>
-                    <Feather name="check-circle" size={16} color="#141210" style={{ marginLeft: 6 }} />
+                    <Feather
+                      name="check-circle"
+                      size={16}
+                      color="#141210"
+                      style={{ marginLeft: 6 }}
+                    />
                   </>
                 )}
               </TouchableOpacity>

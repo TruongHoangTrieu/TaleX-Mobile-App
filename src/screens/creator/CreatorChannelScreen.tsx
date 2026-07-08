@@ -95,13 +95,13 @@ export default function CreatorChannelScreen() {
     return result;
   };
 
-  const comicsList = getSortedAndFilteredList(series.filter((item) => item.contentType === "COMIC"));
-  const moviesList = getSortedAndFilteredList(series.filter((item) => item.contentType === "VIDEO"));
+  const comicsList = getSortedAndFilteredList(series.filter((item) => item.contentType?.toUpperCase() === "COMIC"));
+  const moviesList = getSortedAndFilteredList(series.filter((item) => item.contentType?.toUpperCase() === "VIDEO"));
   const selectedItem = series.find((s) => s.seriesId === activeMenuId);
 
   // Điều hướng tới trang chi tiết tác phẩm tương ứng
   const handleItemPress = (item: SeriesItem) => {
-    if (item.contentType === "COMIC") {
+    if (item.contentType?.toUpperCase() === "COMIC") {
       navigation.navigate("ComicDetailScreen", { comicId: item.seriesId });
     } else {
       navigation.navigate("MovieDetailScreen", { movieId: item.seriesId, seriesItem: item });
@@ -172,7 +172,7 @@ export default function CreatorChannelScreen() {
     return (
       <View className="px-4 py-3">
         {list.map((item) => {
-          const isComic = item.contentType === "COMIC";
+          const isComic = item.contentType?.toUpperCase() === "COMIC";
           const isPublic = item.status === "PUBLISHED" || item.visibility === "PUBLIC";
           
           // Tạo dữ liệu mock ổn định dựa trên mã seriesId để không bị thay đổi ngẫu nhiên mỗi lần render
@@ -541,11 +541,10 @@ export default function CreatorChannelScreen() {
               </View>
             )}
 
-            {/* Option 1: Chỉnh sửa */}
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => {
-                const isComic = selectedItem?.contentType === "COMIC";
+                const isComic = selectedItem?.contentType?.toUpperCase() === "COMIC";
                 setActiveMenuId(null);
                 if (isComic) {
                   navigation.navigate("UploadComic", { editSeriesId: selectedItem?.seriesId });

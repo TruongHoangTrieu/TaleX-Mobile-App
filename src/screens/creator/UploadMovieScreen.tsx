@@ -1030,7 +1030,7 @@ export default function UploadMovieScreen() {
                         break;
                       case "coin":
                         label = "Mua Xu";
-                        iconName = "cash-outline";
+                        iconName = "cash";
                         break;
                     }
                     const isSelected = releaseType === type;

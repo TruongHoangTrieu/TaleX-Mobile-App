@@ -29,6 +29,16 @@ export type MediaStatus =
   | "DELETED"
   | "FAILED";
 
+export interface BasePageResponse<T> {
+  content: T[];
+  pageNumber: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+  isFirst: boolean;
+  isLast: boolean;
+}
+
 export type CategoryResponse = {
   categoryId: string;
   categoryName: string;
@@ -449,5 +459,17 @@ export async function deleteMedia(mediaId: string, actorId?: string): Promise<vo
     method: "DELETE",
   });
   return handleResponse<void>(res);
+}
+
+export async function getCategories(): Promise<BasePageResponse<CategoryResponse>> {
+  const url = apiUrl("/api/v1/categories?pageSize=100");
+  const res = await authFetch(url, { method: "GET" });
+  return handleResponse<BasePageResponse<CategoryResponse>>(res);
+}
+
+export async function getTags(): Promise<BasePageResponse<TagResponse>> {
+  const url = apiUrl("/api/v1/tags?pageSize=100");
+  const res = await authFetch(url, { method: "GET" });
+  return handleResponse<BasePageResponse<TagResponse>>(res);
 }
 

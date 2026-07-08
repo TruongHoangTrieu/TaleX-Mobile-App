@@ -33,6 +33,10 @@ import {
   publishEpisode,
   SeriesItem,
   SeasonItem,
+  getCategories,
+  getTags,
+  CategoryResponse,
+  TagResponse,
 } from "@/services/creatorContent";
 import { getOwnCreator } from "@/services/creator";
 import { useAuth } from "@/context/AuthContext";
@@ -56,6 +60,24 @@ export default function UploadMovieScreen() {
   const [newSeriesTitle, setNewSeriesTitle] = useState("");
   const [newSeriesDesc, setNewSeriesDesc] = useState("");
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [categories, setCategories] = useState<CategoryResponse[]>([]);
+  const [tags, setTags] = useState<TagResponse[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+
+  // Fetch Categories & Tags on mount
+  useEffect(() => {
+    const fetchMeta = async () => {
+      try {
+        const [catsRes, tagsRes] = await Promise.all([getCategories(), getTags()]);
+        setCategories(catsRes?.content || []);
+        setTags(tagsRes?.content || []);
+      } catch (err) {
+        console.error("Lỗi tải thể loại/tag:", err);
+      }
+    };
+    fetchMeta();
+  }, []);
   const [seriesCover, setSeriesCover] = useState<{
     uri: string;
     name: string;
@@ -186,11 +208,19 @@ export default function UploadMovieScreen() {
     };
   }, []);
 
-  const toggleGenre = (genre: string) => {
-    if (selectedGenres.includes(genre)) {
-      setSelectedGenres(selectedGenres.filter((g) => g !== genre));
+  const toggleCategory = (categoryId: string) => {
+    if (selectedCategoryIds.includes(categoryId)) {
+      setSelectedCategoryIds(selectedCategoryIds.filter((id) => id !== categoryId));
     } else {
-      setSelectedGenres([...selectedGenres, genre]);
+      setSelectedCategoryIds([...selectedCategoryIds, categoryId]);
+    }
+  };
+
+  const toggleTag = (tagId: string) => {
+    if (selectedTagIds.includes(tagId)) {
+      setSelectedTagIds(selectedTagIds.filter((id) => id !== tagId));
+    } else {
+      setSelectedTagIds([...selectedTagIds, tagId]);
     }
   };
 
@@ -461,6 +491,8 @@ export default function UploadMovieScreen() {
             coverUrl,
             contentType: "VIDEO",
             visibility: "PUBLIC",
+            categoryIds: selectedCategoryIds,
+            tagIds: selectedTagIds,
           });
           finalSeriesId = newSeries.seriesId;
           setSeriesList((prev) => [newSeries, ...prev]);
@@ -775,22 +807,45 @@ export default function UploadMovieScreen() {
                   )}
                 </View>
 
-                {/* Genres */}
+                {/* Categories */}
                 <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Thể loại</Text>
+                  <Text className="text-zinc-400 text-xs font-bold mb-2">Thể loại *</Text>
                   <View className="flex-row flex-wrap">
-                    {genresList.map((g) => {
-                      const isSelected = selectedGenres.includes(g);
+                    {categories.map((c) => {
+                      const isSelected = selectedCategoryIds.includes(c.categoryId);
                       return (
                         <TouchableOpacity
-                          key={g}
-                          onPress={() => toggleGenre(g)}
+                          key={c.categoryId}
+                          onPress={() => toggleCategory(c.categoryId)}
                           className={`px-3 py-1.5 rounded-full mr-2 mb-2 border ${
                             isSelected ? "bg-[#D4AF37]/15 border-[#D4AF37]" : "bg-[#1E1E22] border-zinc-800"
                           }`}
                         >
                           <Text className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-500"}`}>
-                            {g}
+                            {c.categoryName}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* Tags */}
+                <View className="mb-6">
+                  <Text className="text-zinc-400 text-xs font-bold mb-2">Thẻ Tag</Text>
+                  <View className="flex-row flex-wrap">
+                    {tags.map((t) => {
+                      const isSelected = selectedTagIds.includes(t.tagId);
+                      return (
+                        <TouchableOpacity
+                          key={t.tagId}
+                          onPress={() => toggleTag(t.tagId)}
+                          className={`px-3 py-1.5 rounded-full mr-2 mb-2 border ${
+                            isSelected ? "bg-blue-500/10 border-blue-500/30" : "bg-[#1E1E22] border-zinc-800"
+                          }`}
+                        >
+                          <Text className={`text-xs font-bold ${isSelected ? "text-blue-400" : "text-zinc-500"}`}>
+                            #{t.tagName}
                           </Text>
                         </TouchableOpacity>
                       );

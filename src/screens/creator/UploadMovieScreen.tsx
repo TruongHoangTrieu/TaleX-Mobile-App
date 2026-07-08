@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
@@ -33,12 +34,15 @@ import {
   SeriesItem,
   SeasonItem,
 } from "@/services/creatorContent";
+import { getOwnCreator } from "@/services/creator";
+import { useAuth } from "@/context/AuthContext";
 
 const genresList = ["Hành động", "Viễn tưởng", "Tình cảm", "Hài hước", "Kinh dị", "Trinh thám", "Đời thường"];
 
 export default function UploadMovieScreen() {
   const navigation = useNavigation<any>();
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const { user } = useAuth();
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   // Loading & Submitting State
   const [submitting, setSubmitting] = useState(false);
@@ -94,6 +98,32 @@ export default function UploadMovieScreen() {
   const [moderationStatus, setModerationStatus] = useState<string | null>(null);
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [creatorId, setCreatorId] = useState("");
+  const actorId = user?.accountId || "";
+
+  // Load Creator Profile (creatorId & actorId)
+  useEffect(() => {
+    const fetchCreatorProfile = async () => {
+      try {
+        const creatorData = await getOwnCreator();
+        if (creatorData) {
+          if (creatorData.isAcceptedLatestTerms === false) {
+            navigation.navigate("CreatorGuard");
+            return;
+          }
+          const cId = creatorData.creatorId || creatorData.id;
+          if (cId) setCreatorId(cId);
+        }
+      } catch (err: any) {
+        console.error("Lỗi tải thông tin creator profile:", err);
+        if (Number(err?.code) === 4041) {
+          navigation.navigate("CreatorGuard");
+        }
+      }
+    };
+    fetchCreatorProfile();
+  }, [navigation]);
 
   // Load Creator Series
   useEffect(() => {
@@ -232,13 +262,23 @@ export default function UploadMovieScreen() {
     setCopyrightStatus(null);
     setModerationStatus(null);
 
+    console.log("[UploadMovie] Starting upload session creation:", {
+      episodeId: createdEpisodeId,
+      creatorId,
+      actorId,
+    });
+
     try {
       // 1. Create upload session
       const session = await createVideoUploadSession(createdEpisodeId, {
         fileName: videoFile.name,
         fileSize: videoFile.size,
         mimeType: videoFile.type,
+        creatorId: creatorId || undefined,
+        actorId: actorId || undefined,
       });
+
+      console.log("[UploadMovie] Session created successfully:", session);
 
       // 2. Fetch the file binary from local URI
       const localRes = await fetch(videoFile.uri);
@@ -253,7 +293,7 @@ export default function UploadMovieScreen() {
         if (e.lengthComputable) {
           const percent = Math.round((e.loaded / e.total) * 100);
           setUploadProgress(percent);
-          updateVideoUploadProgress(session.uploadSessionId, e.loaded, "UPLOADING").catch(() => {});
+          updateVideoUploadProgress(session.uploadSessionId, e.loaded, "UPLOADING", actorId || undefined).catch(() => {});
         }
       };
 
@@ -261,11 +301,13 @@ export default function UploadMovieScreen() {
         if (xhr.status >= 200 && xhr.status < 300) {
           setUploadProgress(100);
           try {
+            console.log("[UploadMovie] S3 upload done. Confirming completion on backend...");
             // Confirm complete on backend
             const completedMedia = await completeVideoUpload(session.uploadSessionId, {
               publicId: session.publicId,
               secureUrl: session.publicId,
               bytes: videoFile.size,
+              actorId: actorId || undefined,
             });
 
             setIsSuccess(true);
@@ -513,6 +555,7 @@ export default function UploadMovieScreen() {
       { num: 2, label: "Season" },
       { num: 3, label: "Tập phim" },
       { num: 4, label: "Video" },
+      { num: 5, label: "Xuất bản" },
     ];
 
     return (
@@ -662,10 +705,10 @@ export default function UploadMovieScreen() {
                 )}
               </View>
             ) : (
-              <View className="space-y-4">
+              <View>
                 {/* Title */}
-                <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">Tên Series mới *</Text>
+                <View className="mb-6">
+                  <Text className="text-zinc-400 text-xs font-bold mb-2">Tên Series mới *</Text>
                   <TextInput
                     placeholder="Nhập tên bộ phim / series..."
                     placeholderTextColor="#7C766B"
@@ -676,8 +719,8 @@ export default function UploadMovieScreen() {
                 </View>
 
                 {/* Description */}
-                <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">Mô tả Series</Text>
+                <View className="mb-6">
+                  <Text className="text-zinc-400 text-xs font-bold mb-2">Mô tả Series</Text>
                   <TextInput
                     placeholder="Viết mô tả tóm tắt nội dung cốt truyện..."
                     placeholderTextColor="#7C766B"
@@ -691,30 +734,49 @@ export default function UploadMovieScreen() {
                 </View>
 
                 {/* Cover Picker Real */}
-                <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">Ảnh bìa Series (Cover Art)</Text>
-                  <TouchableOpacity
-                    onPress={handleSelectCover}
-                    className="h-28 bg-[#1E1E22] border border-dashed border-zinc-700 rounded-xl items-center justify-center overflow-hidden"
-                  >
-                    {seriesCover ? (
-                      <View className="items-center px-4">
-                        <Feather name="image" size={24} color="#D4AF37" />
-                        <Text className="text-emerald-400 text-xs font-bold mt-1 text-center" numberOfLines={1}>
+                <View className="mb-6">
+                  <Text className="text-zinc-400 text-xs font-bold mb-2">Ảnh bìa Series (Cover Art - Tỉ lệ 16:9)</Text>
+                  {seriesCover ? (
+                    <View className="flex-row bg-[#1E1E22] border border-zinc-800 rounded-2xl p-3 items-center">
+                      <Image
+                        source={{ uri: seriesCover.uri }}
+                        className="h-20 aspect-[16/9] rounded-xl bg-zinc-900"
+                        resizeMode="cover"
+                      />
+                      <View className="flex-1 ml-4">
+                        <Text className="text-white text-sm font-bold" numberOfLines={1}>
                           {seriesCover.name}
                         </Text>
+                        <Text className="text-zinc-500 text-xs mt-1">
+                          Dung lượng: {(seriesCover.size / 1024).toFixed(0)} KB
+                        </Text>
+                        <Text className="text-zinc-500 text-xs">Tỉ lệ ảnh: 16:9 (Ngang)</Text>
+                        <TouchableOpacity
+                          onPress={handleSelectCover}
+                          className="mt-3 bg-zinc-850 px-3 py-1.5 rounded-lg self-start active:opacity-60"
+                        >
+                          <Text className="text-white text-[11px] font-bold">Thay đổi ảnh bìa</Text>
+                        </TouchableOpacity>
                       </View>
-                    ) : (
-                      <View className="items-center">
-                        <Feather name="upload-cloud" size={24} color="#7C766B" />
-                        <Text className="text-zinc-500 text-xs font-bold mt-1">Chọn ảnh bìa từ thư viện</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={handleSelectCover}
+                      className="w-full h-32 bg-[#1E1E22] border border-dashed border-zinc-700 rounded-2xl items-center justify-center flex-row px-6 overflow-hidden active:opacity-80"
+                    >
+                      <View className="w-12 h-12 rounded-full bg-[#FF4E4E]/10 items-center justify-center mr-4">
+                        <Feather name="upload-cloud" size={24} color="#FF4E4E" />
                       </View>
-                    )}
-                  </TouchableOpacity>
+                      <View className="flex-1">
+                        <Text className="text-white text-xs font-bold">Chọn ảnh bìa bộ phim từ thư viện</Text>
+                        <Text className="text-zinc-500 text-[10px] mt-0.5">Tỉ lệ 16:9 ngang (VD: Banner phim)</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 {/* Genres */}
-                <View>
+                <View className="mb-6">
                   <Text className="text-zinc-400 text-xs font-bold mb-2">Thể loại</Text>
                   <View className="flex-row flex-wrap">
                     {genresList.map((g) => {
@@ -1189,37 +1251,106 @@ export default function UploadMovieScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={handlePublish}
-                disabled={!isSuccess || publishing || mediaStatus === "PROCESSING" || mediaStatus === "PENDING"}
+                onPress={() => setStep(5)}
+                disabled={!isSuccess || mediaStatus === "PROCESSING" || mediaStatus === "PENDING"}
                 className={`flex-1 h-12 rounded-xl items-center justify-center flex-row ${
                   isSuccess && mediaStatus !== "PROCESSING" && mediaStatus !== "PENDING"
-                    ? "bg-[#D4AF37]"
+                    ? "bg-[#FF4E4E]"
                     : "bg-zinc-800 opacity-50"
                 }`}
+              >
+                <Text
+                  className={`text-sm font-bold uppercase tracking-wider ${
+                    isSuccess && mediaStatus !== "PROCESSING" && mediaStatus !== "PENDING"
+                      ? "text-white"
+                      : "text-zinc-500"
+                  }`}
+                >
+                  Tiếp Tục
+                </Text>
+                <Feather
+                  name="arrow-right"
+                  size={16}
+                  color={
+                    isSuccess && mediaStatus !== "PROCESSING" && mediaStatus !== "PENDING"
+                      ? "white"
+                      : "#71717A"
+                  }
+                  style={{ marginLeft: 6 }}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ================= STEP 5: PUBLISH ================= */}
+        {step === 5 && (
+          <View>
+            <View className="bg-[#1E1E22] p-5 rounded-3xl border border-zinc-800 space-y-4 mb-6">
+              <View className="border-b border-zinc-850 pb-3">
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">Tên Bộ Phim / Series</Text>
+                <Text className="text-white text-sm font-bold mt-1">{getSeriesTitle()}</Text>
+              </View>
+
+              <View className="border-b border-zinc-850 pb-3">
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">Season</Text>
+                <Text className="text-white text-sm font-bold mt-1">{getSeasonTitle()}</Text>
+              </View>
+
+              <View className="border-b border-zinc-850 pb-3">
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">Tên tập phim (Tập {episodeNumber})</Text>
+                <Text className="text-white text-sm font-bold mt-1">{episodeTitle || "Không có tiêu đề"}</Text>
+              </View>
+
+              {episodeDesc ? (
+                <View className="border-b border-zinc-850 pb-3">
+                  <Text className="text-zinc-500 text-[10px] font-black uppercase">Mô tả tập phim</Text>
+                  <Text className="text-[#A19E95] text-xs font-semibold mt-1 leading-5">{episodeDesc}</Text>
+                </View>
+              ) : null}
+
+              <View className="border-b border-zinc-850 pb-3">
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">Chế độ phát hành</Text>
+                <Text className="text-[#D4AF37] text-sm font-black uppercase mt-1">
+                  {releaseType === "free" ? "Miễn phí" : releaseType === "premium" ? "Premium" : `${coinPrice} Xu`}
+                </Text>
+              </View>
+
+              <View className="pb-1">
+                <Text className="text-zinc-500 text-[10px] font-black uppercase">Trạng thái tệp tin</Text>
+                <View className="flex-row items-center mt-1.5">
+                  <View className="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2" />
+                  <Text className="text-emerald-400 text-xs font-bold">Video đã sẵn sàng phát hành</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text className="text-white text-base font-black mb-1">Bước 5: Xác nhận & Xuất bản</Text>
+            <Text className="text-zinc-500 text-xs mb-5">Xem lại toàn bộ thông tin tập phim của bạn trước khi nhấn nút xuất bản trực tuyến.</Text>
+
+            {/* Nav Buttons */}
+            <View className="flex-row mt-8 space-x-3">
+              <TouchableOpacity
+                onPress={() => setStep(4)}
+                className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
+              >
+                <Feather name="arrow-left" size={16} color="white" className="mr-2" />
+                <Text className="text-white text-sm font-bold uppercase tracking-wider">Quay lại</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handlePublish}
+                disabled={publishing}
+                className="flex-1 h-12 bg-[#D4AF37] rounded-xl items-center justify-center flex-row"
               >
                 {publishing ? (
                   <ActivityIndicator size="small" color="#141210" />
                 ) : (
                   <>
-                    <Text
-                      className={`text-sm font-black uppercase tracking-wider ${
-                        isSuccess && mediaStatus !== "PROCESSING" && mediaStatus !== "PENDING"
-                          ? "text-[#141210]"
-                          : "text-zinc-500"
-                      }`}
-                    >
-                      Đăng Phim
+                    <Text className="text-[#141210] text-sm font-black uppercase tracking-wider">
+                      Xuất Bản Phim
                     </Text>
-                    <Feather
-                      name="check-circle"
-                      size={16}
-                      color={
-                        isSuccess && mediaStatus !== "PROCESSING" && mediaStatus !== "PENDING"
-                          ? "#141210"
-                          : "#71717A"
-                      }
-                      style={{ marginLeft: 6 }}
-                    />
+                    <Feather name="check-circle" size={16} color="#141210" style={{ marginLeft: 6 }} />
                   </>
                 )}
               </TouchableOpacity>

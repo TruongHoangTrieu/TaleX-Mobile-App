@@ -136,6 +136,8 @@ export type VideoUploadSessionRequest = {
   fileSize: number;
   mimeType: string;
   protectionType?: string;
+  creatorId?: string;
+  actorId?: string;
 };
 
 export type VideoUploadSessionResponse = {
@@ -348,12 +350,13 @@ export async function updateVideoUploadProgress(
   uploadSessionId: string,
   uploadedBytes: number,
   status: string = "UPLOADING",
+  actorId?: string,
 ): Promise<MediaUploadSessionResponse> {
   const url = apiUrl(`/api/v1/media/upload-sessions/${uploadSessionId}/progress`);
   const res = await authFetch(url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ uploadedBytes, status }),
+    body: JSON.stringify({ uploadedBytes, status, actorId }),
   });
   return handleResponse<MediaUploadSessionResponse>(res);
 }
@@ -367,6 +370,7 @@ export async function completeVideoUpload(
     duration?: number;
     width?: number;
     height?: number;
+    actorId?: string;
   },
 ): Promise<MediaResponse> {
   const url = apiUrl(`/api/v1/media/upload-sessions/${uploadSessionId}/complete`);

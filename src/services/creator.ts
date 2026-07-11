@@ -35,6 +35,7 @@ export interface OwnCreatorResponse {
   displayName?: string;
   bio?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   status?: string;
   isAcceptedLatestTerms: boolean;
   termsVersion?: CreatorTermsVersion | null;

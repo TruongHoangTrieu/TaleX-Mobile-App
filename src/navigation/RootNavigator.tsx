@@ -5,6 +5,7 @@ import SearchScreen from "@screens/SearchScreen";
 import LoginScreen from "@screens/auth/LoginScreen";
 import RegisterScreen from "@screens/auth/RegisterScreen";
 import OtpVerifyScreen from "@/screens/auth/OtpVerifyScreen";
+import GoogleCompleteProfileScreen from "@/screens/auth/GoogleCompleteProfileScreen";
 import EditProfileScreen from "@/screens/profile/EditProfileScreen";
 import ComicDetailScreen from "@/screens/comics/ComicDetailScreen";
 import ComicReaderScreen from "@/screens/comics/ComicReaderScreen";
@@ -29,6 +30,9 @@ export type RootStackParamList = {
         verificationToken?: string;
       }
     | undefined;
+  GoogleCompleteProfile: {
+    verificationToken: string;
+  };
   EditProfileScreen: undefined;
   ComicDetailScreen: { comicId?: string } | undefined;
   ComicReader:
@@ -64,6 +68,10 @@ export default function RootNavigator() {
         <Stack.Screen name="LoginScreen" component={LoginScreen} />
         <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
         <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
+        <Stack.Screen
+          name="GoogleCompleteProfile"
+          component={GoogleCompleteProfileScreen}
+        />
         <Stack.Screen name="EditProfileScreen" component={EditProfileScreen} />
         <Stack.Screen name="ComicDetailScreen" component={ComicDetailScreen} />
         <Stack.Screen name="MovieDetailScreen" component={MovieDetailScreen} />

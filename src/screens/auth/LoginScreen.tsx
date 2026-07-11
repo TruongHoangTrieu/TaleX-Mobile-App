@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
+import { signInWithGoogle, isGoogleSignInCancelled } from "@/services/google-sign-in";
 
 interface Props {
   onLogin?: (email: string, password: string) => void;
@@ -23,6 +24,7 @@ export default function LoginScreen({ onLogin }: Props) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
   const navigation = useNavigation<any>();
@@ -68,6 +70,45 @@ export default function LoginScreen({ onLogin }: Props) {
       setError(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // =========================
+  // GOOGLE LOGIN ACTION
+  // =========================
+  const handleGoogleLogin = async () => {
+    setError("");
+    setGoogleLoading(true);
+
+    try {
+      const idToken = await signInWithGoogle();
+      if (!idToken) {
+        // user cancelled the Google sheet
+        return;
+      }
+
+      const result = await auth.loginWithGoogle(idToken);
+
+      if (result.status === "ONBOARDING" && result.verificationToken) {
+        navigation.navigate("GoogleCompleteProfile", {
+          verificationToken: result.verificationToken,
+        });
+        return;
+      }
+
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate("MainTabs");
+      }
+    } catch (e) {
+      if (!isGoogleSignInCancelled(e)) {
+        const message =
+          e instanceof Error ? e.message : "Đăng nhập Google thất bại!";
+        setError(message);
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -180,14 +221,24 @@ export default function LoginScreen({ onLogin }: Props) {
           </View>
 
           {/* GOOGLE LOGIN */}
-          <TouchableOpacity className="mt-5 h-[48px] bg-white rounded-lg flex-row items-center justify-center">
-            <Image
-              source={require("@assets/google.avif")}
-              className="w-5 h-5"
-            />
-            <Text className="text-black font-bold ml-3">
-              Đăng nhập bằng Google
-            </Text>
+          <TouchableOpacity
+            onPress={handleGoogleLogin}
+            disabled={googleLoading}
+            className="mt-5 h-[48px] bg-white rounded-lg flex-row items-center justify-center"
+          >
+            {googleLoading ? (
+              <ActivityIndicator color="#121212" />
+            ) : (
+              <>
+                <Image
+                  source={require("@assets/google.avif")}
+                  className="w-5 h-5"
+                />
+                <Text className="text-black font-bold ml-3">
+                  Đăng nhập bằng Google
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
 
           {/* TERMS */}

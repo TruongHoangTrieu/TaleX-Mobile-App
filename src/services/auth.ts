@@ -38,6 +38,24 @@ type VerifyEmailRequest = {
   otpCode: string;
 };
 
+export type GoogleAuthResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    status?: "ACTIVE" | "ONBOARDING" | "VERIFYING";
+    accessToken?: string;
+    refreshToken?: string;
+    verificationToken?: string;
+  };
+  timestamp?: string;
+};
+
+export type CompleteProfileRequest = {
+  verificationToken: string;
+  dateOfBirth: string;
+  phone: string;
+};
+
 type GenericResponse<T = any> = {
   success: boolean;
   message?: string;
@@ -228,6 +246,59 @@ export async function login(req: LoginRequest): Promise<LoginResponse> {
   }
 
   // persist tokens securely
+  if (json?.data?.accessToken) {
+    await setTokens(json.data.accessToken, json.data.refreshToken || null);
+  }
+
+  return json;
+}
+
+export async function googleLogin(idToken: string): Promise<GoogleAuthResponse> {
+  const url = `${BASE_URL.replace(/\/$/, "")}/api/auth/google`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "*/*",
+    },
+    body: JSON.stringify({ idToken }),
+  });
+
+  const json = await parseJsonResponse<GoogleAuthResponse>(res, url);
+
+  if (!res.ok) {
+    const msg = json?.message || `Request failed with status ${res.status}`;
+    throw new Error(msg);
+  }
+
+  // ACTIVE status returns real tokens immediately; ONBOARDING only returns a verificationToken
+  if (json?.data?.status === "ACTIVE" && json.data.accessToken) {
+    await setTokens(json.data.accessToken, json.data.refreshToken || null);
+  }
+
+  return json;
+}
+
+export async function completeGoogleProfile(req: CompleteProfileRequest): Promise<LoginResponse> {
+  const url = `${BASE_URL.replace(/\/$/, "")}/api/auth/complete-profile`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "*/*",
+    },
+    body: JSON.stringify(req),
+  });
+
+  const json = await parseJsonResponse<LoginResponse>(res, url);
+
+  if (!res.ok) {
+    const msg = json?.message || `Request failed with status ${res.status}`;
+    throw new Error(msg);
+  }
+
   if (json?.data?.accessToken) {
     await setTokens(json.data.accessToken, json.data.refreshToken || null);
   }

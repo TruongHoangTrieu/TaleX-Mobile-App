@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import Toast from "react-native-toast-message";
 import {
   login as loginService,
+  googleLogin as googleLoginService,
   getProfile as getProfileService,
   logout as logoutService,
   getAccessToken as getAccessTokenService,
@@ -30,6 +31,7 @@ type AuthContextType = {
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<{ status: string; verificationToken?: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -96,6 +98,39 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({
     }
   }, [loadFromToken]);
 
+  // Returns status so the caller (LoginScreen) can branch: ACTIVE -> already
+  // logged in here; ONBOARDING -> caller must navigate to collect phone/DOB.
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await googleLoginService(idToken);
+      if (!res || !res.success || !res.data) {
+        throw new Error(res?.message || "Đăng nhập Google thất bại");
+      }
+
+      if (res.data.status === "ACTIVE") {
+        Toast.show({ type: "success", text1: "Đăng nhập thành công" });
+        await loadFromToken();
+      }
+
+      return {
+        status: res.data.status || "ACTIVE",
+        verificationToken: res.data.verificationToken,
+      };
+    } catch (e) {
+      Toast.show({
+        type: "error",
+        text1: "Đăng nhập Google thất bại",
+        text2: e instanceof Error ? e.message : String(e),
+      });
+      setError(e instanceof Error ? e.message : String(e));
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [loadFromToken]);
+
   const logout = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -133,6 +168,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren<{}>> = ({
         loading,
         error,
         login,
+        loginWithGoogle,
         logout,
         refreshProfile,
       }}

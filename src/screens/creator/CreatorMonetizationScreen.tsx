@@ -2,12 +2,16 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -15,7 +19,6 @@ import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   acceptTerms,
-  cancelPaymentProfile,
   createPaymentProfile,
   getActiveMonetizationTerm,
   getVerificationStatus,
@@ -44,9 +47,7 @@ type TimelineStepProps = {
   badgeTone?: StepStatusTone;
   metaText?: string;
   primaryLabel?: string;
-  dangerLabel?: string;
   onPrimaryPress?: () => void;
-  onDangerPress?: () => void;
 };
 
 const GOLD = "#D4AF37";
@@ -179,9 +180,7 @@ function TimelineStep({
   badgeTone,
   metaText,
   primaryLabel,
-  dangerLabel,
   onPrimaryPress,
-  onDangerPress,
 }: TimelineStepProps) {
   return (
     <View className="relative mb-6 pl-6">
@@ -252,19 +251,6 @@ function TimelineStep({
                 }`}
               >
                 {primaryLabel}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {!!dangerLabel && (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              disabled={disabled}
-              onPress={onDangerPress}
-              className="h-10 items-center justify-center rounded-xl border border-red-500/25 bg-red-500/10 px-4"
-            >
-              <Text className="text-xs font-black text-red-400">
-                {dangerLabel}
               </Text>
             </TouchableOpacity>
           )}
@@ -511,38 +497,6 @@ export default function CreatorMonetizationScreen() {
     }
   };
 
-  const handleCancelPaymentProfile = () => {
-    const paymentProfileId = verificationStatus?.paymentProfileId;
-    if (!paymentProfileId || isSubmitting) return;
-
-    Alert.alert(
-      "Hủy tài khoản thanh toán?",
-      "Bạn có chắc muốn hủy hồ sơ thanh toán hiện tại không?",
-      [
-        { text: "Không", style: "cancel" },
-        {
-          text: "Hủy hồ sơ",
-          style: "destructive",
-          onPress: async () => {
-            setIsSubmitting(true);
-            try {
-              await cancelPaymentProfile(paymentProfileId);
-              Alert.alert("Thành công", "Hồ sơ thanh toán đã được hủy.");
-              await loadVerificationStatus();
-            } catch (error) {
-              Alert.alert(
-                "Không thể hủy",
-                error instanceof Error ? error.message : "Vui lòng thử lại sau.",
-              );
-            } finally {
-              setIsSubmitting(false);
-            }
-          },
-        },
-      ],
-    );
-  };
-
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -682,9 +636,7 @@ export default function CreatorMonetizationScreen() {
                   : undefined
               }
               primaryLabel={hasPaymentStatus ? "Cập nhật" : "Thiết lập"}
-              dangerLabel={hasPaymentStatus ? "Hủy" : undefined}
               onPrimaryPress={openPaymentModal}
-              onDangerPress={handleCancelPaymentProfile}
             />
           </View>
         </View>
@@ -783,8 +735,22 @@ export default function CreatorMonetizationScreen() {
         animationType="slide"
         onRequestClose={() => !isSubmitting && setIsTaxModalVisible(false)}
       >
-        <View className="flex-1 justify-end bg-black/80">
-          <View className="rounded-t-3xl border border-white/10 bg-[#1E1E22] px-5 pb-8 pt-5">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View className="flex-1 justify-center bg-black/80 px-4">
+              <ScrollView
+                contentContainerStyle={{
+                  flexGrow: 1,
+                  justifyContent: "center",
+                  paddingVertical: 24,
+                }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <View className="rounded-2xl border border-white/10 bg-[#1E1E22] p-6">
             <View className="mb-5 flex-row items-center justify-between">
               <Text className="text-lg font-black text-white">
                 Hồ sơ thuế
@@ -826,8 +792,11 @@ export default function CreatorMonetizationScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-          </View>
-        </View>
+                </View>
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -836,8 +805,22 @@ export default function CreatorMonetizationScreen() {
         animationType="slide"
         onRequestClose={() => !isSubmitting && setIsPaymentModalVisible(false)}
       >
-        <View className="flex-1 justify-end bg-black/80">
-          <View className="rounded-t-3xl border border-white/10 bg-[#1E1E22] px-5 pb-8 pt-5">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View className="flex-1 justify-center bg-black/80 px-4">
+              <ScrollView
+                contentContainerStyle={{
+                  flexGrow: 1,
+                  justifyContent: "center",
+                  paddingVertical: 24,
+                }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <View className="rounded-2xl border border-white/10 bg-[#1E1E22] p-6">
             <View className="mb-5 flex-row items-center justify-between">
               <Text className="text-lg font-black text-white">
                 Tài khoản thanh toán
@@ -916,8 +899,11 @@ export default function CreatorMonetizationScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-          </View>
-        </View>
+                </View>
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

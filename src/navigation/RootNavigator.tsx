@@ -12,6 +12,7 @@ import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
 import CreatorChannelScreen from "@/screens/creator/CreatorChannelScreen";
+import CreatorMonetizationScreen from "@/screens/creator/CreatorMonetizationScreen";
 import SubscriptionPlansScreen from "@/screens/subscription/SubscriptionPlansScreen";
 import UploadMovieScreen from "@/screens/creator/UploadMovieScreen";
 import UploadComicScreen from "@/screens/creator/UploadComicScreen";
@@ -48,6 +49,7 @@ export type RootStackParamList = {
   CreatorGuard: undefined;
   CreatorDashboard: undefined;
   CreatorChannel: undefined;
+  CreatorMonetization: undefined;
   SubscriptionPlans: undefined;
   UploadMovie: undefined;
   UploadComic: undefined;
@@ -95,6 +97,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="CreatorChannel"
           component={CreatorChannelScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="CreatorMonetization"
+          component={CreatorMonetizationScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

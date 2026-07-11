@@ -447,6 +447,29 @@ export default function CreatorDashboardScreen() {
             </Text>
             <Text className="text-zinc-500 text-xs font-medium mb-5">Thông tin và lịch sử rút tiền</Text>
 
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate("CreatorMonetization" as any)}
+              className="mb-5 flex-row items-center rounded-3xl border border-[#D4AF37]/45 bg-[#1E1E22] p-5 shadow-lg shadow-yellow-500/10"
+            >
+              <View className="mr-4 h-12 w-12 items-center justify-center rounded-2xl bg-[#D4AF37]/15">
+                <MaterialCommunityIcons
+                  name="cash-multiple"
+                  size={26}
+                  color="#D4AF37"
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-black text-white">
+                  Trung tâm kiếm tiền
+                </Text>
+                <Text className="mt-1 text-xs font-semibold leading-5 text-zinc-400">
+                  Hoàn thiện hồ sơ để nhận doanh thu từ TaleX
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={22} color="#D4AF37" />
+            </TouchableOpacity>
+
             {/* Wallet Balance Card */}
             <LinearGradient
               colors={["#27272A", "#18181B"]}

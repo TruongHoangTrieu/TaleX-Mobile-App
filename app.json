@@ -36,7 +36,8 @@
       "expo-video",
       "expo-font",
       "expo-secure-store",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "./plugins/with-shared-debug-keystore.js"
     ]
   }
 }

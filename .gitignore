@@ -28,6 +28,10 @@ desktop.ini
 .env.local
 .env*.local
 *.keystore
+# Shared debug-only signing key (not a secret — default alias/password),
+# committed so every dev's `expo prebuild` produces the same SHA-1
+# fingerprint already registered in Google Cloud Console for Google Sign-In.
+!shared-debug.keystore
 *.jks
 *.p8
 *.p12

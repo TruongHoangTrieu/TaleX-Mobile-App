@@ -7,6 +7,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -29,19 +30,31 @@ export default function ComicsScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
   const [apiComics, setApiComics] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadComics = async (isRefreshing = false) => {
+    try {
+      const res = await getPublicSeries(1, 100);
+      if (res && res.data && res.data.content) {
+        const filtered = res.data.content.filter(
+          (item: any) => item.contentType === "COMIC" || item.contentType === "comic"
+        );
+        setApiComics(filtered);
+      }
+    } catch (err) {
+      console.error("Lỗi lấy danh sách truyện từ API:", err);
+    }
+  };
 
   useEffect(() => {
-    getPublicSeries(1, 100)
-      .then((res) => {
-        if (res && res.data && res.data.content) {
-          const filtered = res.data.content.filter(
-            (item: any) => item.contentType === "COMIC" || item.contentType === "comic"
-          );
-          setApiComics(filtered);
-        }
-      })
-      .catch((err) => console.error("Lỗi lấy danh sách truyện từ API:", err));
+    loadComics(false);
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadComics(true);
+    setRefreshing(false);
+  };
 
   const filterByCategory = (comicList: ComicItem[]) => {
     if (selectedCategory === "Tất cả") return comicList;
@@ -125,8 +138,21 @@ export default function ComicsScreen() {
       </View>
 
       <ScrollView
+        className="flex-1"
+        alwaysBounceVertical={true}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 130 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#D4AF37"
+            colors={["#D4AF37"]}
+            progressViewOffset={100}
+            title="Đang cập nhật..."
+            titleColor="#D4AF37"
+          />
+        }
       >
         <View className="mt-3">
           <ComicCarousel />

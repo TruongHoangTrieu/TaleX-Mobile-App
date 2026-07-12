@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StatusBar, View, Text, TouchableOpacity, Image, FlatList } from 'react-native';
+import { ScrollView, StatusBar, View, Text, TouchableOpacity, Image, FlatList, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useNavigation } from "@react-navigation/native";
@@ -19,6 +19,14 @@ import {
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1200);
+  }, []);
 
   // State quản lý thể loại đang active (Mặc định 'Đề xuất' nghĩa là hiện Tất cả)
   const [activeCategory, setActiveCategory] = useState('Đề xuất');
@@ -75,7 +83,23 @@ export default function HomeScreen() {
         onCategoryChange={(cat) => setActiveCategory(cat)} 
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
+      <ScrollView 
+        className="flex-1"
+        alwaysBounceVertical={true}
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={{ paddingBottom: 130 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#D4AF37"
+            colors={["#D4AF37"]}
+            progressViewOffset={110}
+            title="Đang cập nhật..."
+            titleColor="#D4AF37"
+          />
+        }
+      >
         {/* Banner lớn mượt mà trên cùng */}
         <BannerCarousel />
 

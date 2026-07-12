@@ -5,14 +5,12 @@ import {
   Text,
   TouchableOpacity,
   View,
-  TextInput,
   Alert,
   ActivityIndicator,
   Image,
-  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Feather, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
@@ -22,10 +20,18 @@ import {
   createSeries,
   listSeasonsBySeries,
   createSeason,
+  updateSeason,
+  deleteSeason,
+  hideSeason,
+  unhideSeason,
+  updateSeries,
+  deleteSeries,
+  listEpisodesBySeason,
   createEpisode,
   uploadImageToS3,
   createComicPageMedia,
   publishEpisode,
+  schedulePublishEpisode,
   listMediaByEpisode,
   SeriesItem,
   SeasonItem,
@@ -38,15 +44,13 @@ import {
 import { getOwnCreator } from "@/services/creator";
 import { useAuth } from "@/context/AuthContext";
 
-const genresList = [
-  "Hành động",
-  "Viễn tưởng",
-  "Tình cảm",
-  "Hài hước",
-  "Kinh dị",
-  "Trinh thám",
-  "Đời thường",
-];
+// Component imports
+import StepIndicator from "./components/StepIndicator";
+import SeriesStep from "./components/SeriesStep";
+import SeasonStep from "./components/SeasonStep";
+import EpisodeDetailsStep from "./components/EpisodeDetailsStep";
+import ComicPagesUploadStep from "./components/ComicPagesUploadStep";
+import PublishStep from "./components/PublishStep";
 
 type LocalComicPage = {
   id: string;
@@ -90,31 +94,18 @@ export default function UploadComicScreen() {
   const [selectedSeriesId, setSelectedSeriesId] = useState("");
   const [newSeriesTitle, setNewSeriesTitle] = useState("");
   const [newSeriesDesc, setNewSeriesDesc] = useState("");
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [tags, setTags] = useState<TagResponse[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-
-  // Fetch Categories & Tags on mount
-  useEffect(() => {
-    const fetchMeta = async () => {
-      try {
-        const [catsRes, tagsRes] = await Promise.all([getCategories(), getTags()]);
-        setCategories(catsRes?.content || []);
-        setTags(tagsRes?.content || []);
-      } catch (err) {
-        console.error("Lỗi tải thể loại/tag:", err);
-      }
-    };
-    fetchMeta();
-  }, []);
   const [seriesCover, setSeriesCover] = useState<{
     uri: string;
     name: string;
     size: number;
     type: string;
+    isUrl?: boolean;
   } | null>(null);
+  const [editingSeriesId, setEditingSeriesId] = useState<string | null>(null);
 
   // --- STEP 2: SEASON STATE ---
   const [seasonList, setSeasonList] = useState<SeasonItem[]>([]);
@@ -124,14 +115,13 @@ export default function UploadComicScreen() {
   const [newSeasonNumber, setNewSeasonNumber] = useState("");
   const [newSeasonTitle, setNewSeasonTitle] = useState("");
   const [newSeasonDesc, setNewSeasonDesc] = useState("");
+  const [editingSeasonId, setEditingSeasonId] = useState<string | null>(null);
 
   // --- STEP 3: EPISODE/CHAPTER STATE ---
   const [episodeNumber, setEpisodeNumber] = useState("");
   const [episodeTitle, setEpisodeTitle] = useState("");
   const [episodeDesc, setEpisodeDesc] = useState("");
-  const [releaseType, setReleaseType] = useState<"free" | "premium" | "coin">(
-    "free",
-  );
+  const [releaseType, setReleaseType] = useState<"free" | "premium" | "coin">("free");
   const [coinPrice, setCoinPrice] = useState("5");
   const [createdEpisodeId, setCreatedEpisodeId] = useState<string | null>(null);
 
@@ -147,6 +137,20 @@ export default function UploadComicScreen() {
   const [moderationStatus, setModerationStatus] = useState<string | null>(null);
   const [isModerationDone, setIsModerationDone] = useState(false);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch Categories & Tags on mount
+  useEffect(() => {
+    const fetchMeta = async () => {
+      try {
+        const [catsRes, tagsRes] = await Promise.all([getCategories(), getTags()]);
+        setCategories(catsRes?.content || []);
+        setTags(tagsRes?.content || []);
+      } catch (err) {
+        console.error("Lỗi tải thể loại/tag:", err);
+      }
+    };
+    fetchMeta();
+  }, []);
 
   // Clean polling on unmount
   useEffect(() => {
@@ -246,7 +250,6 @@ export default function UploadComicScreen() {
       try {
         setLoadingSeries(true);
         const list = await listSeriesByCreator();
-        // Filter series list to only display COMIC type
         const comicSeries = list.filter((s) => s.contentType === "COMIC");
         setSeriesList(comicSeries);
         if (comicSeries.length > 0) {
@@ -312,13 +315,9 @@ export default function UploadComicScreen() {
   // Image Picker for Cover Art
   const handleSelectCover = async () => {
     try {
-      const permissionResult =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert(
-          "Cấp quyền",
-          "Vui lòng cấp quyền thư viện ảnh để chọn ảnh bìa.",
-        );
+        Alert.alert("Cấp quyền", "Vui lòng cấp quyền thư viện ảnh để chọn ảnh bìa.");
         return;
       }
 
@@ -346,13 +345,9 @@ export default function UploadComicScreen() {
   // Multiple Image Picker for Comic Pages
   const handleSelectPages = async () => {
     try {
-      const permissionResult =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert(
-          "Cấp quyền",
-          "Vui lòng cấp quyền thư viện ảnh để chọn trang truyện.",
-        );
+        Alert.alert("Cấp quyền", "Vui lòng cấp quyền thư viện ảnh để chọn trang truyện.");
         return;
       }
 
@@ -379,12 +374,270 @@ export default function UploadComicScreen() {
     }
   };
 
+  const handleStartEditSeason = (se: SeasonItem) => {
+    setEditingSeasonId(se.seasonId);
+    setNewSeasonNumber(String(se.seasonNumber));
+    setNewSeasonTitle(se.title);
+    setNewSeasonDesc(se.description || "");
+    setSeasonMode("create");
+  };
+
+  const handleDeleteSeason = (seasonId: string) => {
+    const targetSeason = seasonList.find((s) => s.seasonId === seasonId);
+    if (!targetSeason) return;
+
+    Alert.alert(
+      "Xác nhận xóa Season",
+      `Bạn có chắc chắn muốn xóa Season ${targetSeason.seasonNumber} - "${targetSeason.title || ""}" không?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteSeason(seasonId);
+              setSeasonList((prev) => prev.filter((s) => s.seasonId !== seasonId));
+              if (selectedSeasonId === seasonId) {
+                setSelectedSeasonId("");
+              }
+              Toast.show({
+                type: "success",
+                text1: "Thành công",
+                text2: "Đã xóa Season thành công.",
+              });
+            } catch (err: any) {
+              console.error("[DeleteSeason] Error:", err);
+              Alert.alert("Lỗi", err.message || "Không thể xóa Season.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleToggleHideSeason = (season: SeasonItem) => {
+    const isHidden = season.status === "HIDDEN";
+    Alert.alert(
+      isHidden ? "Xác nhận công khai Season" : "Xác nhận ẩn Season",
+      isHidden
+        ? `Bạn có chắc chắn muốn bỏ ẩn và công khai Season ${season.seasonNumber} không?`
+        : `Bạn có chắc chắn muốn ẩn Season ${season.seasonNumber}? Season bị ẩn sẽ không hiển thị với người đọc.`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: isHidden ? "Công khai" : "Ẩn",
+          onPress: async () => {
+            try {
+              if (isHidden) {
+                await unhideSeason(season.seasonId);
+                setSeasonList((prev) =>
+                  prev.map((s) =>
+                    s.seasonId === season.seasonId ? { ...s, status: "PUBLISHED" } : s
+                  )
+                );
+                Toast.show({
+                  type: "success",
+                  text1: "Thành công",
+                  text2: "Đã công khai Season thành công.",
+                });
+              } else {
+                await hideSeason(season.seasonId);
+                setSeasonList((prev) =>
+                  prev.map((s) =>
+                    s.seasonId === season.seasonId ? { ...s, status: "HIDDEN" } : s
+                  )
+                );
+                Toast.show({
+                  type: "success",
+                  text1: "Thành công",
+                  text2: "Đã ẩn Season thành công.",
+                });
+              }
+            } catch (err: any) {
+              console.error("[ToggleHideSeason] Error:", err);
+              Alert.alert("Lỗi", err.message || "Không thể thực hiện thao tác.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleStartEditSeries = (s: SeriesItem) => {
+    setEditingSeriesId(s.seriesId);
+    setNewSeriesTitle(s.title);
+    setNewSeriesDesc(s.description || "");
+    setSeriesCover(s.coverUrl ? { uri: s.coverUrl, name: s.coverUrl.split("/").pop() || "cover.jpg", size: 0, type: "image/jpeg", isUrl: true } : null);
+    setSelectedCategoryIds(s.categories?.map((c) => c.categoryId) || []);
+    setSelectedTagIds(s.tags?.map((t) => t.tagId) || []);
+    setSeriesMode("create");
+  };
+
+  const handleDeleteSeries = (seriesId: string) => {
+    const targetSeries = seriesList.find((s) => s.seriesId === seriesId);
+    if (!targetSeries) return;
+
+    Alert.alert(
+      "Xác nhận xóa Series",
+      `Bạn có chắc chắn muốn xóa Series "${targetSeries.title}" không? Hành động này sẽ chuyển trạng thái của Series thành DELETED.`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteSeries(seriesId);
+              setSeriesList((prev) => prev.filter((s) => s.seriesId !== seriesId));
+              if (selectedSeriesId === seriesId) {
+                setSelectedSeriesId("");
+                setSeasonList([]);
+              }
+              Toast.show({
+                type: "success",
+                text1: "Thành công",
+                text2: "Đã xóa Series thành công.",
+              });
+            } catch (err: any) {
+              console.error("[DeleteSeries] Error:", err);
+              Alert.alert("Lỗi", err.message || "Không thể xóa Series.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleNextStep = async () => {
     if (step === 1) {
       if (seriesMode === "create") {
         if (!newSeriesTitle.trim()) {
           Alert.alert("Lỗi", "Vui lòng nhập tên Series.");
           return;
+        }
+
+        if (editingSeriesId) {
+          setSubmitting(true);
+          setSubmitMsg("Đang lưu thay đổi Series...");
+          try {
+            let coverUrl = "";
+            if (seriesCover) {
+              if (seriesCover.isUrl) {
+                coverUrl = seriesCover.uri;
+              } else {
+                const uploadRes = await uploadImageToS3(
+                  seriesCover.uri,
+                  seriesCover.name,
+                  seriesCover.size,
+                  seriesCover.type,
+                  "cover"
+                );
+                coverUrl = uploadRes.publicUrl;
+              }
+            }
+
+            await updateSeries(editingSeriesId, {
+              title: newSeriesTitle,
+              description: newSeriesDesc,
+              coverUrl,
+              contentType: "COMIC",
+              status: "PUBLISHED",
+              categoryIds: selectedCategoryIds,
+              tagIds: selectedTagIds,
+            });
+
+            const seriesData = await listSeriesByCreator();
+            if (seriesData) {
+              const filtered = seriesData.filter(
+                (item) => item.contentType?.toUpperCase() === "COMIC"
+              );
+              setSeriesList(filtered);
+            }
+
+            setEditingSeriesId(null);
+            setNewSeriesTitle("");
+            setNewSeriesDesc("");
+            setSeriesCover(null);
+            setSelectedCategoryIds([]);
+            setSelectedTagIds([]);
+            setSeriesMode("select");
+
+            Toast.show({
+              type: "success",
+              text1: "Thành công",
+              text2: "Đã cập nhật Series thành công.",
+            });
+          } catch (err: any) {
+            console.error("[UpdateSeries] Error:", err);
+            Alert.alert("Lỗi", err.message || "Không thể cập nhật Series.");
+            return;
+          } finally {
+            setSubmitting(false);
+          }
+          return;
+        } else {
+          // Creating a new Series immediately in Step 1
+          setSubmitting(true);
+          setSubmitMsg("Đang tải ảnh bìa lên S3...");
+          try {
+            let coverUrl = "";
+            if (seriesCover) {
+              const uploadRes = await uploadImageToS3(
+                seriesCover.uri,
+                seriesCover.name,
+                seriesCover.size,
+                seriesCover.type,
+                "cover"
+              );
+              coverUrl = uploadRes.publicUrl;
+            }
+            setSubmitMsg("Đang tạo Series mới...");
+            const newSeries = await createSeries({
+              title: newSeriesTitle,
+              description: newSeriesDesc,
+              coverUrl,
+              contentType: "COMIC",
+              visibility: "PUBLIC",
+              categoryIds: selectedCategoryIds,
+              tagIds: selectedTagIds,
+            });
+
+            setSeriesList((prev) => [newSeries, ...prev]);
+            setSelectedSeriesId(newSeries.seriesId);
+            setSeriesMode("select");
+
+            setNewSeriesTitle("");
+            setNewSeriesDesc("");
+            setSeriesCover(null);
+            setSelectedCategoryIds([]);
+            setSelectedTagIds([]);
+
+            Toast.show({
+              type: "success",
+              text1: "Thành công",
+              text2: "Đã tạo Series thành công.",
+            });
+
+            // Fetch seasons immediately for the newly created series (backend automatically creates Season 1)
+            setLoadingSeasons(true);
+            const freshSeasons = await listSeasonsBySeries(newSeries.seriesId);
+            setSeasonList(freshSeasons || []);
+            if (freshSeasons && freshSeasons.length > 0) {
+              setSelectedSeasonId(freshSeasons[0].seasonId);
+              setSeasonMode("select");
+            } else {
+              setSelectedSeasonId("");
+              setSeasonMode("create");
+            }
+          } catch (err: any) {
+            console.error("[CreateSeries Step 1] Error:", err);
+            Alert.alert("Lỗi", err.message || "Không thể tạo Series mới.");
+            return;
+          } finally {
+            setSubmitting(false);
+            setLoadingSeasons(false);
+          }
         }
       } else {
         if (!selectedSeriesId) {
@@ -396,27 +649,89 @@ export default function UploadComicScreen() {
     } else if (step === 2) {
       if (seasonMode === "create") {
         if (!newSeasonNumber.trim()) {
-          Alert.alert("Lỗi", "Vui lòng nhập số Season (VD: 1).");
+          Alert.alert("Lỗi", "Vui lòng nhập số thứ tự Season.");
           return;
         }
         if (!newSeasonTitle.trim()) {
           Alert.alert("Lỗi", "Vui lòng nhập tiêu đề Season.");
           return;
         }
+
+        if (editingSeasonId) {
+          setSubmitting(true);
+          setSubmitMsg("Đang lưu thay đổi Season...");
+          try {
+            const numVal = parseInt(newSeasonNumber, 10) || 1;
+            await updateSeason(editingSeasonId, {
+              seasonNumber: numVal,
+              title: newSeasonTitle,
+              description: newSeasonDesc,
+              status: "PUBLISHED",
+            });
+
+            if (selectedSeriesId) {
+              const freshSeasons = await listSeasonsBySeries(selectedSeriesId);
+              setSeasonList(freshSeasons || []);
+            }
+
+            setEditingSeasonId(null);
+            setNewSeasonNumber("");
+            setNewSeasonTitle("");
+            setNewSeasonDesc("");
+            setSeasonMode("select");
+
+            Toast.show({
+              type: "success",
+              text1: "Thành công",
+              text2: "Đã cập nhật Season thành công.",
+            });
+          } catch (err: any) {
+            console.error("[UpdateSeason] Error:", err);
+            Alert.alert("Lỗi", err.message || "Không thể cập nhật Season.");
+          } finally {
+            setSubmitting(false);
+          }
+          return;
+        }
       } else {
-        if (!selectedSeasonId && seasonList.length > 0) {
+        if (seasonList.length === 0) {
+          Alert.alert("Lỗi", "Bộ truyện này chưa có Season nào. Vui lòng chuyển sang tab 'Tạo Season mới'.");
+          return;
+        }
+        if (!selectedSeasonId) {
           Alert.alert("Lỗi", "Vui lòng chọn Season.");
           return;
         }
       }
+
+      // Tự động gợi ý số tập truyện tiếp theo của Season đã chọn
+      if (seasonMode === "create") {
+        setEpisodeNumber("1");
+      } else if (selectedSeasonId) {
+        setSubmitting(true);
+        setSubmitMsg("Đang chuẩn bị thông tin tập mới...");
+        try {
+          const eps = await listEpisodesBySeason(selectedSeasonId);
+          const maxEpNumber = eps.reduce((max, ep) => ep.episodeNumber > max ? ep.episodeNumber : max, 0);
+          setEpisodeNumber(String(maxEpNumber + 1));
+        } catch (err) {
+          console.error("Lỗi tự động gợi ý số thứ tự tập truyện:", err);
+          setEpisodeNumber("1");
+        } finally {
+          setSubmitting(false);
+        }
+      } else {
+        setEpisodeNumber("1");
+      }
+
       setStep(3);
     } else if (step === 3) {
       if (!episodeNumber.trim()) {
-        Alert.alert("Lỗi", "Vui lòng nhập số tập / chương.");
+        Alert.alert("Lỗi", "Vui lòng nhập số tập truyện.");
         return;
       }
       if (!episodeTitle.trim()) {
-        Alert.alert("Lỗi", "Vui lòng nhập tiêu đề chương.");
+        Alert.alert("Lỗi", "Vui lòng nhập tiêu đề tập.");
         return;
       }
 
@@ -424,39 +739,9 @@ export default function UploadComicScreen() {
       setSubmitting(true);
       try {
         let finalSeriesId = selectedSeriesId;
-
-        // 1. Create Series
-        if (seriesMode === "create") {
-          setSubmitMsg("Đang tải ảnh bìa lên S3...");
-          let coverUrl = "";
-          if (seriesCover) {
-            const uploadRes = await uploadImageToS3(
-              seriesCover.uri,
-              seriesCover.name,
-              seriesCover.size,
-              seriesCover.type,
-              "cover",
-            );
-            coverUrl = uploadRes.publicUrl;
-          }
-          setSubmitMsg("Đang tạo Series...");
-          const newSeries = await createSeries({
-            title: newSeriesTitle,
-            description: newSeriesDesc,
-            coverUrl,
-            contentType: "COMIC",
-            visibility: "PUBLIC",
-            categoryIds: selectedCategoryIds,
-            tagIds: selectedTagIds,
-          });
-          finalSeriesId = newSeries.seriesId;
-          setSeriesList((prev) => [newSeries, ...prev]);
-          setSelectedSeriesId(newSeries.seriesId);
-          setSeriesMode("select");
-        }
+        let finalSeasonId = selectedSeasonId;
 
         // 2. Create Season
-        let finalSeasonId = selectedSeasonId;
         if (seasonMode === "create" || !finalSeasonId) {
           setSubmitMsg("Đang tạo Season mới...");
           const numVal = parseInt(newSeasonNumber, 10) || 1;
@@ -473,7 +758,7 @@ export default function UploadComicScreen() {
         }
 
         // 3. Create Episode / Chapter
-        setSubmitMsg("Đang tạo chương mới...");
+        setSubmitMsg("Đang tạo tập truyện mới...");
         const epNumVal = parseInt(episodeNumber, 10) || 1;
         const priceVal = releaseType === "coin" ? parseInt(coinPrice, 10) : 0;
         const unlockTypeVal = releaseType === "coin" ? "PAID" : "FREE";
@@ -492,12 +777,12 @@ export default function UploadComicScreen() {
         Toast.show({
           type: "success",
           text1: "Thành công",
-          text2: "Chương mới đã được khởi tạo thành công.",
+          text2: "Tập truyện mới đã được khởi tạo thành công.",
         });
         setStep(4);
       } catch (err: any) {
         console.error("Lỗi khởi tạo cấu trúc truyện:", err);
-        Alert.alert("Lỗi", "Không thể tạo chương mới: " + err.message);
+        Alert.alert("Lỗi", "Không thể tạo tập truyện mới: " + err.message);
       } finally {
         setSubmitting(false);
       }
@@ -573,16 +858,25 @@ export default function UploadComicScreen() {
     }
   };
 
-  const handlePublish = async () => {
+  const handlePublish = async (scheduledPublishAt?: string) => {
     if (!createdEpisodeId) return;
     try {
       setPublishing(true);
-      await publishEpisode(createdEpisodeId);
-      Toast.show({
-        type: "success",
-        text1: "Đăng truyện thành công!",
-        text2: "Tập truyện mới của bạn hiện đã được xuất bản.",
-      });
+      if (scheduledPublishAt) {
+        await schedulePublishEpisode(createdEpisodeId, scheduledPublishAt);
+        Toast.show({
+          type: "success",
+          text1: "Lên lịch thành công!",
+          text2: "Tập truyện mới của bạn đã được lên lịch xuất bản.",
+        });
+      } else {
+        await publishEpisode(createdEpisodeId);
+        Toast.show({
+          type: "success",
+          text1: "Đăng truyện thành công!",
+          text2: "Tập truyện mới của bạn hiện đã được xuất bản.",
+        });
+      }
       navigation.goBack();
     } catch (err: any) {
       console.error("Lỗi xuất bản tập truyện:", err);
@@ -597,10 +891,7 @@ export default function UploadComicScreen() {
 
   const getSeriesTitle = () => {
     if (seriesMode === "select") {
-      return (
-        seriesList.find((s) => s.seriesId === selectedSeriesId)?.title ||
-        "Chưa chọn"
-      );
+      return seriesList.find((s) => s.seriesId === selectedSeriesId)?.title || "Chưa chọn";
     }
     return newSeriesTitle || "Series mới chưa đặt tên";
   };
@@ -608,74 +899,18 @@ export default function UploadComicScreen() {
   const getSeasonTitle = () => {
     if (seasonMode === "select") {
       const se = seasonList.find((s) => s.seasonId === selectedSeasonId);
-      return se
-        ? `Season ${se.seasonNumber}: ${se.title || "Không có tiêu đề"}`
-        : "Chưa chọn";
+      return se ? `Season ${se.seasonNumber}: ${se.title || "Không có tiêu đề"}` : "Chưa chọn";
     }
-    return newSeasonNumber
-      ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}`
-      : "Season mới";
+    return newSeasonNumber ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}` : "Season mới";
   };
 
-  const renderStepIndicator = () => {
-    const steps = [
-      { num: 1, label: "Series" },
-      { num: 2, label: "Season" },
-      { num: 3, label: "Chương" },
-      { num: 4, label: "Trang ảnh" },
-      { num: 5, label: "Xuất bản" },
-    ];
-
-    return (
-      <View className="flex-row items-center justify-between px-6 py-4 bg-[#141210] border-b border-zinc-900">
-        {steps.map((s, idx) => {
-          const isActive = step === s.num;
-          const isCompleted = step > s.num;
-          return (
-            <React.Fragment key={s.num}>
-              <View className="items-center flex-1">
-                <View
-                  className={`w-8 h-8 rounded-full items-center justify-center ${
-                    isActive
-                      ? "bg-[#FF4E4E] border border-[#FF4E4E]"
-                      : isCompleted
-                        ? "bg-[#D4AF37]"
-                        : "bg-[#252830] border border-zinc-700"
-                  }`}
-                >
-                  {isCompleted ? (
-                    <Feather name="check" size={14} color="#141210" />
-                  ) : (
-                    <Text
-                      className={`text-xs font-bold ${isActive ? "text-white" : "text-zinc-500"}`}
-                    >
-                      {s.num}
-                    </Text>
-                  )}
-                </View>
-                <Text
-                  className={`text-[10px] font-bold mt-1.5 ${
-                    isActive
-                      ? "text-[#FF4E4E]"
-                      : isCompleted
-                        ? "text-[#D4AF37]"
-                        : "text-zinc-500"
-                  }`}
-                >
-                  {s.label}
-                </Text>
-              </View>
-              {idx < steps.length - 1 && (
-                <View
-                  className={`h-[2px] flex-1 mx-2 -mt-4 ${step > s.num ? "bg-[#D4AF37]" : "bg-zinc-800"}`}
-                />
-              )}
-            </React.Fragment>
-          );
-        })}
-      </View>
-    );
-  };
+  const wizardSteps = [
+    { num: 1, label: "Series" },
+    { num: 2, label: "Season" },
+    { num: 3, label: "Tập" },
+    { num: 4, label: "Trang ảnh" },
+    { num: 5, label: "Xuất bản" },
+  ];
 
   return (
     <SafeAreaView edges={["top", "bottom"]} className="flex-1 bg-[#0F0F10]">
@@ -683,20 +918,15 @@ export default function UploadComicScreen() {
 
       {/* HEADER */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-zinc-950 bg-[#0F0F10]">
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          className="p-2 active:opacity-60"
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 active:opacity-60">
           <Feather name="arrow-left" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text className="text-white text-lg font-black tracking-tight">
-          Đăng Truyện Lên TaleX
-        </Text>
+        <Text className="text-white text-lg font-black tracking-tight">Đăng Truyện Lên TaleX</Text>
         <View className="w-10" />
       </View>
 
       {/* STEP INDICATOR */}
-      {renderStepIndicator()}
+      <StepIndicator currentStep={step} steps={wizardSteps} />
 
       {/* SUBMITTING / UPLOADING OVERLAY */}
       {(submitting || uploading) && (
@@ -712,944 +942,142 @@ export default function UploadComicScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
         className="flex-1"
       >
-        {/* ================= STEP 1: SERIES ================= */}
+        {/* Step 1: Series Selection / Creation */}
         {step === 1 && (
-          <View>
-            <Text className="text-white text-base font-black mb-1">
-              Bước 1: Chọn hoặc Tạo Series
-            </Text>
-            <Text className="text-zinc-500 text-xs mb-4">
-              Mỗi chương truyện phải thuộc về một Series (Bộ truyện).
-            </Text>
-
-            {/* Mode Selectors */}
-            <View className="flex-row bg-[#1E1E22] rounded-xl p-1 mb-5 border border-zinc-800">
-              <TouchableOpacity
-                onPress={() => setSeriesMode("select")}
-                className={`flex-1 py-2.5 rounded-lg items-center ${seriesMode === "select" ? "bg-[#FF4E4E]" : ""}`}
-              >
-                <Text
-                  className={`text-xs font-bold ${seriesMode === "select" ? "text-white" : "text-zinc-400"}`}
-                >
-                  Chọn Series Có Sẵn
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setSeriesMode("create")}
-                className={`flex-1 py-2.5 rounded-lg items-center ${seriesMode === "create" ? "bg-[#FF4E4E]" : ""}`}
-              >
-                <Text
-                  className={`text-xs font-bold ${seriesMode === "create" ? "text-white" : "text-zinc-400"}`}
-                >
-                  Tạo Series Mới
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {seriesMode === "select" ? (
-              <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-2">
-                  Danh sách Series của bạn:
-                </Text>
-                {loadingSeries ? (
-                  <View className="py-10 items-center">
-                    <ActivityIndicator size="small" color="#FF4E4E" />
-                  </View>
-                ) : seriesList.length === 0 ? (
-                  <View className="bg-[#1E1E22] border border-zinc-800 p-8 rounded-2xl items-center">
-                    <Text className="text-zinc-500 text-xs text-center font-medium leading-5">
-                      Bạn chưa có Series truyện nào. Vui lòng chọn "Tạo Series
-                      Mới" ở trên.
-                    </Text>
-                  </View>
-                ) : (
-                  seriesList.map((s) => {
-                    const isSelected = selectedSeriesId === s.seriesId;
-                    return (
-                      <TouchableOpacity
-                        key={s.seriesId}
-                        onPress={() => {
-                          setSelectedSeriesId(s.seriesId);
-                        }}
-                        className={`flex-row items-center p-4 rounded-2xl border ${
-                          isSelected
-                            ? "bg-[#FF4E4E]/10 border-[#FF4E4E]"
-                            : "bg-[#1E1E22] border-zinc-800"
-                        } mb-3`}
-                      >
-                        <View className="w-12 h-12 rounded-xl bg-zinc-800 items-center justify-center mr-4">
-                          <MaterialCommunityIcons
-                            name="book-open-outline"
-                            size={24}
-                            color="#D4AF37"
-                          />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-white text-sm font-bold">
-                            {s.title}
-                          </Text>
-                          <Text
-                            className="text-zinc-500 text-xs mt-0.5"
-                            numberOfLines={1}
-                          >
-                            {s.description || "Không có mô tả"}
-                          </Text>
-                        </View>
-                        <View
-                          className={`w-5 h-5 rounded-full border items-center justify-center ${
-                            isSelected
-                              ? "border-[#FF4E4E] bg-[#FF4E4E]"
-                              : "border-zinc-600"
-                          }`}
-                        >
-                          {isSelected && (
-                            <Feather name="check" size={12} color="white" />
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </View>
-            ) : (
-              <View>
-                {/* Title */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">
-                    Tên Series truyện mới *
-                  </Text>
-                  <TextInput
-                    placeholder="Nhập tên bộ truyện..."
-                    placeholderTextColor="#7C766B"
-                    value={newSeriesTitle}
-                    onChangeText={setNewSeriesTitle}
-                    className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-                  />
-                </View>
-
-                {/* Description */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">
-                    Mô tả Series
-                  </Text>
-                  <TextInput
-                    placeholder="Viết mô tả tóm tắt nội dung truyện..."
-                    placeholderTextColor="#7C766B"
-                    value={newSeriesDesc}
-                    onChangeText={setNewSeriesDesc}
-                    multiline
-                    numberOfLines={4}
-                    style={{ textAlignVertical: "top" }}
-                    className="bg-[#1E1E22] border border-zinc-800 rounded-xl p-4 text-white text-sm font-semibold min-h-[100px]"
-                  />
-                </View>
-
-                {/* Cover Picker */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">
-                    Ảnh bìa Series (Cover Art - Tỉ lệ 2:3)
-                  </Text>
-                  {seriesCover ? (
-                    <View className="flex-row bg-[#1E1E22] border border-zinc-800 rounded-2xl p-3 items-center">
-                      <Image
-                        source={{ uri: seriesCover.uri }}
-                        className="h-28 aspect-[2/3] rounded-xl bg-zinc-900"
-                        resizeMode="cover"
-                      />
-                      <View className="flex-1 ml-4">
-                        <Text
-                          className="text-white text-sm font-bold"
-                          numberOfLines={1}
-                        >
-                          {seriesCover.name}
-                        </Text>
-                        <Text className="text-zinc-500 text-xs mt-1">
-                          Dung lượng: {(seriesCover.size / 1024).toFixed(0)} KB
-                        </Text>
-                        <Text className="text-zinc-500 text-xs">
-                          Tỉ lệ ảnh: 2:3 (Dọc)
-                        </Text>
-                        <TouchableOpacity
-                          onPress={handleSelectCover}
-                          className="mt-3 bg-zinc-850 px-3 py-1.5 rounded-lg self-start active:opacity-60"
-                        >
-                          <Text className="text-white text-[11px] font-bold">
-                            Thay đổi ảnh bìa
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={handleSelectCover}
-                      className="w-full h-32 bg-[#1E1E22] border border-dashed border-zinc-700 rounded-2xl items-center justify-center flex-row px-6 overflow-hidden active:opacity-80"
-                    >
-                      <View className="w-12 h-12 rounded-full bg-[#FF4E4E]/10 items-center justify-center mr-4">
-                        <Feather
-                          name="upload-cloud"
-                          size={24}
-                          color="#FF4E4E"
-                        />
-                      </View>
-                      <View className="flex-1">
-                        <Text className="text-white text-xs font-bold">
-                          Chọn ảnh bìa truyện từ thư viện
-                        </Text>
-                        <Text className="text-zinc-500 text-[10px] mt-0.5">
-                          Tỉ lệ 2:3 dọc (VD: Bìa truyện tranh)
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {/* Categories */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">
-                    Thể loại *
-                  </Text>
-                  <View className="flex-row flex-wrap">
-                    {categories.map((c) => {
-                      const isSelected = selectedCategoryIds.includes(c.categoryId);
-                      return (
-                        <TouchableOpacity
-                          key={c.categoryId}
-                          onPress={() => toggleCategory(c.categoryId)}
-                          className={`px-3 py-1.5 rounded-full mr-2 mb-2 border ${
-                            isSelected
-                              ? "bg-[#D4AF37]/15 border-[#D4AF37]"
-                              : "bg-[#1E1E22] border-zinc-800"
-                          }`}
-                        >
-                          <Text
-                            className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-500"}`}
-                          >
-                            {c.categoryName}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                {/* Tags */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">
-                    Thẻ Tag
-                  </Text>
-                  <View className="flex-row flex-wrap">
-                    {tags.map((t) => {
-                      const isSelected = selectedTagIds.includes(t.tagId);
-                      return (
-                        <TouchableOpacity
-                          key={t.tagId}
-                          onPress={() => toggleTag(t.tagId)}
-                          className={`px-3 py-1.5 rounded-full mr-2 mb-2 border ${
-                            isSelected
-                              ? "bg-blue-500/10 border-blue-500/30"
-                              : "bg-[#1E1E22] border-zinc-800"
-                          }`}
-                        >
-                          <Text
-                            className={`text-xs font-bold ${isSelected ? "text-blue-400" : "text-zinc-500"}`}
-                          >
-                            #{t.tagName}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* Nav Buttons */}
-            <View className="mt-8">
-              <TouchableOpacity
-                onPress={handleNextStep}
-                className="h-12 bg-[#FF4E4E] rounded-xl items-center justify-center flex-row"
-              >
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">
-                  Tiếp Tục
-                </Text>
-                <Feather
-                  name="arrow-right"
-                  size={16}
-                  color="white"
-                  style={{ marginLeft: 6 }}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <SeriesStep
+            seriesList={seriesList}
+            loadingSeries={loadingSeries}
+            seriesMode={seriesMode}
+            setSeriesMode={setSeriesMode}
+            selectedSeriesId={selectedSeriesId}
+            setSelectedSeriesId={setSelectedSeriesId}
+            newSeriesTitle={newSeriesTitle}
+            setNewSeriesTitle={setNewSeriesTitle}
+            newSeriesDesc={newSeriesDesc}
+            setNewSeriesDesc={setNewSeriesDesc}
+            categories={categories}
+            tags={tags}
+            selectedCategoryIds={selectedCategoryIds}
+            toggleCategory={toggleCategory}
+            selectedTagIds={selectedTagIds}
+            toggleTag={toggleTag}
+            seriesCover={seriesCover}
+            handleSelectCover={handleSelectCover}
+            subheading="Mỗi tập truyện phải thuộc về một Series (Bộ truyện)."
+            listPlaceholder="Bạn chưa có Series truyện nào. Vui lòng chọn 'Tạo Series Mới' ở trên."
+            coverLabel="Cover Art - Tỉ lệ 2:3"
+            coverSubLabel="Tỉ lệ 2:3 dọc (VD: Bìa truyện tranh)"
+            coverImageStyle="h-28 aspect-[2/3]"
+            descriptionPlaceholder="Viết mô tả tóm tắt nội dung truyện..."
+            contentTypeIcon="book-open-outline"
+            onNext={handleNextStep}
+            editingSeriesId={editingSeriesId}
+            setEditingSeriesId={setEditingSeriesId}
+            onEditSeries={handleStartEditSeries}
+            onDeleteSeries={handleDeleteSeries}
+          />
         )}
 
-        {/* ================= STEP 2: SEASON ================= */}
+        {/* Step 2: Season Selection / Creation */}
         {step === 2 && (
-          <View>
-            <Text className="text-white text-base font-black mb-1">
-              Bước 2: Chọn hoặc Tạo Season
-            </Text>
-            <Text className="text-zinc-500 text-xs mb-4">
-              Các tập truyện được nhóm theo Season / Phần phát hành.
-            </Text>
-
-            {/* Mode Selectors */}
-            <View className="flex-row bg-[#1E1E22] rounded-xl p-1 mb-5 border border-zinc-800">
-              <TouchableOpacity
-                onPress={() => setSeasonMode("select")}
-                className={`flex-1 py-2.5 rounded-lg items-center ${seasonMode === "select" ? "bg-[#FF4E4E]" : ""}`}
-              >
-                <Text
-                  className={`text-xs font-bold ${seasonMode === "select" ? "text-white" : "text-zinc-400"}`}
-                >
-                  Chọn Season Có Sẵn
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setSeasonMode("create")}
-                className={`flex-1 py-2.5 rounded-lg items-center ${seasonMode === "create" ? "bg-[#FF4E4E]" : ""}`}
-              >
-                <Text
-                  className={`text-xs font-bold ${seasonMode === "create" ? "text-white" : "text-zinc-400"}`}
-                >
-                  Tạo Season Mới
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {seasonMode === "select" ? (
-              <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-2">
-                  Danh sách Season hiện có:
-                </Text>
-                {loadingSeasons ? (
-                  <View className="py-10 items-center">
-                    <ActivityIndicator size="small" color="#FF4E4E" />
-                  </View>
-                ) : seasonList.length === 0 ? (
-                  <View className="bg-[#1E1E22] border border-zinc-800 p-8 rounded-2xl items-center">
-                    <Text className="text-zinc-500 text-xs text-center font-medium leading-5">
-                      Chưa có Season nào được tạo cho Series này. Vui lòng chọn
-                      "Tạo Season Mới" ở trên.
-                    </Text>
-                  </View>
-                ) : (
-                  seasonList.map((s) => {
-                    const isSelected = selectedSeasonId === s.seasonId;
-                    return (
-                      <TouchableOpacity
-                        key={s.seasonId}
-                        onPress={() => {
-                          setSelectedSeasonId(s.seasonId);
-                        }}
-                        className={`flex-row items-center p-4 rounded-2xl border ${
-                          isSelected
-                            ? "bg-[#FF4E4E]/10 border-[#FF4E4E]"
-                            : "bg-[#1E1E22] border-zinc-800"
-                        } mb-3`}
-                      >
-                        <View className="w-10 h-10 rounded-xl bg-zinc-800 items-center justify-center mr-4">
-                          <MaterialCommunityIcons
-                            name="layers-outline"
-                            size={20}
-                            color="#D4AF37"
-                          />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-white text-sm font-bold">
-                            Season {s.seasonNumber}
-                          </Text>
-                          <Text className="text-zinc-500 text-xs mt-0.5">
-                            {s.title || "Không tiêu đề"}
-                          </Text>
-                        </View>
-                        <View
-                          className={`w-5 h-5 rounded-full border items-center justify-center ${
-                            isSelected
-                              ? "border-[#FF4E4E] bg-[#FF4E4E]"
-                              : "border-zinc-600"
-                          }`}
-                        >
-                          {isSelected && (
-                            <Feather name="check" size={12} color="white" />
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </View>
-            ) : (
-              <View className="space-y-4">
-                <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">
-                    Season số mấy (VD: 1, 2) *
-                  </Text>
-                  <TextInput
-                    placeholder="Nhập số thứ tự Season..."
-                    placeholderTextColor="#7C766B"
-                    keyboardType="numeric"
-                    value={newSeasonNumber}
-                    onChangeText={setNewSeasonNumber}
-                    className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-                  />
-                </View>
-
-                <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">
-                    Tiêu đề Season *
-                  </Text>
-                  <TextInput
-                    placeholder="Nhập tiêu đề phần truyện (Ví dụ: Phần mở đầu)..."
-                    placeholderTextColor="#7C766B"
-                    value={newSeasonTitle}
-                    onChangeText={setNewSeasonTitle}
-                    className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-                  />
-                </View>
-
-                <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">
-                    Mô tả Season
-                  </Text>
-                  <TextInput
-                    placeholder="Mô tả nội dung của phần này..."
-                    placeholderTextColor="#7C766B"
-                    value={newSeasonDesc}
-                    onChangeText={setNewSeasonDesc}
-                    multiline
-                    numberOfLines={3}
-                    style={{ textAlignVertical: "top" }}
-                    className="bg-[#1E1E22] border border-zinc-800 rounded-xl p-4 text-white text-sm font-semibold min-h-[80px]"
-                  />
-                </View>
-              </View>
-            )}
-
-            {/* Nav Buttons */}
-            <View className="flex-row mt-8 space-x-3">
-              <TouchableOpacity
-                onPress={() => setStep(1)}
-                className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
-              >
-                <Feather
-                  name="arrow-left"
-                  size={16}
-                  color="white"
-                  style={{ marginRight: 6 }}
-                />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">
-                  Quay lại
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleNextStep}
-                className="flex-1 h-12 bg-[#FF4E4E] rounded-xl items-center justify-center flex-row"
-              >
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">
-                  Tiếp Tục
-                </Text>
-                <Feather
-                  name="arrow-right"
-                  size={16}
-                  color="white"
-                  style={{ marginLeft: 6 }}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <SeasonStep
+            seriesTitle={getSeriesTitle()}
+            seasonList={seasonList}
+            loadingSeasons={loadingSeasons}
+            seasonMode={seasonMode}
+            setSeasonMode={setSeasonMode}
+            selectedSeasonId={selectedSeasonId}
+            setSelectedSeasonId={setSelectedSeasonId}
+            newSeasonNumber={newSeasonNumber}
+            setNewSeasonNumber={setNewSeasonNumber}
+            newSeasonTitle={newSeasonTitle}
+            setNewSeasonTitle={setNewSeasonTitle}
+            newSeasonDesc={newSeasonDesc}
+            setNewSeasonDesc={setNewSeasonDesc}
+            subheading="Các tập truyện được nhóm theo Season / Phần phát hành."
+            listPlaceholder="Chưa có Season nào được tạo cho Series này. Vui lòng chọn 'Tạo Season Mới' ở trên."
+            onBack={() => setStep(1)}
+            onNext={handleNextStep}
+            editingSeasonId={editingSeasonId}
+            setEditingSeasonId={setEditingSeasonId}
+            onEditSeason={handleStartEditSeason}
+            onDeleteSeason={handleDeleteSeason}
+            onToggleHideSeason={handleToggleHideSeason}
+          />
         )}
 
-        {/* ================= STEP 3: CHAPTER DETAILS ================= */}
+        {/* Step 3: Chapter Details */}
         {step === 3 && (
-          <View className="space-y-4">
-            <Text className="text-white text-base font-black mb-1">
-              Bước 3: Nhập thông tin Chương mới
-            </Text>
-            <Text className="text-zinc-500 text-xs mb-2">
-              Điền thông tin chi tiết cho tập/chương truyện chuẩn bị tải lên.
-            </Text>
-
-            <View>
-              <Text className="text-zinc-400 text-xs font-bold mb-1.5">
-                Chương số mấy (VD: 1, 2) *
-              </Text>
-              <TextInput
-                placeholder="Nhập số chương..."
-                placeholderTextColor="#7C766B"
-                keyboardType="numeric"
-                value={episodeNumber}
-                onChangeText={setEpisodeNumber}
-                className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-              />
-            </View>
-
-            <View>
-              <Text className="text-zinc-400 text-xs font-bold mb-1.5">
-                Tiêu đề chương *
-              </Text>
-              <TextInput
-                placeholder="Nhập tên chương..."
-                placeholderTextColor="#7C766B"
-                value={episodeTitle}
-                onChangeText={setEpisodeTitle}
-                className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-              />
-            </View>
-
-            <View>
-              <Text className="text-zinc-400 text-xs font-bold mb-1.5">
-                Mô tả ngắn
-              </Text>
-              <TextInput
-                placeholder="Tóm tắt nội dung chương..."
-                placeholderTextColor="#7C766B"
-                value={episodeDesc}
-                onChangeText={setEpisodeDesc}
-                multiline
-                numberOfLines={3}
-                style={{ textAlignVertical: "top" }}
-                className="bg-[#1E1E22] border border-zinc-800 rounded-xl p-4 text-white text-sm font-semibold min-h-[80px]"
-              />
-            </View>
-
-            {/* Release Type (Free, Premium, Coin) */}
-            <View>
-              <Text className="text-zinc-400 text-xs font-bold mb-2">
-                Chế độ xem của chương
-              </Text>
-              <View className="flex-row space-x-2">
-                {["free", "premium", "coin"].map((type) => {
-                  const isSelected = releaseType === type;
-                  const label =
-                    type === "free"
-                      ? "Miễn phí"
-                      : type === "premium"
-                        ? "Premium"
-                        : "Bán xu";
-                  return (
-                    <TouchableOpacity
-                      key={type}
-                      onPress={() => setReleaseType(type as any)}
-                      className={`flex-1 py-3 rounded-xl border items-center justify-center ${
-                        isSelected
-                          ? "bg-[#D4AF37]/15 border-[#D4AF37]"
-                          : "bg-[#1E1E22] border-zinc-800"
-                      }`}
-                    >
-                      <Text
-                        className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-400"}`}
-                      >
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {releaseType === "coin" && (
-              <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-1.5">
-                  Giá bán (Xu) *
-                </Text>
-                <TextInput
-                  placeholder="Nhập số xu cần mua..."
-                  placeholderTextColor="#7C766B"
-                  keyboardType="numeric"
-                  value={coinPrice}
-                  onChangeText={setCoinPrice}
-                  className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-                />
-              </View>
-            )}
-
-            {/* Nav Buttons */}
-            <View className="flex-row mt-8 space-x-3">
-              <TouchableOpacity
-                onPress={() => setStep(2)}
-                className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
-              >
-                <Feather
-                  name="arrow-left"
-                  size={16}
-                  color="white"
-                  style={{ marginRight: 6 }}
-                />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">
-                  Quay lại
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleNextStep}
-                className="flex-1 h-12 bg-[#FF4E4E] rounded-xl items-center justify-center flex-row"
-              >
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">
-                  Khởi Tạo
-                </Text>
-                <Feather
-                  name="arrow-right"
-                  size={16}
-                  color="white"
-                  style={{ marginLeft: 6 }}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <EpisodeDetailsStep
+            seriesTitle={getSeriesTitle()}
+            seasonTitle={getSeasonTitle()}
+            episodeNumber={episodeNumber}
+            setEpisodeNumber={setEpisodeNumber}
+            episodeTitle={episodeTitle}
+            setEpisodeTitle={setEpisodeTitle}
+            episodeDesc={episodeDesc}
+            setEpisodeDesc={setEpisodeDesc}
+            releaseType={releaseType}
+            setReleaseType={setReleaseType}
+            coinPrice={coinPrice}
+            setCoinPrice={setCoinPrice}
+            contentType="COMIC"
+            heading="Bước 3: Nhập thông tin Tập truyện mới"
+            subheading="Điền thông tin chi tiết cho tập truyện chuẩn bị tải lên."
+            numberLabel="Tập số mấy (VD: 1, 2) *"
+            numberPlaceholder="Nhập số tập..."
+            titleLabel="Tiêu đề tập *"
+            titlePlaceholder="Nhập tên tập..."
+            descLabel="Mô tả ngắn"
+            descPlaceholder="Tóm tắt nội dung tập truyện..."
+            coinLabel="Giá bán (Xu) *"
+            coinSubLabel="Nhập số xu cần mua..."
+            onBack={() => setStep(2)}
+            onNext={handleNextStep}
+          />
         )}
 
-        {/* ================= STEP 4: PAGES UPLOAD ================= */}
+        {/* Step 4: Pages Upload */}
         {step === 4 && (
-          <View>
-            {/* Episode Brief */}
-            <View className="bg-[#1E1E22] border border-zinc-800 rounded-3xl p-4 mb-5 space-y-2">
-              <Text className="text-[#D4AF37] text-xs font-black uppercase">
-                ĐÃ KHỞI TẠO CHƯƠNG THÀNH CÔNG:
-              </Text>
-              <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">
-                  Vị trí:
-                </Text>
-                <Text className="text-white text-xs font-semibold flex-1">
-                  {getSeasonTitle()} • Tập {episodeNumber}
-                </Text>
-              </View>
-              <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">
-                  Tên tập:
-                </Text>
-                <Text className="text-white text-xs font-semibold flex-1">
-                  {episodeTitle}
-                </Text>
-              </View>
-              <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">
-                  Chế độ xem:
-                </Text>
-                <Text className="text-[#D4AF37] text-xs font-black uppercase flex-1">
-                  {releaseType === "free"
-                    ? "Miễn phí"
-                    : releaseType === "premium"
-                      ? "Premium"
-                      : `${coinPrice} Xu`}
-                </Text>
-              </View>
-            </View>
-
-            <Text className="text-white text-base font-black mb-1">
-              Bước 4: Tải lên các trang truyện
-            </Text>
-            <Text className="text-zinc-500 text-xs mb-5">
-              Chọn các trang ảnh truyện từ thư viện để tải lên.
-            </Text>
-
-            {comicPages.length === 0 ? (
-              <TouchableOpacity
-                onPress={handleSelectPages}
-                className="border-2 border-dashed border-zinc-700 bg-[#1E1E22] rounded-3xl p-10 items-center justify-center min-h-[200px] mb-5"
-              >
-                <View className="w-16 h-16 rounded-full bg-[#FF4E4E]/10 items-center justify-center mb-4">
-                  <Feather name="image" size={32} color="#FF4E4E" />
-                </View>
-                <Text className="text-white text-sm font-bold text-center">
-                  Bấm vào đây để chọn các trang truyện
-                </Text>
-                <Text className="text-zinc-500 text-xs text-center mt-1.5">
-                  Hỗ trợ chọn nhiều ảnh cùng lúc
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <View className="space-y-4 mb-5">
-                {/* Pages List */}
-                <View className="bg-[#1E1E22] border border-zinc-800 rounded-3xl p-4">
-                  <View className="flex-row items-center justify-between border-b border-zinc-800 pb-3 mb-3">
-                    <Text className="text-white text-xs font-bold">
-                      Danh sách trang ({comicPages.length})
-                    </Text>
-                    <TouchableOpacity
-                      onPress={handleSelectPages}
-                      className="flex-row items-center bg-zinc-800 px-3 py-1.5 rounded-lg active:opacity-60"
-                    >
-                      <Feather name="plus" size={14} color="white" />
-                      <Text className="text-white text-[10px] font-bold ml-1">
-                        Thêm trang
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView style={{ maxHeight: 300 }}>
-                    {comicPages.map((page, index) => (
-                      <View
-                        key={page.id}
-                        className="flex-row items-center justify-between py-2 border-b border-zinc-900/50"
-                      >
-                        <View className="flex-row items-center flex-1 mr-3">
-                          <Image
-                            source={{ uri: page.uri }}
-                            className="w-12 h-16 rounded-md mr-3 bg-zinc-900"
-                            resizeMode="cover"
-                          />
-                          <View className="flex-1">
-                            <Text
-                              className="text-white text-xs font-bold"
-                              numberOfLines={1}
-                            >
-                              Trang {index + 1}
-                            </Text>
-                            <Text
-                              className="text-zinc-500 text-[10px]"
-                              numberOfLines={1}
-                            >
-                              {page.name}
-                            </Text>
-                            <Text className="text-zinc-500 text-[10px]">
-                              {(page.size / 1024).toFixed(0)} KB
-                            </Text>
-                          </View>
-                        </View>
-                        <TouchableOpacity
-                          onPress={() => {
-                            setComicPages((prev) =>
-                              prev.filter((p) => p.id !== page.id),
-                            );
-                          }}
-                          className="p-2 active:opacity-60"
-                        >
-                          <Feather name="trash-2" size={16} color="#EF4444" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-
-                {/* Upload action or success indicator */}
-                {uploading ? (
-                  <View className="bg-[#1E1E22] border border-[#D4AF37]/30 rounded-2xl p-4 items-center">
-                    <ActivityIndicator size="small" color="#D4AF37" />
-                    <Text className="text-stone-300 text-xs font-medium mt-2">
-                      {submitMsg}
-                    </Text>
-                  </View>
-                ) : isSuccess ? (
-                  <View className="space-y-3">
-                    <View className="bg-[#10B981]/10 border border-[#10B981]/30 rounded-2xl p-4 flex-row items-center">
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={24}
-                        color="#10B981"
-                      />
-                      <View className="ml-3 flex-1">
-                        <Text className="text-[#10B981] text-sm font-bold">
-                          Tải lên hoàn tất!
-                        </Text>
-                        <Text className="text-emerald-500/80 text-[10px] mt-0.5">
-                          Đã lưu {comicPages.length} trang truyện vào chương mới
-                          của bạn.
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* AI Moderation Progress Panel */}
-                    <View className="bg-[#1E1E22] border border-zinc-800 rounded-2xl p-4">
-                      <Text className="text-[#D4AF37] text-xs font-bold mb-2">
-                        TIẾN TRÌNH KIỂM DUYỆT ẢNH AI:
-                      </Text>
-                      <View className="flex-row items-center justify-between mb-1">
-                        <Text className="text-zinc-400 text-xs font-semibold">
-                          Trạng thái:
-                        </Text>
-                        <Text
-                          className={`text-xs font-bold ${
-                            moderationStatus?.includes("Từ chối")
-                              ? "text-red-500"
-                              : moderationStatus?.includes("Đạt")
-                                ? "text-green-400"
-                                : "text-amber-400"
-                          }`}
-                        >
-                          {moderationStatus || "Đang kết nối..."}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    onPress={handleStartUpload}
-                    className="h-12 bg-zinc-800 rounded-xl items-center justify-center flex-row"
-                  >
-                    <Feather
-                      name="upload"
-                      size={16}
-                      color="white"
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text className="text-white text-xs font-bold">
-                      Bắt Đầu Tải Lên Hệ Thống
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {/* Nav Buttons */}
-            <View className="flex-row mt-8 space-x-3">
-              <TouchableOpacity
-                onPress={() => setStep(3)}
-                className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
-              >
-                <Feather
-                  name="arrow-left"
-                  size={16}
-                  color="white"
-                  style={{ marginRight: 6 }}
-                />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">
-                  Quay lại
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setStep(5)}
-                disabled={!isSuccess || !isModerationDone}
-                className={`flex-1 h-12 rounded-xl items-center justify-center flex-row ${
-                  isSuccess && isModerationDone
-                    ? "bg-[#FF4E4E]"
-                    : "bg-zinc-800 opacity-50"
-                }`}
-              >
-                <Text
-                  className={`text-sm font-bold uppercase tracking-wider ${
-                    isSuccess && isModerationDone
-                      ? "text-white"
-                      : "text-zinc-500"
-                  }`}
-                >
-                  Tiếp Tục
-                </Text>
-                <Feather
-                  name="arrow-right"
-                  size={16}
-                  color={isSuccess && isModerationDone ? "white" : "#71717A"}
-                  style={{ marginLeft: 6 }}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <ComicPagesUploadStep
+            seriesTitle={getSeriesTitle()}
+            seasonTitle={getSeasonTitle()}
+            episodeNumber={episodeNumber}
+            episodeTitle={episodeTitle}
+            releaseType={releaseType}
+            coinPrice={coinPrice}
+            comicPages={comicPages}
+            handleSelectPages={handleSelectPages}
+            handleDeletePage={(id) => {
+              setComicPages((prev) => prev.filter((p) => p.id !== id));
+            }}
+            handleStartUpload={handleStartUpload}
+            uploading={uploading}
+            submitMsg={submitMsg}
+            isSuccess={isSuccess}
+            moderationStatus={moderationStatus}
+            isModerationDone={isModerationDone}
+            onBack={() => setStep(3)}
+            onNext={() => setStep(5)}
+          />
         )}
 
-        {/* ================= STEP 5: PUBLISH ================= */}
+        {/* Step 5: Summary and Publish */}
         {step === 5 && (
-          <View>
-            <View className="bg-[#1E1E22] p-5 rounded-3xl border border-zinc-800 space-y-4 mb-6">
-              <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">
-                  Tên Bộ Truyện / Series
-                </Text>
-                <Text className="text-white text-sm font-bold mt-1">
-                  {getSeriesTitle()}
-                </Text>
-              </View>
-
-              <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">
-                  Season
-                </Text>
-                <Text className="text-white text-sm font-bold mt-1">
-                  {getSeasonTitle()}
-                </Text>
-              </View>
-
-              <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">
-                  Tên chương (Chương {episodeNumber})
-                </Text>
-                <Text className="text-white text-sm font-bold mt-1">
-                  {episodeTitle || "Không có tiêu đề"}
-                </Text>
-              </View>
-
-              {episodeDesc ? (
-                <View className="border-b border-zinc-850 pb-3">
-                  <Text className="text-zinc-500 text-[10px] font-black uppercase">
-                    Mô tả chương truyện
-                  </Text>
-                  <Text className="text-[#A19E95] text-xs font-semibold mt-1 leading-5">
-                    {episodeDesc}
-                  </Text>
-                </View>
-              ) : null}
-
-              <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">
-                  Chế độ phát hành
-                </Text>
-                <Text className="text-[#D4AF37] text-sm font-black uppercase mt-1">
-                  {releaseType === "free"
-                    ? "Miễn phí"
-                    : releaseType === "premium"
-                      ? "Premium"
-                      : `${coinPrice} Xu`}
-                </Text>
-              </View>
-
-              <View className="pb-1">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">
-                  Số lượng trang ảnh
-                </Text>
-                <Text className="text-white text-sm font-bold mt-1">
-                  {comicPages.length} trang
-                </Text>
-              </View>
-            </View>
-
-            <Text className="text-white text-base font-black mb-1">
-              Bước 5: Xác nhận & Xuất bản
-            </Text>
-            <Text className="text-zinc-500 text-xs mb-5">
-              Xem lại toàn bộ thông tin chương truyện của bạn trước khi nhấn nút
-              xuất bản trực tuyến.
-            </Text>
-
-            {/* Nav Buttons */}
-            <View className="flex-row mt-8 space-x-3">
-              <TouchableOpacity
-                onPress={() => setStep(4)}
-                className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
-              >
-                <Feather
-                  name="arrow-left"
-                  size={16}
-                  color="white"
-                  style={{ marginRight: 6 }}
-                />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">
-                  Quay lại
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handlePublish}
-                disabled={publishing}
-                className="flex-1 h-12 bg-[#D4AF37] rounded-xl items-center justify-center flex-row"
-              >
-                {publishing ? (
-                  <ActivityIndicator size="small" color="#141210" />
-                ) : (
-                  <>
-                    <Text className="text-[#141210] text-sm font-black uppercase tracking-wider">
-                      Xuất Bản Truyện
-                    </Text>
-                    <Feather
-                      name="check-circle"
-                      size={16}
-                      color="#141210"
-                      style={{ marginLeft: 6 }}
-                    />
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+          <PublishStep
+            seriesTitle={getSeriesTitle()}
+            seasonTitle={getSeasonTitle()}
+            episodeNumber={episodeNumber}
+            episodeTitle={episodeTitle}
+            episodeDesc={episodeDesc}
+            releaseType={releaseType}
+            coinPrice={coinPrice}
+            contentType="COMIC"
+            comicPagesCount={comicPages.length}
+            publishing={publishing}
+            onBack={() => setStep(4)}
+            onPublish={handlePublish}
+          />
         )}
       </ScrollView>
     </SafeAreaView>

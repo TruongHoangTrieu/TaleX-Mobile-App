@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Feather, FontAwesome } from "@expo/vector-icons";
@@ -54,6 +55,12 @@ export default function ComicDetailScreen() {
       .then((res) => {
         if (res && res.code === 200 && res.data) {
           const detail = res.data;
+          if (detail.status === "HIDDEN") {
+            Alert.alert("Thông báo", "Tác phẩm này đã bị ẩn bởi tác giả.", [
+              { text: "OK", onPress: () => navigation.goBack() }
+            ]);
+            return;
+          }
           setComic({
             id: detail.seriesId || detail.id,
             title: detail.title,

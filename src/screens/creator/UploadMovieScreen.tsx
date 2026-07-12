@@ -2,16 +2,14 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   ScrollView,
   StatusBar,
-  Text,
   TouchableOpacity,
   View,
-  TextInput,
   Alert,
   ActivityIndicator,
-  Image,
+  Text,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Feather, MaterialCommunityIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -22,15 +20,26 @@ import {
   createSeries,
   listSeasonsBySeries,
   createSeason,
+  updateSeason,
+  deleteSeason,
+  hideSeason,
+  unhideSeason,
+  updateSeries,
+  deleteSeries,
+  listEpisodesBySeason,
   createEpisode,
   uploadImageToS3,
   createVideoUploadSession,
-  getVideoUploadSession,
   updateVideoUploadProgress,
   completeVideoUpload,
+  pauseVideoUpload,
+  failVideoUpload,
+  cancelVideoUpload,
+  approveMedia,
   fetchMediaViolations,
   listMediaByEpisode,
   publishEpisode,
+  schedulePublishEpisode,
   SeriesItem,
   SeasonItem,
   getCategories,
@@ -41,7 +50,13 @@ import {
 import { getOwnCreator } from "@/services/creator";
 import { useAuth } from "@/context/AuthContext";
 
-const genresList = ["Hành động", "Viễn tưởng", "Tình cảm", "Hài hước", "Kinh dị", "Trinh thám", "Đời thường"];
+// Component imports
+import StepIndicator from "./components/StepIndicator";
+import SeriesStep from "./components/SeriesStep";
+import SeasonStep from "./components/SeasonStep";
+import EpisodeDetailsStep from "./components/EpisodeDetailsStep";
+import MovieVideoUploadStep from "./components/MovieVideoUploadStep";
+import PublishStep from "./components/PublishStep";
 
 export default function UploadMovieScreen() {
   const navigation = useNavigation<any>();
@@ -59,31 +74,18 @@ export default function UploadMovieScreen() {
   const [selectedSeriesId, setSelectedSeriesId] = useState("");
   const [newSeriesTitle, setNewSeriesTitle] = useState("");
   const [newSeriesDesc, setNewSeriesDesc] = useState("");
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [tags, setTags] = useState<TagResponse[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-
-  // Fetch Categories & Tags on mount
-  useEffect(() => {
-    const fetchMeta = async () => {
-      try {
-        const [catsRes, tagsRes] = await Promise.all([getCategories(), getTags()]);
-        setCategories(catsRes?.content || []);
-        setTags(tagsRes?.content || []);
-      } catch (err) {
-        console.error("Lỗi tải thể loại/tag:", err);
-      }
-    };
-    fetchMeta();
-  }, []);
   const [seriesCover, setSeriesCover] = useState<{
     uri: string;
     name: string;
     size: number;
     type: string;
+    isUrl?: boolean;
   } | null>(null);
+  const [editingSeriesId, setEditingSeriesId] = useState<string | null>(null);
 
   // --- STEP 2: SEASON STATE ---
   const [seasonList, setSeasonList] = useState<SeasonItem[]>([]);
@@ -93,6 +95,7 @@ export default function UploadMovieScreen() {
   const [newSeasonNumber, setNewSeasonNumber] = useState("");
   const [newSeasonTitle, setNewSeasonTitle] = useState("");
   const [newSeasonDesc, setNewSeasonDesc] = useState("");
+  const [editingSeasonId, setEditingSeasonId] = useState<string | null>(null);
 
   // --- STEP 3: EPISODE STATE ---
   const [episodeNumber, setEpisodeNumber] = useState("");
@@ -115,14 +118,45 @@ export default function UploadMovieScreen() {
   const [publishing, setPublishing] = useState(false);
 
   // Moderation / Copyright checking states
-  const [mediaStatus, setMediaStatus] = useState<string | null>(null); // PENDING, PROCESSING, ACTIVE, FAILED
+  const [mediaStatus, setMediaStatus] = useState<string | null>(null);
   const [copyrightStatus, setCopyrightStatus] = useState<string | null>(null);
   const [moderationStatus, setModerationStatus] = useState<string | null>(null);
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const activeUploadSessionIdRef = useRef<string | null>(null);
+  const actorId = user?.accountId || "";
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+      }
+      if (xhrRef.current) {
+        xhrRef.current.abort();
+      }
+      if (activeUploadSessionIdRef.current) {
+        cancelVideoUpload(activeUploadSessionIdRef.current, actorId || undefined).catch(() => {});
+      }
+    };
+  }, [actorId]);
 
   const [creatorId, setCreatorId] = useState("");
-  const actorId = user?.accountId || "";
+
+  // Fetch Categories & Tags on mount
+  useEffect(() => {
+    const fetchMeta = async () => {
+      try {
+        const [catsRes, tagsRes] = await Promise.all([getCategories(), getTags()]);
+        setCategories(catsRes?.content || []);
+        setTags(tagsRes?.content || []);
+      } catch (err) {
+        console.error("Lỗi tải thể loại/tag:", err);
+      }
+    };
+    fetchMeta();
+  }, []);
 
   // Load Creator Profile (creatorId & actorId)
   useEffect(() => {
@@ -245,7 +279,7 @@ export default function UploadMovieScreen() {
         setSeriesCover({
           uri: asset.uri,
           name: asset.fileName || `cover_${Date.now()}.jpg`,
-          size: asset.fileSize || 1024 * 150, // default to 150kb
+          size: asset.fileSize || 1024 * 150,
           type: asset.mimeType || "image/jpeg",
         });
       }
@@ -267,7 +301,7 @@ export default function UploadMovieScreen() {
         setVideoFile({
           uri: asset.uri,
           name: asset.name || `video_${Date.now()}.mp4`,
-          size: asset.size || 1024 * 1024 * 5, // default to 5MB
+          size: asset.size || 1024 * 1024 * 5,
           type: asset.mimeType || "video/mp4",
         });
 
@@ -292,12 +326,6 @@ export default function UploadMovieScreen() {
     setCopyrightStatus(null);
     setModerationStatus(null);
 
-    console.log("[UploadMovie] Starting upload session creation:", {
-      episodeId: createdEpisodeId,
-      creatorId,
-      actorId,
-    });
-
     try {
       // 1. Create upload session
       const session = await createVideoUploadSession(createdEpisodeId, {
@@ -308,7 +336,7 @@ export default function UploadMovieScreen() {
         actorId: actorId || undefined,
       });
 
-      console.log("[UploadMovie] Session created successfully:", session);
+      activeUploadSessionIdRef.current = session.uploadSessionId;
 
       // 2. Fetch the file binary from local URI
       const localRes = await fetch(videoFile.uri);
@@ -316,6 +344,7 @@ export default function UploadMovieScreen() {
 
       // 3. Upload to AWS S3 using XMLHttpRequest
       const xhr = new XMLHttpRequest();
+      xhrRef.current = xhr;
       xhr.open("PUT", session.uploadUrl);
       xhr.setRequestHeader("Content-Type", videoFile.type);
 
@@ -331,7 +360,6 @@ export default function UploadMovieScreen() {
         if (xhr.status >= 200 && xhr.status < 300) {
           setUploadProgress(100);
           try {
-            console.log("[UploadMovie] S3 upload done. Confirming completion on backend...");
             // Confirm complete on backend
             const completedMedia = await completeVideoUpload(session.uploadSessionId, {
               publicId: session.publicId,
@@ -342,6 +370,8 @@ export default function UploadMovieScreen() {
 
             setIsSuccess(true);
             setUploading(false);
+            activeUploadSessionIdRef.current = null;
+            xhrRef.current = null;
             Toast.show({
               type: "success",
               text1: "Tải lên thành công!",
@@ -349,31 +379,51 @@ export default function UploadMovieScreen() {
             });
 
             // Start Polling pipeline
-            startPollingPipeline(completedMedia.mediaId, session.uploadSessionId);
+            startPollingPipeline(completedMedia.mediaId);
           } catch (completeErr: any) {
             Alert.alert("Lỗi", "Không thể cập nhật trạng thái tệp: " + completeErr.message);
             setUploading(false);
+            failVideoUpload(session.uploadSessionId, {
+              errorMessage: completeErr.message || "Không thể cập nhật trạng thái tệp",
+              actorId: actorId || undefined,
+            }).catch(() => {});
+            activeUploadSessionIdRef.current = null;
+            xhrRef.current = null;
           }
         } else {
           Alert.alert("Lỗi tải lên S3", `Thất bại với mã HTTP ${xhr.status}`);
           setUploading(false);
+          failVideoUpload(session.uploadSessionId, {
+            errorMessage: `Lỗi tải lên S3 với mã HTTP ${xhr.status}`,
+            actorId: actorId || undefined,
+          }).catch(() => {});
+          activeUploadSessionIdRef.current = null;
+          xhrRef.current = null;
         }
       };
 
       xhr.onerror = () => {
         Alert.alert("Lỗi kết nối", "Quá trình tải video lên S3 gặp sự cố mạng.");
         setUploading(false);
+        failVideoUpload(session.uploadSessionId, {
+          errorMessage: "Quá trình tải video lên S3 gặp sự cố mạng.",
+          actorId: actorId || undefined,
+        }).catch(() => {});
+        activeUploadSessionIdRef.current = null;
+        xhrRef.current = null;
       };
 
       xhr.send(blob);
     } catch (err: any) {
       Alert.alert("Lỗi khởi tạo", "Không thể bắt đầu phiên tải lên: " + err.message);
       setUploading(false);
+      activeUploadSessionIdRef.current = null;
+      xhrRef.current = null;
     }
   };
 
   // Poll Backend to show live copyright check & content moderation
-  const startPollingPipeline = (mediaId: string, uploadSessionId: string) => {
+  const startPollingPipeline = (mediaId: string) => {
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
     }
@@ -394,7 +444,6 @@ export default function UploadMovieScreen() {
 
           // Copyright checking update
           if (violationsRes.copyrightViolations.length > 0) {
-            console.log("[Pipeline Copyright] Phát hiện trùng lặp bản quyền:", violationsRes.copyrightViolations);
             setCopyrightStatus(`Cảnh báo: Phát hiện trùng lặp bản quyền (${violationsRes.copyrightViolations.length} đoạn)!`);
           } else if (currentMedia.status === "ACTIVE" || currentMedia.status === "HLS_READY") {
             setCopyrightStatus("Đạt: Không phát hiện vi phạm bản quyền.");
@@ -407,7 +456,6 @@ export default function UploadMovieScreen() {
 
           if (activeCensorships.length > 0) {
             const labels = activeCensorships.map((r) => r.primaryViolationLabel).filter(Boolean);
-            console.log("[Pipeline Moderation] Phát hiện nhãn vi phạm AI:", labels, activeCensorships);
             setModerationStatus(`Từ chối: Phát hiện nhãn vi phạm [${labels.join(", ")}].`);
           } else if (currentMedia.status === "ACTIVE" || currentMedia.status === "HLS_READY" || currentMedia.approvalStatus === "APPROVED") {
             setModerationStatus("Đạt: Nội dung sạch và an toàn.");
@@ -441,23 +489,354 @@ export default function UploadMovieScreen() {
     }, 4000);
   };
 
+  const handleStartEditSeason = (se: SeasonItem) => {
+    setEditingSeasonId(se.seasonId);
+    setNewSeasonNumber(String(se.seasonNumber));
+    setNewSeasonTitle(se.title);
+    setNewSeasonDesc(se.description || "");
+    setSeasonMode("create");
+  };
+
+  const handleDeleteSeason = (seasonId: string) => {
+    const targetSeason = seasonList.find((s) => s.seasonId === seasonId);
+    if (!targetSeason) return;
+
+    Alert.alert(
+      "Xác nhận xóa Season",
+      `Bạn có chắc chắn muốn xóa Season ${targetSeason.seasonNumber} - "${targetSeason.title || ""}" không?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteSeason(seasonId);
+              setSeasonList((prev) => prev.filter((s) => s.seasonId !== seasonId));
+              if (selectedSeasonId === seasonId) {
+                setSelectedSeasonId("");
+              }
+              Toast.show({
+                type: "success",
+                text1: "Thành công",
+                text2: "Đã xóa Season thành công.",
+              });
+            } catch (err: any) {
+              console.error("[DeleteSeason] Error:", err);
+              Alert.alert("Lỗi", err.message || "Không thể xóa Season.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleToggleHideSeason = (season: SeasonItem) => {
+    const isHidden = season.status === "HIDDEN";
+    Alert.alert(
+      isHidden ? "Xác nhận công khai Season" : "Xác nhận ẩn Season",
+      isHidden
+        ? `Bạn có chắc chắn muốn bỏ ẩn và công khai Season ${season.seasonNumber} không?`
+        : `Bạn có chắc chắn muốn ẩn Season ${season.seasonNumber}? Season bị ẩn sẽ không hiển thị với người xem.`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: isHidden ? "Công khai" : "Ẩn",
+          onPress: async () => {
+            try {
+              if (isHidden) {
+                await unhideSeason(season.seasonId);
+                setSeasonList((prev) =>
+                  prev.map((s) =>
+                    s.seasonId === season.seasonId ? { ...s, status: "PUBLISHED" } : s
+                  )
+                );
+                Toast.show({
+                  type: "success",
+                  text1: "Thành công",
+                  text2: "Đã công khai Season thành công.",
+                });
+              } else {
+                await hideSeason(season.seasonId);
+                setSeasonList((prev) =>
+                  prev.map((s) =>
+                    s.seasonId === season.seasonId ? { ...s, status: "HIDDEN" } : s
+                  )
+                );
+                Toast.show({
+                  type: "success",
+                  text1: "Thành công",
+                  text2: "Đã ẩn Season thành công.",
+                });
+              }
+            } catch (err: any) {
+              console.error("[ToggleHideSeason] Error:", err);
+              Alert.alert("Lỗi", err.message || "Không thể thực hiện thao tác.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleStartEditSeries = (s: SeriesItem) => {
+    setEditingSeriesId(s.seriesId);
+    setNewSeriesTitle(s.title);
+    setNewSeriesDesc(s.description || "");
+    setSeriesCover(s.coverUrl ? { uri: s.coverUrl, name: s.coverUrl.split("/").pop() || "cover.jpg", size: 0, type: "image/jpeg", isUrl: true } : null);
+    setSelectedCategoryIds(s.categories?.map((c) => c.categoryId) || []);
+    setSelectedTagIds(s.tags?.map((t) => t.tagId) || []);
+    setSeriesMode("create");
+  };
+
+  const handleDeleteSeries = (seriesId: string) => {
+    const targetSeries = seriesList.find((s) => s.seriesId === seriesId);
+    if (!targetSeries) return;
+
+    Alert.alert(
+      "Xác nhận xóa Series",
+      `Bạn có chắc chắn muốn xóa Series "${targetSeries.title}" không? Hành động này sẽ chuyển trạng thái của Series thành DELETED.`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteSeries(seriesId);
+              setSeriesList((prev) => prev.filter((s) => s.seriesId !== seriesId));
+              if (selectedSeriesId === seriesId) {
+                setSelectedSeriesId("");
+                setSeasonList([]);
+              }
+              Toast.show({
+                type: "success",
+                text1: "Thành công",
+                text2: "Đã xóa Series thành công.",
+              });
+            } catch (err: any) {
+              console.error("[DeleteSeries] Error:", err);
+              Alert.alert("Lỗi", err.message || "Không thể xóa Series.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Submit and Next Step logic
   const handleNextStep = async () => {
     if (step === 1) {
-      if (seriesMode === "create" && !newSeriesTitle.trim()) {
-        Alert.alert("Thiếu thông tin", "Vui lòng nhập tên Series mới.");
-        return;
+      if (seriesMode === "create") {
+        if (!newSeriesTitle.trim()) {
+          Alert.alert("Thiếu thông tin", "Vui lòng nhập tên Series mới.");
+          return;
+        }
+
+        if (editingSeriesId) {
+          setSubmitting(true);
+          setSubmitMsg("Đang lưu thay đổi Series...");
+          try {
+            let coverUrl = "";
+            if (seriesCover) {
+              if (seriesCover.isUrl) {
+                coverUrl = seriesCover.uri;
+              } else {
+                const uploadRes = await uploadImageToS3(
+                  seriesCover.uri,
+                  seriesCover.name,
+                  seriesCover.size,
+                  seriesCover.type,
+                  "cover"
+                );
+                coverUrl = uploadRes.publicUrl;
+              }
+            }
+
+            await updateSeries(editingSeriesId, {
+              title: newSeriesTitle,
+              description: newSeriesDesc,
+              coverUrl,
+              contentType: "VIDEO",
+              status: "PUBLISHED",
+              categoryIds: selectedCategoryIds,
+              tagIds: selectedTagIds,
+            });
+
+            const seriesData = await listSeriesByCreator();
+            if (seriesData) {
+              const filtered = seriesData.filter(
+                (item) => item.contentType?.toUpperCase() === "VIDEO"
+              );
+              setSeriesList(filtered);
+            }
+
+            setEditingSeriesId(null);
+            setNewSeriesTitle("");
+            setNewSeriesDesc("");
+            setSeriesCover(null);
+            setSelectedCategoryIds([]);
+            setSelectedTagIds([]);
+            setSeriesMode("select");
+
+            Toast.show({
+              type: "success",
+              text1: "Thành công",
+              text2: "Đã cập nhật Series thành công.",
+            });
+          } catch (err: any) {
+            console.error("[UpdateSeries] Error:", err);
+            Alert.alert("Lỗi", err.message || "Không thể cập nhật Series.");
+            return;
+          } finally {
+            setSubmitting(false);
+          }
+          return;
+        } else {
+          // Creating a new Series immediately in Step 1
+          setSubmitting(true);
+          setSubmitMsg("Đang tải ảnh bìa lên S3...");
+          try {
+            let coverUrl = "";
+            if (seriesCover) {
+              const uploadRes = await uploadImageToS3(
+                seriesCover.uri,
+                seriesCover.name,
+                seriesCover.size,
+                seriesCover.type,
+                "cover"
+              );
+              coverUrl = uploadRes.publicUrl;
+            }
+            setSubmitMsg("Đang tạo Series mới...");
+            const newSeries = await createSeries({
+              title: newSeriesTitle,
+              description: newSeriesDesc,
+              coverUrl,
+              contentType: "VIDEO",
+              visibility: "PUBLIC",
+              categoryIds: selectedCategoryIds,
+              tagIds: selectedTagIds,
+            });
+
+            setSeriesList((prev) => [newSeries, ...prev]);
+            setSelectedSeriesId(newSeries.seriesId);
+            setSeriesMode("select");
+
+            setNewSeriesTitle("");
+            setNewSeriesDesc("");
+            setSeriesCover(null);
+            setSelectedCategoryIds([]);
+            setSelectedTagIds([]);
+
+            Toast.show({
+              type: "success",
+              text1: "Thành công",
+              text2: "Đã tạo Series thành công.",
+            });
+
+            // Fetch seasons immediately for the newly created series (backend automatically creates Season 1)
+            setLoadingSeasons(true);
+            const freshSeasons = await listSeasonsBySeries(newSeries.seriesId);
+            setSeasonList(freshSeasons || []);
+            if (freshSeasons && freshSeasons.length > 0) {
+              setSelectedSeasonId(freshSeasons[0].seasonId);
+              setSeasonMode("select");
+            } else {
+              setSelectedSeasonId("");
+              setSeasonMode("create");
+            }
+          } catch (err: any) {
+            console.error("[CreateSeries Step 1] Error:", err);
+            Alert.alert("Lỗi", err.message || "Không thể tạo Series mới.");
+            return;
+          } finally {
+            setSubmitting(false);
+            setLoadingSeasons(false);
+          }
+        }
+      } else {
+        if (!selectedSeriesId) {
+          Alert.alert("Thiếu thông tin", "Vui lòng chọn một Series trong danh sách.");
+          return;
+        }
       }
       setStep(2);
     } else if (step === 2) {
-      if (seasonMode === "create" && !newSeasonNumber.trim()) {
-        Alert.alert("Thiếu thông tin", "Vui lòng điền số Season mới.");
-        return;
+      if (seasonMode === "create") {
+        if (!newSeasonNumber.trim()) {
+          Alert.alert("Thiếu thông tin", "Vui lòng điền số Season mới.");
+          return;
+        }
+
+        if (editingSeasonId) {
+          setSubmitting(true);
+          setSubmitMsg("Đang lưu thay đổi Season...");
+          try {
+            const numVal = parseInt(newSeasonNumber, 10) || 1;
+            await updateSeason(editingSeasonId, {
+              seasonNumber: numVal,
+              title: newSeasonTitle,
+              description: newSeasonDesc,
+              status: "PUBLISHED",
+            });
+
+            if (selectedSeriesId) {
+              const freshSeasons = await listSeasonsBySeries(selectedSeriesId);
+              setSeasonList(freshSeasons || []);
+            }
+
+            setEditingSeasonId(null);
+            setNewSeasonNumber("");
+            setNewSeasonTitle("");
+            setNewSeasonDesc("");
+            setSeasonMode("select");
+
+            Toast.show({
+              type: "success",
+              text1: "Thành công",
+              text2: "Đã cập nhật Season thành công.",
+            });
+          } catch (err: any) {
+            console.error("[UpdateSeason] Error:", err);
+            Alert.alert("Lỗi", err.message || "Không thể cập nhật Season.");
+          } finally {
+            setSubmitting(false);
+          }
+          return;
+        }
       }
-      if (seasonMode === "select" && seriesMode !== "create" && seasonList.length > 0 && !selectedSeasonId) {
-        Alert.alert("Thiếu thông tin", "Vui lòng chọn một Season trong danh sách.");
-        return;
+      if (seasonMode === "select") {
+        if (seasonList.length === 0) {
+          Alert.alert("Thiếu thông tin", "Bộ phim này chưa có Season nào. Vui lòng chuyển sang tab 'Tạo Season mới'.");
+          return;
+        }
+        if (!selectedSeasonId) {
+          Alert.alert("Thiếu thông tin", "Vui lòng chọn một Season trong danh sách.");
+          return;
+        }
       }
+
+      // Tự động gợi ý số tập phim tiếp theo của Season đã chọn
+      if (seasonMode === "create") {
+        setEpisodeNumber("1");
+      } else if (selectedSeasonId) {
+        setSubmitting(true);
+        setSubmitMsg("Đang chuẩn bị thông tin tập mới...");
+        try {
+          const eps = await listEpisodesBySeason(selectedSeasonId);
+          const maxEpNumber = eps.reduce((max, ep) => ep.episodeNumber > max ? ep.episodeNumber : max, 0);
+          setEpisodeNumber(String(maxEpNumber + 1));
+        } catch (err) {
+          console.error("Lỗi tự động gợi ý số thứ tự tập phim:", err);
+          setEpisodeNumber("1");
+        } finally {
+          setSubmitting(false);
+        }
+      } else {
+        setEpisodeNumber("1");
+      }
+
       setStep(3);
     } else if (step === 3) {
       if (!episodeNumber.trim() || !episodeTitle.trim()) {
@@ -469,45 +848,16 @@ export default function UploadMovieScreen() {
       setSubmitting(true);
       try {
         let finalSeriesId = selectedSeriesId;
-
-        // 1. Create Series
-        if (seriesMode === "create") {
-          setSubmitMsg("Đang tải ảnh bìa lên S3...");
-          let coverUrl = "";
-          if (seriesCover) {
-            const uploadRes = await uploadImageToS3(
-              seriesCover.uri,
-              seriesCover.name,
-              seriesCover.size,
-              seriesCover.type,
-              "cover"
-            );
-            coverUrl = uploadRes.publicUrl;
-          }
-          setSubmitMsg("Đang tạo Series...");
-          const newSeries = await createSeries({
-            title: newSeriesTitle,
-            description: newSeriesDesc,
-            coverUrl,
-            contentType: "VIDEO",
-            visibility: "PUBLIC",
-            categoryIds: selectedCategoryIds,
-            tagIds: selectedTagIds,
-          });
-          finalSeriesId = newSeries.seriesId;
-          setSeriesList((prev) => [newSeries, ...prev]);
-          setSelectedSeriesId(newSeries.seriesId);
-          setSeriesMode("select");
-        }
+        let finalSeasonId = selectedSeasonId;
 
         // 2. Create Season
-        let finalSeasonId = selectedSeasonId;
         if (seasonMode === "create" || !finalSeasonId) {
           setSubmitMsg("Đang tạo Season mới...");
           const newSeason = await createSeason(finalSeriesId, {
             seasonNumber: parseInt(newSeasonNumber) || 1,
             title: newSeasonTitle,
             description: newSeasonDesc,
+            status: "PUBLISHED",
           });
           finalSeasonId = newSeason.seasonId;
           setSeasonList((prev) => [newSeason, ...prev]);
@@ -539,7 +889,7 @@ export default function UploadMovieScreen() {
     }
   };
 
-  const handlePublish = async () => {
+  const handlePublish = async (scheduledPublishAt?: string) => {
     if (!createdEpisodeId || !isSuccess) {
       Alert.alert("Lỗi", "Vui lòng tải lên video tập phim trước khi xuất bản.");
       return;
@@ -552,13 +902,23 @@ export default function UploadMovieScreen() {
 
     setPublishing(true);
     try {
-      await publishEpisode(createdEpisodeId);
-      Alert.alert("Thành công", "Bộ phim đã được xuất bản và hiển thị trực tuyến!", [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      if (scheduledPublishAt) {
+        await schedulePublishEpisode(createdEpisodeId, scheduledPublishAt);
+        Alert.alert("Thành công", "Bộ phim đã được lên lịch xuất bản thành công!", [
+          {
+            text: "OK",
+            onPress: () => navigation.goBack(),
+          },
+        ]);
+      } else {
+        await publishEpisode(createdEpisodeId);
+        Alert.alert("Thành công", "Bộ phim đã được xuất bản và hiển thị trực tuyến!", [
+          {
+            text: "OK",
+            onPress: () => navigation.goBack(),
+          },
+        ]);
+      }
     } catch (err: any) {
       Alert.alert("Lỗi xuất bản", err.message || "Không thể thay đổi trạng thái tập phim.");
     } finally {
@@ -581,57 +941,13 @@ export default function UploadMovieScreen() {
     return newSeasonNumber ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}` : "Season mới";
   };
 
-  const renderStepIndicator = () => {
-    const steps = [
-      { num: 1, label: "Series" },
-      { num: 2, label: "Season" },
-      { num: 3, label: "Tập phim" },
-      { num: 4, label: "Video" },
-      { num: 5, label: "Xuất bản" },
-    ];
-
-    return (
-      <View className="flex-row items-center justify-between px-6 py-4 bg-[#141210] border-b border-zinc-900">
-        {steps.map((s, idx) => {
-          const isActive = step === s.num;
-          const isCompleted = step > s.num;
-          return (
-            <React.Fragment key={s.num}>
-              <View className="items-center flex-1">
-                <View
-                  className={`w-8 h-8 rounded-full items-center justify-center ${
-                    isActive
-                      ? "bg-[#FF4E4E] border border-[#FF4E4E]"
-                      : isCompleted
-                      ? "bg-[#D4AF37]"
-                      : "bg-[#252830] border border-zinc-700"
-                  }`}
-                >
-                  {isCompleted ? (
-                    <Feather name="check" size={14} color="#141210" />
-                  ) : (
-                    <Text className={`text-xs font-bold ${isActive ? "text-white" : "text-zinc-500"}`}>
-                      {s.num}
-                    </Text>
-                  )}
-                </View>
-                <Text
-                  className={`text-[10px] font-bold mt-1.5 ${
-                    isActive ? "text-[#FF4E4E]" : isCompleted ? "text-[#D4AF37]" : "text-zinc-500"
-                  }`}
-                >
-                  {s.label}
-                </Text>
-              </View>
-              {idx < steps.length - 1 && (
-                <View className={`h-[2px] flex-1 mx-2 -mt-4 ${step > s.num ? "bg-[#D4AF37]" : "bg-zinc-800"}`} />
-              )}
-            </React.Fragment>
-          );
-        })}
-      </View>
-    );
-  };
+  const wizardSteps = [
+    { num: 1, label: "Series" },
+    { num: 2, label: "Season" },
+    { num: 3, label: "Tập phim" },
+    { num: 4, label: "Video" },
+    { num: 5, label: "Xuất bản" },
+  ];
 
   return (
     <SafeAreaView edges={["top", "bottom"]} className="flex-1 bg-[#0F0F10]">
@@ -647,7 +963,7 @@ export default function UploadMovieScreen() {
       </View>
 
       {/* STEP INDICATOR */}
-      {renderStepIndicator()}
+      <StepIndicator currentStep={step} steps={wizardSteps} />
 
       {/* SUBMITTING OVERLAY */}
       {submitting && (
@@ -663,754 +979,164 @@ export default function UploadMovieScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
         className="flex-1"
       >
-        {/* ================= STEP 1: SERIES ================= */}
+        {/* Step 1: Series Selection / Creation */}
         {step === 1 && (
-          <View>
-            <Text className="text-white text-base font-black mb-1">Bước 1: Chọn hoặc Tạo Series</Text>
-            <Text className="text-zinc-500 text-xs mb-4">Mỗi tập phim phải thuộc về một Series (Bộ phim).</Text>
-
-            {/* Mode Selectors */}
-            <View className="flex-row bg-[#1E1E22] rounded-xl p-1 mb-5 border border-zinc-800">
-              <TouchableOpacity
-                onPress={() => setSeriesMode("select")}
-                className={`flex-1 py-2.5 rounded-lg items-center ${seriesMode === "select" ? "bg-[#FF4E4E]" : ""}`}
-              >
-                <Text className={`text-xs font-bold ${seriesMode === "select" ? "text-white" : "text-zinc-400"}`}>
-                  Chọn Series Có Sẵn
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setSeriesMode("create")}
-                className={`flex-1 py-2.5 rounded-lg items-center ${seriesMode === "create" ? "bg-[#FF4E4E]" : ""}`}
-              >
-                <Text className={`text-xs font-bold ${seriesMode === "create" ? "text-white" : "text-zinc-400"}`}>
-                  Tạo Series Mới
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {seriesMode === "select" ? (
-              <View className="space-y-3">
-                <Text className="text-zinc-400 text-xs font-bold mb-2">Danh sách Series của bạn:</Text>
-                {loadingSeries ? (
-                  <View className="py-10 items-center">
-                    <ActivityIndicator size="small" color="#FF4E4E" />
-                  </View>
-                ) : seriesList.length === 0 ? (
-                  <View className="bg-[#1E1E22] border border-zinc-800 p-8 rounded-2xl items-center">
-                    <Text className="text-zinc-500 text-xs text-center font-medium leading-5">
-                      Bạn chưa tạo Series nào. Vui lòng chọn "Tạo Series Mới" ở trên.
-                    </Text>
-                  </View>
-                ) : (
-                  seriesList.map((s) => {
-                    const isSelected = selectedSeriesId === s.seriesId;
-                    return (
-                      <TouchableOpacity
-                        key={s.seriesId}
-                        onPress={() => {
-                          setSelectedSeriesId(s.seriesId);
-                        }}
-                        className={`flex-row items-center p-4 rounded-2xl border ${
-                          isSelected ? "bg-[#FF4E4E]/10 border-[#FF4E4E]" : "bg-[#1E1E22] border-zinc-800"
-                        } mb-3`}
-                      >
-                        <View className="w-12 h-12 rounded-xl bg-zinc-800 items-center justify-center mr-4">
-                          <MaterialCommunityIcons name="folder-play-outline" size={24} color="#D4AF37" />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-white text-sm font-bold">{s.title}</Text>
-                          <Text className="text-zinc-500 text-xs mt-0.5" numberOfLines={1}>
-                            {s.description || "Không có mô tả"}
-                          </Text>
-                        </View>
-                        <View
-                          className={`w-5 h-5 rounded-full border items-center justify-center ${
-                            isSelected ? "border-[#FF4E4E] bg-[#FF4E4E]" : "border-zinc-600"
-                          }`}
-                        >
-                          {isSelected && <Feather name="check" size={12} color="white" />}
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </View>
-            ) : (
-              <View>
-                {/* Title */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Tên Series mới *</Text>
-                  <TextInput
-                    placeholder="Nhập tên bộ phim / series..."
-                    placeholderTextColor="#7C766B"
-                    value={newSeriesTitle}
-                    onChangeText={setNewSeriesTitle}
-                    className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-                  />
-                </View>
-
-                {/* Description */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Mô tả Series</Text>
-                  <TextInput
-                    placeholder="Viết mô tả tóm tắt nội dung cốt truyện..."
-                    placeholderTextColor="#7C766B"
-                    value={newSeriesDesc}
-                    onChangeText={setNewSeriesDesc}
-                    multiline
-                    numberOfLines={4}
-                    style={{ textAlignVertical: "top" }}
-                    className="bg-[#1E1E22] border border-zinc-800 rounded-xl p-4 text-white text-sm font-semibold min-h-[100px]"
-                  />
-                </View>
-
-                {/* Cover Picker Real */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Ảnh bìa Series (Cover Art - Tỉ lệ 16:9)</Text>
-                  {seriesCover ? (
-                    <View className="flex-row bg-[#1E1E22] border border-zinc-800 rounded-2xl p-3 items-center">
-                      <Image
-                        source={{ uri: seriesCover.uri }}
-                        className="h-20 aspect-[16/9] rounded-xl bg-zinc-900"
-                        resizeMode="cover"
-                      />
-                      <View className="flex-1 ml-4">
-                        <Text className="text-white text-sm font-bold" numberOfLines={1}>
-                          {seriesCover.name}
-                        </Text>
-                        <Text className="text-zinc-500 text-xs mt-1">
-                          Dung lượng: {(seriesCover.size / 1024).toFixed(0)} KB
-                        </Text>
-                        <Text className="text-zinc-500 text-xs">Tỉ lệ ảnh: 16:9 (Ngang)</Text>
-                        <TouchableOpacity
-                          onPress={handleSelectCover}
-                          className="mt-3 bg-zinc-850 px-3 py-1.5 rounded-lg self-start active:opacity-60"
-                        >
-                          <Text className="text-white text-[11px] font-bold">Thay đổi ảnh bìa</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={handleSelectCover}
-                      className="w-full h-32 bg-[#1E1E22] border border-dashed border-zinc-700 rounded-2xl items-center justify-center flex-row px-6 overflow-hidden active:opacity-80"
-                    >
-                      <View className="w-12 h-12 rounded-full bg-[#FF4E4E]/10 items-center justify-center mr-4">
-                        <Feather name="upload-cloud" size={24} color="#FF4E4E" />
-                      </View>
-                      <View className="flex-1">
-                        <Text className="text-white text-xs font-bold">Chọn ảnh bìa bộ phim từ thư viện</Text>
-                        <Text className="text-zinc-500 text-[10px] mt-0.5">Tỉ lệ 16:9 ngang (VD: Banner phim)</Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {/* Categories */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Thể loại *</Text>
-                  <View className="flex-row flex-wrap">
-                    {categories.map((c) => {
-                      const isSelected = selectedCategoryIds.includes(c.categoryId);
-                      return (
-                        <TouchableOpacity
-                          key={c.categoryId}
-                          onPress={() => toggleCategory(c.categoryId)}
-                          className={`px-3 py-1.5 rounded-full mr-2 mb-2 border ${
-                            isSelected ? "bg-[#D4AF37]/15 border-[#D4AF37]" : "bg-[#1E1E22] border-zinc-800"
-                          }`}
-                        >
-                          <Text className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-500"}`}>
-                            {c.categoryName}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                {/* Tags */}
-                <View className="mb-6">
-                  <Text className="text-zinc-400 text-xs font-bold mb-2">Thẻ Tag</Text>
-                  <View className="flex-row flex-wrap">
-                    {tags.map((t) => {
-                      const isSelected = selectedTagIds.includes(t.tagId);
-                      return (
-                        <TouchableOpacity
-                          key={t.tagId}
-                          onPress={() => toggleTag(t.tagId)}
-                          className={`px-3 py-1.5 rounded-full mr-2 mb-2 border ${
-                            isSelected ? "bg-blue-500/10 border-blue-500/30" : "bg-[#1E1E22] border-zinc-800"
-                          }`}
-                        >
-                          <Text className={`text-xs font-bold ${isSelected ? "text-blue-400" : "text-zinc-500"}`}>
-                            #{t.tagName}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* Nav Buttons */}
-            <View className="mt-8">
-              <TouchableOpacity
-                onPress={handleNextStep}
-                className="h-12 bg-[#FF4E4E] rounded-xl items-center justify-center flex-row"
-              >
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Tiếp Tục</Text>
-                <Feather name="arrow-right" size={16} color="white" className="ml-2" />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <SeriesStep
+            seriesList={seriesList}
+            loadingSeries={loadingSeries}
+            seriesMode={seriesMode}
+            setSeriesMode={setSeriesMode}
+            selectedSeriesId={selectedSeriesId}
+            setSelectedSeriesId={setSelectedSeriesId}
+            newSeriesTitle={newSeriesTitle}
+            setNewSeriesTitle={setNewSeriesTitle}
+            newSeriesDesc={newSeriesDesc}
+            setNewSeriesDesc={setNewSeriesDesc}
+            categories={categories}
+            tags={tags}
+            selectedCategoryIds={selectedCategoryIds}
+            toggleCategory={toggleCategory}
+            selectedTagIds={selectedTagIds}
+            toggleTag={toggleTag}
+            seriesCover={seriesCover}
+            handleSelectCover={handleSelectCover}
+            subheading="Mỗi tập phim phải thuộc về một Series (Bộ phim)."
+            listPlaceholder="Bạn chưa tạo Series nào. Vui lòng chọn 'Tạo Series Mới' ở trên."
+            coverLabel="Cover Art - Tỉ lệ 16:9"
+            coverSubLabel="Tỉ lệ 16:9 ngang (VD: Banner phim)"
+            coverImageStyle="h-20 aspect-[16/9]"
+            descriptionPlaceholder="Viết mô tả tóm tắt nội dung cốt truyện..."
+            contentTypeIcon="folder-play-outline"
+            onNext={handleNextStep}
+            editingSeriesId={editingSeriesId}
+            setEditingSeriesId={setEditingSeriesId}
+            onEditSeries={handleStartEditSeries}
+            onDeleteSeries={handleDeleteSeries}
+          />
         )}
 
-        {/* ================= STEP 2: SEASON ================= */}
+        {/* Step 2: Season Selection / Creation */}
         {step === 2 && (
-          <View>
-            <View className="flex-row items-center mb-4 bg-zinc-900/50 p-3 rounded-xl">
-              <Text className="text-[#D4AF37] text-xs font-black uppercase tracking-wider mr-2">Series:</Text>
-              <Text className="text-white text-xs font-bold flex-1" numberOfLines={1}>
-                {getSeriesTitle()}
-              </Text>
-            </View>
-            <Text className="text-white text-base font-black mb-1">Bước 2: Chọn hoặc Tạo Season</Text>
-            <Text className="text-zinc-500 text-xs mb-4">Các tập phim cần được sắp xếp theo từng Season (Mùa phim).</Text>
-
-            {/* Mode Selectors */}
-            <View className="flex-row bg-[#1E1E22] rounded-xl p-1 mb-5 border border-zinc-800">
-              <TouchableOpacity
-                onPress={() => setSeasonMode("select")}
-                className={`flex-1 py-2.5 rounded-lg items-center ${seasonMode === "select" ? "bg-[#FF4E4E]" : ""}`}
-              >
-                <Text className={`text-xs font-bold ${seasonMode === "select" ? "text-white" : "text-zinc-400"}`}>
-                  Chọn Season Có Sẵn
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setSeasonMode("create")}
-                className={`flex-1 py-2.5 rounded-lg items-center ${seasonMode === "create" ? "bg-[#FF4E4E]" : ""}`}
-              >
-                <Text className={`text-xs font-bold ${seasonMode === "create" ? "text-white" : "text-zinc-400"}`}>
-                  Tạo Season Mới
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {seasonMode === "select" ? (
-              <View className="space-y-3">
-                <Text className="text-zinc-400 text-xs font-bold mb-2">Danh sách Season hiện có:</Text>
-                {loadingSeasons ? (
-                  <View className="py-10 items-center">
-                    <ActivityIndicator size="small" color="#FF4E4E" />
-                  </View>
-                ) : seriesMode === "create" || seasonList.length === 0 ? (
-                  <View className="bg-[#1E1E22] border border-zinc-800 p-8 rounded-2xl items-center justify-center mb-3">
-                    <Feather name="info" size={24} color="#7C766B" />
-                    <Text className="text-zinc-500 text-xs font-semibold text-center mt-2 px-4 leading-5">
-                      Bộ phim chưa có Season nào. Vui lòng chọn "Tạo Season Mới" ở trên.
-                    </Text>
-                  </View>
-                ) : (
-                  seasonList.map((se) => {
-                    const isSelected = selectedSeasonId === se.seasonId;
-                    return (
-                      <TouchableOpacity
-                        key={se.seasonId}
-                        onPress={() => setSelectedSeasonId(se.seasonId)}
-                        className={`flex-row items-center p-4 rounded-2xl border ${
-                          isSelected ? "bg-[#FF4E4E]/10 border-[#FF4E4E]" : "bg-[#1E1E22] border-zinc-800"
-                        } mb-3`}
-                      >
-                        <View className="w-10 h-10 rounded-xl bg-zinc-800 items-center justify-center mr-4">
-                          <Ionicons name="albums-outline" size={20} color="#D4AF37" />
-                        </View>
-                        <View className="flex-1">
-                          <Text className="text-white text-sm font-bold">Mùa {se.seasonNumber}</Text>
-                          <Text className="text-zinc-500 text-xs mt-0.5">{se.title || "Không có tiêu đề riêng"}</Text>
-                        </View>
-                        <View
-                          className={`w-5 h-5 rounded-full border items-center justify-center ${
-                            isSelected ? "border-[#FF4E4E] bg-[#FF4E4E]" : "border-zinc-600"
-                          }`}
-                        >
-                          {isSelected && <Feather name="check" size={12} color="white" />}
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </View>
-            ) : (
-              <View className="space-y-4">
-                {/* Season Number */}
-                <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">Số Season * (Ví dụ: 1, 2...)</Text>
-                  <TextInput
-                    placeholder="Ví dụ: 1"
-                    placeholderTextColor="#7C766B"
-                    keyboardType="number-pad"
-                    value={newSeasonNumber}
-                    onChangeText={setNewSeasonNumber}
-                    className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-                  />
-                </View>
-
-                {/* Season Title */}
-                <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">Tên Season (Không bắt buộc)</Text>
-                  <TextInput
-                    placeholder="Ví dụ: Cuộc Chiến Bắt Đầu"
-                    placeholderTextColor="#7C766B"
-                    value={newSeasonTitle}
-                    onChangeText={setNewSeasonTitle}
-                    className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-                  />
-                </View>
-
-                {/* Season Description */}
-                <View>
-                  <Text className="text-zinc-400 text-xs font-bold mb-1.5">Mô tả Season</Text>
-                  <TextInput
-                    placeholder="Viết giới thiệu ngắn về mùa phim này..."
-                    placeholderTextColor="#7C766B"
-                    value={newSeasonDesc}
-                    onChangeText={setNewSeasonDesc}
-                    multiline
-                    numberOfLines={3}
-                    style={{ textAlignVertical: "top" }}
-                    className="bg-[#1E1E22] border border-zinc-800 rounded-xl p-4 text-white text-sm font-semibold min-h-[80px]"
-                  />
-                </View>
-              </View>
-            )}
-
-            {/* Nav Buttons */}
-            <View className="flex-row mt-8 space-x-3">
-              <TouchableOpacity
-                onPress={() => setStep(1)}
-                className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
-              >
-                <Feather name="arrow-left" size={16} color="white" className="mr-2" />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Quay lại</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleNextStep}
-                className="flex-1 h-12 bg-[#FF4E4E] rounded-xl items-center justify-center flex-row"
-              >
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Tiếp Tục</Text>
-                <Feather name="arrow-right" size={16} color="white" className="ml-2" />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <SeasonStep
+            seriesTitle={getSeriesTitle()}
+            seasonList={seasonList}
+            loadingSeasons={loadingSeasons}
+            seasonMode={seasonMode}
+            setSeasonMode={setSeasonMode}
+            selectedSeasonId={selectedSeasonId}
+            setSelectedSeasonId={setSelectedSeasonId}
+            newSeasonNumber={newSeasonNumber}
+            setNewSeasonNumber={setNewSeasonNumber}
+            newSeasonTitle={newSeasonTitle}
+            setNewSeasonTitle={setNewSeasonTitle}
+            newSeasonDesc={newSeasonDesc}
+            setNewSeasonDesc={setNewSeasonDesc}
+            subheading="Các tập phim cần được sắp xếp theo từng Season (Mùa phim)."
+            listPlaceholder="Bộ phim chưa có Season nào. Vui lòng chọn 'Tạo Season Mới' ở trên."
+            onBack={() => setStep(1)}
+            onNext={handleNextStep}
+            editingSeasonId={editingSeasonId}
+            setEditingSeasonId={setEditingSeasonId}
+            onEditSeason={handleStartEditSeason}
+            onDeleteSeason={handleDeleteSeason}
+            onToggleHideSeason={handleToggleHideSeason}
+          />
         )}
 
-        {/* ================= STEP 3: EPISODE ================= */}
+        {/* Step 3: Episode Details */}
         {step === 3 && (
-          <View>
-            <View className="bg-[#1E1E22] p-4 rounded-2xl border border-zinc-800 mb-6 space-y-2">
-              <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-16">Bộ phim:</Text>
-                <Text className="text-white text-xs font-semibold flex-1">{getSeriesTitle()}</Text>
-              </View>
-              <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-16">Season:</Text>
-                <Text className="text-white text-xs font-semibold flex-1">{getSeasonTitle()}</Text>
-              </View>
-            </View>
-
-            <Text className="text-white text-base font-black mb-1">Bước 3: Nhập thông tin tập phim</Text>
-            <Text className="text-zinc-500 text-xs mb-5">Thiết lập thứ tự tập phim, tên tập và cấu hình thanh toán.</Text>
-
-            <View className="space-y-4">
-              {/* Episode Number */}
-              <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-1.5">Số tập * (Ví dụ: 1, 2...)</Text>
-                <TextInput
-                  placeholder="Ví dụ: 5"
-                  placeholderTextColor="#7C766B"
-                  keyboardType="number-pad"
-                  value={episodeNumber}
-                  onChangeText={setEpisodeNumber}
-                  className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-                />
-              </View>
-
-              {/* Episode Title */}
-              <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-1.5">Tên tập phim *</Text>
-                <TextInput
-                  placeholder="Nhập tên tập phim..."
-                  placeholderTextColor="#7C766B"
-                  value={episodeTitle}
-                  onChangeText={setEpisodeTitle}
-                  className="h-12 bg-[#1E1E22] border border-zinc-800 rounded-xl px-4 text-white text-sm font-semibold"
-                />
-              </View>
-
-              {/* Episode Desc */}
-              <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-1.5">Mô tả tập phim (Tóm tắt tập)</Text>
-                <TextInput
-                  placeholder="Viết nội dung giới thiệu ngắn cho tập này..."
-                  placeholderTextColor="#7C766B"
-                  value={episodeDesc}
-                  onChangeText={setEpisodeDesc}
-                  multiline
-                  numberOfLines={3}
-                  style={{ textAlignVertical: "top" }}
-                  className="bg-[#1E1E22] border border-zinc-800 rounded-xl p-4 text-white text-sm font-semibold min-h-[80px]"
-                />
-              </View>
-
-              {/* Pricing release options */}
-              <View>
-                <Text className="text-zinc-400 text-xs font-bold mb-2.5">Hình thức phát hành</Text>
-                <View className="flex-row space-x-2">
-                  {(["free", "premium", "coin"] as const).map((type) => {
-                    let label = "";
-                    let iconName: any = "";
-                    switch (type) {
-                      case "free":
-                        label = "Miễn phí";
-                        iconName = "eye-outline";
-                        break;
-                      case "premium":
-                        label = "Premium";
-                        iconName = "crown-outline";
-                        break;
-                      case "coin":
-                        label = "Mua Xu";
-                        iconName = "cash";
-                        break;
-                    }
-                    const isSelected = releaseType === type;
-                    return (
-                      <TouchableOpacity
-                        key={type}
-                        onPress={() => setReleaseType(type)}
-                        className={`flex-1 py-3 rounded-xl border items-center justify-center flex-row ${
-                          isSelected ? "bg-[#D4AF37]/15 border-[#D4AF37]" : "bg-[#1E1E22] border-zinc-800"
-                        }`}
-                      >
-                        <MaterialCommunityIcons
-                          name={iconName}
-                          size={14}
-                          color={isSelected ? "#D4AF37" : "#7C766B"}
-                          style={{ marginRight: 4 }}
-                        />
-                        <Text className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-500"}`}>
-                          {label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Coin Input */}
-              {releaseType === "coin" && (
-                <View className="bg-[#1E1E22] p-4 rounded-xl border border-[#D4AF37]/20 mt-2">
-                  <Text className="text-[#D4AF37] text-xs font-bold mb-1.5">Giá bán (Số Xu yêu cầu):</Text>
-                  <View className="flex-row items-center bg-[#0F0F10] border border-zinc-800 rounded-lg px-3">
-                    <TextInput
-                      placeholder="Số xu..."
-                      placeholderTextColor="#7C766B"
-                      keyboardType="number-pad"
-                      value={coinPrice}
-                      onChangeText={setCoinPrice}
-                      className="flex-1 h-10 text-white font-bold text-sm"
-                    />
-                    <FontAwesome5 name="coins" size={12} color="#D4AF37" style={{ marginLeft: 8 }} />
-                  </View>
-                  <Text className="text-zinc-500 text-[10px] mt-1.5">
-                    Người xem phải trả số xu này để mở khóa vĩnh viễn tập phim.
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Nav Buttons */}
-            <View className="flex-row mt-8 space-x-3">
-              <TouchableOpacity
-                onPress={() => setStep(2)}
-                className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
-              >
-                <Feather name="arrow-left" size={16} color="white" className="mr-2" />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Quay lại</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleNextStep}
-                className="flex-1 h-12 bg-[#FF4E4E] rounded-xl items-center justify-center flex-row"
-              >
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Tiếp Tục</Text>
-                <Feather name="arrow-right" size={16} color="white" className="ml-2" />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <EpisodeDetailsStep
+            seriesTitle={getSeriesTitle()}
+            seasonTitle={getSeasonTitle()}
+            episodeNumber={episodeNumber}
+            setEpisodeNumber={setEpisodeNumber}
+            episodeTitle={episodeTitle}
+            setEpisodeTitle={setEpisodeTitle}
+            episodeDesc={episodeDesc}
+            setEpisodeDesc={setEpisodeDesc}
+            releaseType={releaseType}
+            setReleaseType={setReleaseType}
+            coinPrice={coinPrice}
+            setCoinPrice={setCoinPrice}
+            contentType="VIDEO"
+            heading="Bước 3: Nhập thông tin tập phim"
+            subheading="Thiết lập thứ tự tập phim, tên tập và cấu hình thanh toán."
+            numberLabel="Số tập * (Ví dụ: 1, 2...)"
+            numberPlaceholder="Ví dụ: 5"
+            titleLabel="Tên tập phim *"
+            titlePlaceholder="Nhập tên tập phim..."
+            descLabel="Mô tả tập phim (Tóm tắt tập)"
+            descPlaceholder="Viết nội dung giới thiệu ngắn cho tập này..."
+            coinLabel="Giá bán (Số Xu yêu cầu):"
+            coinSubLabel="Người xem phải trả số xu này để mở khóa vĩnh viễn tập phim."
+            onBack={() => setStep(2)}
+            onNext={handleNextStep}
+          />
         )}
 
-        {/* ================= STEP 4: VIDEO UPLOAD ================= */}
+        {/* Step 4: Video Upload */}
         {step === 4 && (
-          <View>
-            <View className="bg-[#1E1E22] p-4 rounded-2xl border border-zinc-800 mb-6 space-y-2">
-              <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">Bộ phim:</Text>
-                <Text className="text-white text-xs font-semibold flex-1">{getSeriesTitle()}</Text>
-              </View>
-              <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">Season / Tập:</Text>
-                <Text className="text-white text-xs font-semibold flex-1">
-                  {getSeasonTitle()} • Tập {episodeNumber}
-                </Text>
-              </View>
-              <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">Tên tập:</Text>
-                <Text className="text-white text-xs font-semibold flex-1">{episodeTitle}</Text>
-              </View>
-              <View className="flex-row">
-                <Text className="text-zinc-500 text-xs font-bold w-20">Phát hành:</Text>
-                <Text className="text-[#D4AF37] text-xs font-black uppercase flex-1">
-                  {releaseType === "free" ? "Miễn phí" : releaseType === "premium" ? "Premium" : `${coinPrice} Xu`}
-                </Text>
-              </View>
-            </View>
-
-            <Text className="text-white text-base font-black mb-1">Bước 4: Tải lên video tập phim</Text>
-            <Text className="text-zinc-500 text-xs mb-5">Chọn tệp tin video từ điện thoại của bạn.</Text>
-
-            {/* Video File Area */}
-            {!videoFile ? (
-              <TouchableOpacity
-                onPress={handleSelectVideo}
-                className="border-2 border-dashed border-zinc-700 bg-[#1E1E22] rounded-3xl p-10 items-center justify-center min-h-[200px]"
-              >
-                <View className="w-16 h-16 rounded-full bg-[#FF4E4E]/10 items-center justify-center mb-4">
-                  <Feather name="video" size={32} color="#FF4E4E" />
-                </View>
-                <Text className="text-white text-sm font-bold text-center">Bấm vào đây để chọn video từ thiết bị</Text>
-                <Text className="text-zinc-500 text-xs text-center mt-1.5">Hỗ trợ định dạng MP4, MOV, v.v.</Text>
-              </TouchableOpacity>
-            ) : (
-              <View className="bg-[#1E1E22] border border-zinc-800 rounded-3xl p-5 space-y-4">
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 rounded-xl bg-zinc-800 items-center justify-center mr-3">
-                    <MaterialCommunityIcons name="movie-play" size={22} color="#FF4E4E" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-white text-xs font-bold" numberOfLines={1}>
-                      {videoFile.name}
-                    </Text>
-                    <Text className="text-zinc-500 text-[10px] mt-0.5">
-                      {(videoFile.size / (1024 * 1024)).toFixed(1)} MB
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setVideoFile(null);
-                      setUploadProgress(0);
-                      setIsSuccess(false);
-                      setMediaStatus(null);
-                      setCopyrightStatus(null);
-                      setModerationStatus(null);
-                      if (pollTimerRef.current) {
-                        clearInterval(pollTimerRef.current);
-                      }
-                    }}
-                    className="p-1 active:opacity-60"
-                  >
-                    <Feather name="trash-2" size={18} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Upload Status / Bar */}
-                {uploading ? (
-                  <View className="space-y-2">
-                    <View className="flex-row justify-between items-center">
-                      <Text className="text-stone-300 text-xs font-medium">Đang tải tệp lên S3...</Text>
-                      <Text className="text-[#FF4E4E] text-xs font-black">{uploadProgress}%</Text>
-                    </View>
-                    <View className="h-2 bg-zinc-850 rounded-full overflow-hidden">
-                      <View style={{ width: `${uploadProgress}%` }} className="h-full bg-[#FF4E4E] rounded-full" />
-                    </View>
-                  </View>
-                ) : isSuccess ? (
-                  <View className="space-y-3">
-                    <View className="bg-[#10B981]/10 border border-[#10B981]/30 rounded-2xl p-3 flex-row items-center">
-                      <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                      <Text className="text-[#10B981] text-xs font-bold ml-2">Đã hoàn thành truyền tải video!</Text>
-                    </View>
-
-                    {/* Pipelines (Copyright & AI Moderation status) */}
-                    <View className="bg-[#0F0F10] border border-zinc-800 rounded-2xl p-4 space-y-3">
-                      <Text className="text-[#D4AF37] text-xs font-bold">KẾT QUẢ KIỂM DUYỆT HỆ THỐNG:</Text>
-
-                      {/* Copyright result */}
-                      <View className="flex-row items-center justify-between border-b border-zinc-900 pb-2">
-                        <Text className="text-zinc-400 text-xs font-medium">Bản quyền video:</Text>
-                        <Text
-                          className={`text-xs font-bold ${
-                            copyrightStatus?.includes("Cảnh báo")
-                              ? "text-red-500"
-                              : copyrightStatus?.includes("Đạt")
-                              ? "text-green-500"
-                              : "text-amber-500"
-                          }`}
-                        >
-                          {copyrightStatus || "Đang xử lý..."}
-                        </Text>
-                      </View>
-
-                      {/* Content Moderation result */}
-                      <View className="flex-row items-center justify-between pb-1">
-                        <Text className="text-zinc-400 text-xs font-medium">Kiểm duyệt AI:</Text>
-                        <Text
-                          className={`text-xs font-bold ${
-                            moderationStatus?.includes("Từ chối")
-                              ? "text-red-500"
-                              : moderationStatus?.includes("Đạt")
-                              ? "text-green-500"
-                              : "text-amber-500"
-                          }`}
-                        >
-                          {moderationStatus || "Đang xử lý..."}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    onPress={handleStartUpload}
-                    className="h-11 bg-zinc-800 rounded-xl items-center justify-center flex-row"
-                  >
-                    <Feather name="upload" size={16} color="white" style={{ marginRight: 6 }} />
-                    <Text className="text-white text-xs font-bold">Bắt Đầu Tải Lên S3</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {/* Nav Buttons */}
-            <View className="flex-row mt-8 space-x-3">
-              <TouchableOpacity
-                onPress={() => setStep(3)}
-                className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
-              >
-                <Feather name="arrow-left" size={16} color="white" className="mr-2" />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Quay lại</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setStep(5)}
-                disabled={!isSuccess || mediaStatus === "PROCESSING" || mediaStatus === "PENDING"}
-                className={`flex-1 h-12 rounded-xl items-center justify-center flex-row ${
-                  isSuccess && mediaStatus !== "PROCESSING" && mediaStatus !== "PENDING"
-                    ? "bg-[#FF4E4E]"
-                    : "bg-zinc-800 opacity-50"
-                }`}
-              >
-                <Text
-                  className={`text-sm font-bold uppercase tracking-wider ${
-                    isSuccess && mediaStatus !== "PROCESSING" && mediaStatus !== "PENDING"
-                      ? "text-white"
-                      : "text-zinc-500"
-                  }`}
-                >
-                  Tiếp Tục
-                </Text>
-                <Feather
-                  name="arrow-right"
-                  size={16}
-                  color={
-                    isSuccess && mediaStatus !== "PROCESSING" && mediaStatus !== "PENDING"
-                      ? "white"
-                      : "#71717A"
-                  }
-                  style={{ marginLeft: 6 }}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <MovieVideoUploadStep
+            seriesTitle={getSeriesTitle()}
+            seasonTitle={getSeasonTitle()}
+            episodeNumber={episodeNumber}
+            episodeTitle={episodeTitle}
+            releaseType={releaseType}
+            coinPrice={coinPrice}
+            videoFile={videoFile}
+            handleSelectVideo={handleSelectVideo}
+            handleStartUpload={handleStartUpload}
+            handleDeleteVideo={() => {
+              if (uploading && activeUploadSessionIdRef.current) {
+                xhrRef.current?.abort();
+                cancelVideoUpload(activeUploadSessionIdRef.current, actorId || undefined).catch(() => {});
+                activeUploadSessionIdRef.current = null;
+              }
+              setVideoFile(null);
+              setUploadProgress(0);
+              setUploading(false);
+              setIsSuccess(false);
+              setMediaStatus(null);
+              setCopyrightStatus(null);
+              setModerationStatus(null);
+              if (pollTimerRef.current) {
+                clearInterval(pollTimerRef.current);
+              }
+            }}
+            uploading={uploading}
+            uploadProgress={uploadProgress}
+            isSuccess={isSuccess}
+            mediaStatus={mediaStatus}
+            copyrightStatus={copyrightStatus}
+            moderationStatus={moderationStatus}
+            onBack={() => {
+              if (uploading && activeUploadSessionIdRef.current) {
+                xhrRef.current?.abort();
+                cancelVideoUpload(activeUploadSessionIdRef.current, actorId || undefined).catch(() => {});
+                activeUploadSessionIdRef.current = null;
+              }
+              setUploading(false);
+              setStep(3);
+            }}
+            onNext={() => setStep(5)}
+          />
         )}
 
-        {/* ================= STEP 5: PUBLISH ================= */}
+        {/* Step 5: Summary and Publish */}
         {step === 5 && (
-          <View>
-            <View className="bg-[#1E1E22] p-5 rounded-3xl border border-zinc-800 space-y-4 mb-6">
-              <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Tên Bộ Phim / Series</Text>
-                <Text className="text-white text-sm font-bold mt-1">{getSeriesTitle()}</Text>
-              </View>
-
-              <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Season</Text>
-                <Text className="text-white text-sm font-bold mt-1">{getSeasonTitle()}</Text>
-              </View>
-
-              <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Tên tập phim (Tập {episodeNumber})</Text>
-                <Text className="text-white text-sm font-bold mt-1">{episodeTitle || "Không có tiêu đề"}</Text>
-              </View>
-
-              {episodeDesc ? (
-                <View className="border-b border-zinc-850 pb-3">
-                  <Text className="text-zinc-500 text-[10px] font-black uppercase">Mô tả tập phim</Text>
-                  <Text className="text-[#A19E95] text-xs font-semibold mt-1 leading-5">{episodeDesc}</Text>
-                </View>
-              ) : null}
-
-              <View className="border-b border-zinc-850 pb-3">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Chế độ phát hành</Text>
-                <Text className="text-[#D4AF37] text-sm font-black uppercase mt-1">
-                  {releaseType === "free" ? "Miễn phí" : releaseType === "premium" ? "Premium" : `${coinPrice} Xu`}
-                </Text>
-              </View>
-
-              <View className="pb-1">
-                <Text className="text-zinc-500 text-[10px] font-black uppercase">Trạng thái tệp tin</Text>
-                <View className="flex-row items-center mt-1.5">
-                  <View className="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2" />
-                  <Text className="text-emerald-400 text-xs font-bold">Video đã sẵn sàng phát hành</Text>
-                </View>
-              </View>
-            </View>
-
-            <Text className="text-white text-base font-black mb-1">Bước 5: Xác nhận & Xuất bản</Text>
-            <Text className="text-zinc-500 text-xs mb-5">Xem lại toàn bộ thông tin tập phim của bạn trước khi nhấn nút xuất bản trực tuyến.</Text>
-
-            {/* Nav Buttons */}
-            <View className="flex-row mt-8 space-x-3">
-              <TouchableOpacity
-                onPress={() => setStep(4)}
-                className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
-              >
-                <Feather name="arrow-left" size={16} color="white" className="mr-2" />
-                <Text className="text-white text-sm font-bold uppercase tracking-wider">Quay lại</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handlePublish}
-                disabled={publishing}
-                className="flex-1 h-12 bg-[#D4AF37] rounded-xl items-center justify-center flex-row"
-              >
-                {publishing ? (
-                  <ActivityIndicator size="small" color="#141210" />
-                ) : (
-                  <>
-                    <Text className="text-[#141210] text-sm font-black uppercase tracking-wider">
-                      Xuất Bản Phim
-                    </Text>
-                    <Feather name="check-circle" size={16} color="#141210" style={{ marginLeft: 6 }} />
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+          <PublishStep
+            seriesTitle={getSeriesTitle()}
+            seasonTitle={getSeasonTitle()}
+            episodeNumber={episodeNumber}
+            episodeTitle={episodeTitle}
+            episodeDesc={episodeDesc}
+            releaseType={releaseType}
+            coinPrice={coinPrice}
+            contentType="VIDEO"
+            publishing={publishing}
+            onBack={() => setStep(4)}
+            onPublish={handlePublish}
+          />
         )}
       </ScrollView>
     </SafeAreaView>

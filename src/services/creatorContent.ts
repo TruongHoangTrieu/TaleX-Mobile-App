@@ -108,6 +108,20 @@ export type SeriesRequest = {
   tagIds?: string[];
 };
 
+export type SeriesUpdateRequest = {
+  title?: string;
+  description?: string;
+  coverUrl?: string;
+  bannerUrl?: string;
+  contentType?: ContentType;
+  status?: SeriesStatus;
+  visibility?: Visibility;
+  ageRating?: string;
+  language?: string;
+  categoryIds?: string[];
+  tagIds?: string[];
+};
+
 export type SeasonRequest = {
   seasonNumber: number;
   title: string;
@@ -240,6 +254,40 @@ export async function createSeries(request: SeriesRequest): Promise<SeriesItem> 
   return handleResponse<SeriesItem>(res);
 }
 
+export async function updateSeries(seriesId: string, request: SeriesUpdateRequest): Promise<string> {
+  const url = apiUrl(`/api/v1/series/${seriesId}`);
+  const res = await authFetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<string>(res);
+}
+
+export async function deleteSeries(seriesId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/series/${seriesId}`);
+  const res = await authFetch(url, {
+    method: "DELETE",
+  });
+  return handleResponse<string>(res);
+}
+
+export async function hideSeries(seriesId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/series/${seriesId}/hide`);
+  const res = await authFetch(url, {
+    method: "PATCH",
+  });
+  return handleResponse<string>(res);
+}
+
+export async function unhideSeries(seriesId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/series/${seriesId}/unhide`);
+  const res = await authFetch(url, {
+    method: "PATCH",
+  });
+  return handleResponse<string>(res);
+}
+
 // -------------------------------------------------------------
 // SEASON APIs
 // -------------------------------------------------------------
@@ -259,6 +307,40 @@ export async function createSeason(seriesId: string, request: SeasonRequest): Pr
   return handleResponse<SeasonItem>(res);
 }
 
+export async function updateSeason(seasonId: string, request: SeasonRequest): Promise<string> {
+  const url = apiUrl(`/api/v1/seasons/${seasonId}`);
+  const res = await authFetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<string>(res);
+}
+
+export async function deleteSeason(seasonId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/seasons/${seasonId}`);
+  const res = await authFetch(url, {
+    method: "DELETE",
+  });
+  return handleResponse<string>(res);
+}
+
+export async function hideSeason(seasonId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/seasons/${seasonId}/hide`);
+  const res = await authFetch(url, {
+    method: "PATCH",
+  });
+  return handleResponse<string>(res);
+}
+
+export async function unhideSeason(seasonId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/seasons/${seasonId}/unhide`);
+  const res = await authFetch(url, {
+    method: "PATCH",
+  });
+  return handleResponse<string>(res);
+}
+
 // -------------------------------------------------------------
 // EPISODE APIs
 // -------------------------------------------------------------
@@ -272,6 +354,41 @@ export async function createEpisode(seasonId: string, request: EpisodeRequest): 
   return handleResponse<EpisodeItem>(res);
 }
 
+export type EpisodeUpdateRequest = {
+  episodeNumber?: number;
+  title?: string;
+  description?: string;
+  contentType?: ContentType;
+  status?: EpisodeStatus;
+  unlockType?: EpisodeUnlockType;
+  priceVnd?: number;
+  totalPage?: number;
+};
+
+export async function updateEpisode(episodeId: string, request: EpisodeUpdateRequest): Promise<string> {
+  const url = apiUrl(`/api/v1/episodes/${episodeId}`);
+  const res = await authFetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<string>(res);
+}
+
+export async function deleteEpisode(episodeId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/episodes/${episodeId}`);
+  const res = await authFetch(url, {
+    method: "DELETE",
+  });
+  return handleResponse<string>(res);
+}
+
+export async function listEpisodesBySeason(seasonId: string): Promise<EpisodeItem[]> {
+  const url = apiUrl(`/api/v1/seasons/${seasonId}/episodes`);
+  const res = await authFetch(url, { method: "GET" });
+  return handleResponse<EpisodeItem[]>(res);
+}
+
 export async function listMediaByEpisode(episodeId: string): Promise<MediaResponse[]> {
   const url = apiUrl(`/api/v1/episodes/${episodeId}/media`);
   const res = await authFetch(url, { method: "GET" });
@@ -282,6 +399,37 @@ export async function publishEpisode(episodeId: string): Promise<EpisodeItem> {
   const url = apiUrl(`/api/v1/episodes/${episodeId}/publish`);
   const res = await authFetch(url, { method: "PATCH" });
   return handleResponse<EpisodeItem>(res);
+}
+
+export async function hideEpisode(episodeId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/episodes/${episodeId}/hide`);
+  const res = await authFetch(url, { method: "PATCH" });
+  return handleResponse<string>(res);
+}
+
+export async function unhideEpisode(episodeId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/episodes/${episodeId}/unhide`);
+  const res = await authFetch(url, { method: "PATCH" });
+  return handleResponse<string>(res);
+}
+
+export async function schedulePublishEpisode(
+  episodeId: string,
+  scheduledPublishAt: string,
+): Promise<string> {
+  const url = apiUrl(`/api/v1/episodes/${episodeId}/schedule-publish`);
+  const res = await authFetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scheduledPublishAt }),
+  });
+  return handleResponse<string>(res);
+}
+
+export async function cancelSchedulePublishEpisode(episodeId: string): Promise<string> {
+  const url = apiUrl(`/api/v1/episodes/${episodeId}/cancel-schedule`);
+  const res = await authFetch(url, { method: "PATCH" });
+  return handleResponse<string>(res);
 }
 
 // -------------------------------------------------------------
@@ -369,6 +517,53 @@ export async function updateVideoUploadProgress(
     body: JSON.stringify({ uploadedBytes, status, actorId }),
   });
   return handleResponse<MediaUploadSessionResponse>(res);
+}
+
+export async function pauseVideoUpload(
+  uploadSessionId: string,
+  actorId?: string,
+): Promise<MediaUploadSessionResponse> {
+  const query = actorId ? `?actorId=${actorId}` : "";
+  const url = apiUrl(`/api/v1/media/upload-sessions/${uploadSessionId}/pause${query}`);
+  const res = await authFetch(url, {
+    method: "PATCH",
+  });
+  return handleResponse<MediaUploadSessionResponse>(res);
+}
+
+export async function failVideoUpload(
+  uploadSessionId: string,
+  request: { errorMessage: string; actorId?: string },
+): Promise<MediaUploadSessionResponse> {
+  const url = apiUrl(`/api/v1/media/upload-sessions/${uploadSessionId}/fail`);
+  const res = await authFetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<MediaUploadSessionResponse>(res);
+}
+
+export async function cancelVideoUpload(
+  uploadSessionId: string,
+  actorId?: string,
+): Promise<MediaUploadSessionResponse> {
+  const query = actorId ? `?actorId=${actorId}` : "";
+  const url = apiUrl(`/api/v1/media/upload-sessions/${uploadSessionId}/cancel${query}`);
+  const res = await authFetch(url, {
+    method: "PATCH",
+  });
+  return handleResponse<MediaUploadSessionResponse>(res);
+}
+
+export async function approveMedia(
+  mediaId: string,
+): Promise<any> {
+  const url = apiUrl(`/api/v1/media/${mediaId}/approve`);
+  const res = await authFetch(url, {
+    method: "PATCH",
+  });
+  return handleResponse<any>(res);
 }
 
 export async function completeVideoUpload(
@@ -459,6 +654,64 @@ export async function deleteMedia(mediaId: string, actorId?: string): Promise<vo
     method: "DELETE",
   });
   return handleResponse<void>(res);
+}
+
+export type UpdateMediaRequest = {
+  width?: number;
+  height?: number;
+  resolution?: string;
+  duration?: number;
+  displayOrder?: number;
+  status?: string;
+  actorId?: string;
+};
+
+export type UpdateMediaUrlRequest = {
+  fileUrl?: string;
+  mediaType?: string;
+  mimeType?: string;
+  fileSize?: number;
+  checksum?: string;
+  externalPublicId?: string;
+  storageProvider?: string;
+  provider?: string;
+  providerAssetId?: string;
+  providerPublicId?: string;
+  providerDeliveryType?: string;
+  originalUrl?: string;
+  playbackUrl?: string;
+  hlsUrl?: string;
+  thumbnailUrl?: string;
+  previewUrl?: string;
+  format?: string;
+  protectionType?: string;
+  playbackPolicy?: string;
+  width?: number;
+  height?: number;
+  resolution?: string;
+  duration?: number;
+  displayOrder?: number;
+  actorId?: string;
+};
+
+export async function updateMedia(mediaId: string, request: UpdateMediaRequest): Promise<string> {
+  const url = apiUrl(`/api/v1/media/${mediaId}`);
+  const res = await authFetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<string>(res);
+}
+
+export async function updateMediaUrl(mediaId: string, request: UpdateMediaUrlRequest): Promise<string> {
+  const url = apiUrl(`/api/v1/media/${mediaId}/url`);
+  const res = await authFetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<string>(res);
 }
 
 export async function getCategories(): Promise<BasePageResponse<CategoryResponse>> {

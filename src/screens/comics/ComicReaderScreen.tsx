@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getComicById } from "./comicMockData";
-import { getPublicEpisodeMedia } from "@/services/series";
+import { getPublicEpisodeMedia, getSeriesSeasons, getSeasonEpisodes, getPublicSeriesDetail } from "@/services/series";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -54,9 +54,13 @@ export default function ComicReaderScreen() {
     episodeIndex = 0,
     episodeId,
   } = route.params || {};
-  const comic = getComicById(comicId) || {
+
+  const isMock = !comicId || comicId.length < 10;
+  const [comicTitleState, setComicTitleState] = useState(route.params?.comicTitle || "Truyện Tranh");
+
+  const comic = (isMock && getComicById(comicId)) ? getComicById(comicId) : {
     id: comicId,
-    title: route.params?.comicTitle || "Truyện Tranh",
+    title: comicTitleState,
     chapters: [],
   };
 
@@ -69,6 +73,7 @@ export default function ComicReaderScreen() {
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [pages, setPages] = useState<any[]>(comicPagesMock);
   const [loading, setLoading] = useState(false);
+  const [dbEpisodes, setDbEpisodes] = useState<any[]>([]);
 
   // Refs
   const flatListRef = useRef<FlatList>(null);
@@ -93,6 +98,64 @@ export default function ComicReaderScreen() {
     }
   }, [episodeId]);
 
+  // Load real episodes structure if it is a database comic (id length >= 10)
+  useEffect(() => {
+    if (isMock) {
+      return;
+    }
+
+    const loadRealEpisodes = async () => {
+      try {
+        getPublicSeriesDetail(comicId)
+          .then((res) => {
+            if (res && res.code === 200 && res.data?.title) {
+              setComicTitleState(res.data.title);
+            }
+          })
+          .catch((err) => console.error("Lỗi lấy chi tiết series trong Reader:", err));
+
+        const seasonsRes = await getSeriesSeasons(comicId);
+        if (seasonsRes && seasonsRes.code === 200 && seasonsRes.data) {
+          const fetchedEps: any[] = [];
+          // Fetch episodes for all seasons in parallel
+          await Promise.all(
+            seasonsRes.data.map(async (se) => {
+              try {
+                const epRes = await getSeasonEpisodes(se.seasonId);
+                if (epRes && epRes.code === 200 && epRes.data) {
+                  epRes.data.forEach((ep, idx) => {
+                    fetchedEps.push({
+                      chapterTitle: `Season ${se.seasonNumber}`,
+                      title: ep.title || `Chương ${ep.episodeNumber}`,
+                      index: idx,
+                      episodeId: ep.episodeId,
+                      episodeNumber: ep.episodeNumber,
+                      seasonNumber: se.seasonNumber,
+                    });
+                  });
+                }
+              } catch (err) {
+                console.error("Lỗi lấy tập của season trong Reader:", err);
+              }
+            })
+          );
+          // Sort episodes by season number and episode number
+          fetchedEps.sort((a, b) => {
+            if (a.seasonNumber !== b.seasonNumber) {
+              return a.seasonNumber - b.seasonNumber;
+            }
+            return a.episodeNumber - b.episodeNumber;
+          });
+          setDbEpisodes(fetchedEps);
+        }
+      } catch (err) {
+        console.error("Lỗi tải seasons/episodes trong Reader:", err);
+      }
+    };
+
+    loadRealEpisodes();
+  }, [comicId]);
+
   const getPageSource = (page: any) => {
     if (typeof page === "string") {
       return { uri: page };
@@ -104,28 +167,32 @@ export default function ComicReaderScreen() {
   };
 
   // Lấy tất cả tập con (episodes) phẳng của toàn bộ truyện để chuyển tập nhanh
-  const allEpisodes: { chapterTitle: string; title: string; index: number }[] =
-    [];
-  if (comic && comic.chapters) {
-    comic.chapters.forEach((chap) => {
-      if (chap.episodes) {
-        chap.episodes.forEach((ep, idx) => {
-          allEpisodes.push({
-            chapterTitle: chap.title,
-            title: ep,
-            index: idx,
+  const allEpisodes: { chapterTitle: string; title: string; index: number; episodeId?: string }[] = isMock
+    ? (() => {
+        const list: any[] = [];
+        if (comic && comic.chapters) {
+          comic.chapters.forEach((chap) => {
+            if (chap.episodes) {
+              chap.episodes.forEach((ep, idx) => {
+                list.push({
+                  chapterTitle: chap.title,
+                  title: ep,
+                  index: idx,
+                });
+              });
+            }
           });
-        });
-      }
-    });
-  }
+        }
+        return list;
+      })()
+    : dbEpisodes;
 
   const currentEpisodeIdx =
-    allEpisodes.findIndex((e) => e.title === episodeTitle) !== -1
-      ? allEpisodes.findIndex((e) => e.title === episodeTitle)
+    allEpisodes.findIndex((e) => e.title === episodeTitle || e.episodeId === episodeId) !== -1
+      ? allEpisodes.findIndex((e) => e.title === episodeTitle || e.episodeId === episodeId)
       : 0;
 
-  const currentEp = allEpisodes[currentEpisodeIdx] || allEpisodes[0];
+  const currentEp = allEpisodes[currentEpisodeIdx] || allEpisodes[0] || {};
 
   // Chuyển tập tiếp theo hoặc tập trước
   const navigateEpisode = (direction: "prev" | "next") => {
@@ -148,9 +215,11 @@ export default function ComicReaderScreen() {
 
       navigation.replace("ComicReader", {
         comicId,
+        comicTitle: comicTitleState,
         chapterTitle: targetEp.chapterTitle,
         episodeTitle: targetEp.title,
         episodeIndex: targetEp.index,
+        episodeId: targetEp.episodeId,
       });
     }
   };
@@ -202,7 +271,7 @@ export default function ComicReaderScreen() {
               className="text-zinc-400 text-[11px] mt-0.5"
               numberOfLines={1}
             >
-              {currentEp.chapterTitle} • {currentEp.title}
+              {currentEp?.chapterTitle || chapterTitle} • {currentEp?.title || episodeTitle}
             </Text>
           </View>
 
@@ -396,9 +465,11 @@ export default function ComicReaderScreen() {
                       setCurrentPage(0);
                       navigation.replace("ComicReader", {
                         comicId,
+                        comicTitle: comicTitleState,
                         chapterTitle: item.chapterTitle,
                         episodeTitle: item.title,
                         episodeIndex: item.index,
+                        episodeId: item.episodeId,
                       });
                     }}
                     className={`py-3.5 px-4 rounded-xl mb-2 flex-row items-center justify-between border ${

@@ -7,6 +7,7 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather } from "@expo/vector-icons";
@@ -183,6 +184,12 @@ export default function MovieDetailScreen() {
       .then((res) => {
         if (res && res.code === 200 && res.data) {
           const detail = res.data;
+          if (detail.status === "HIDDEN") {
+            Alert.alert("Thông báo", "Tác phẩm này đã bị ẩn bởi tác giả.", [
+              { text: "OK", onPress: () => navigation.goBack() }
+            ]);
+            return;
+          }
           setMovie({
             id: detail.seriesId || detail.id,
             title: detail.title,

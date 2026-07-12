@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FontAwesome5 } from "@expo/vector-icons";
@@ -31,24 +32,34 @@ export default function MoviesScreen() {
   const [activeCategory, setActiveCategory] = useState("Đề xuất");
   const [apiSeries, setApiSeries] = useState<SeriesItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadMovies = async (isRefreshing = false) => {
+    if (!isRefreshing) setLoading(true);
+    try {
+      const res = await getPublicSeries(1, 20);
+      if (res && res.code === 200 && res.data && res.data.content) {
+        const filtered = res.data.content.filter(
+          (item) => item.contentType === "VIDEO" || item.contentType === "video"
+        );
+        setApiSeries(filtered);
+      }
+    } catch (err) {
+      console.error("Error fetching public series:", err);
+    } finally {
+      if (!isRefreshing) setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    getPublicSeries(1, 20)
-      .then((res) => {
-        if (res && res.code === 200 && res.data && res.data.content) {
-          const filtered = res.data.content.filter(
-            (item) => item.contentType === "VIDEO" || item.contentType === "video"
-          );
-          setApiSeries(filtered);
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching public series:", err);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    loadMovies(false);
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadMovies(true);
+    setRefreshing(false);
+  };
 
   const filterContent = (list: MovieItem[]) => {
     if (activeCategory === "Đề xuất") return list;
@@ -135,8 +146,21 @@ export default function MoviesScreen() {
       />
 
       <ScrollView
+        className="flex-1"
+        alwaysBounceVertical={true}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#D4AF37"
+            colors={["#D4AF37"]}
+            progressViewOffset={100}
+            title="Đang cập nhật..."
+            titleColor="#D4AF37"
+          />
+        }
       >
         {/* ================= HERO CAROUSEL ================= */}
         <View className="mt-3">

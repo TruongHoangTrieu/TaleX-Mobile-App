@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Image,
   StatusBar,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -29,6 +30,18 @@ export default function ProfileScreen() {
 
   const { user, isAuthenticated, loading, refreshProfile, logout } = useAuth();
   const { balance, isLoading: isWalletLoading } = useReward();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshProfile();
+    } catch (err) {
+      console.log("Error refreshing profile:", err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshProfile]);
 
   const [activeShelfTab, setActiveShelfTab] = useState<"history" | "follow">(
     "history",
@@ -76,12 +89,25 @@ export default function ProfileScreen() {
       />
 
       <ScrollView
+        className="flex-1"
+        alwaysBounceVertical={true}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingTop: 60,
           paddingBottom: 120,
         }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#D4AF37"
+            colors={["#D4AF37"]}
+            progressViewOffset={60}
+            title="Đang cập nhật..."
+            titleColor="#D4AF37"
+          />
+        }
       >
         {/* ================= HEADER UTILS (GUEST hoặc USER đều có thể xem Cài đặt) ================= */}
         <View className="flex-row justify-end items-center mb-4 w-full">

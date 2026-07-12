@@ -17,6 +17,7 @@ import CreatorMonetizationScreen from "@/screens/creator/CreatorMonetizationScre
 import SubscriptionPlansScreen from "@/screens/subscription/SubscriptionPlansScreen";
 import UploadMovieScreen from "@/screens/creator/UploadMovieScreen";
 import UploadComicScreen from "@/screens/creator/UploadComicScreen";
+import CoinCenterScreen from "@/screens/rewards/CoinCenterScreen";
 import { navigationRef } from "./navigationRef";
 import type { SeriesItem } from "@/services/series";
 
@@ -55,6 +56,7 @@ export type RootStackParamList = {
   CreatorChannel: undefined;
   CreatorMonetization: undefined;
   SubscriptionPlans: undefined;
+  CoinCenter: undefined;
   UploadMovie: undefined;
   UploadComic: undefined;
 };
@@ -90,6 +92,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="SubscriptionPlans"
           component={SubscriptionPlansScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="CoinCenter"
+          component={CoinCenterScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

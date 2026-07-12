@@ -1,16 +1,35 @@
-import {
-  GoogleSignin,
-  isSuccessResponse,
-  isErrorWithCode,
-  statusCodes,
-} from "@react-native-google-signin/google-signin";
+import { Platform } from "react-native";
 import { GOOGLE_WEB_CLIENT_ID } from "@/config";
 
 let configured = false;
 
-function ensureConfigured() {
+type GoogleSignInModule =
+  typeof import("@react-native-google-signin/google-signin");
+
+let googleSignInModule: GoogleSignInModule | null = null;
+
+function getGoogleSignInModule(): GoogleSignInModule {
+  if (googleSignInModule) return googleSignInModule;
+
+  try {
+    // Lazy require is intentional: Expo Go does not contain RNGoogleSignin.
+    // Loading the package at module startup would crash the entire app before
+    // React can render. A native development/production build still loads it.
+    const loadedModule = require(
+      "@react-native-google-signin/google-signin",
+    ) as GoogleSignInModule;
+    googleSignInModule = loadedModule;
+    return loadedModule;
+  } catch {
+    throw new Error(
+      "Đăng nhập Google không khả dụng trong Expo Go. Vui lòng dùng đăng nhập email hoặc chạy ứng dụng bằng development build.",
+    );
+  }
+}
+
+function ensureConfigured(module: GoogleSignInModule) {
   if (configured) return;
-  GoogleSignin.configure({
+  module.GoogleSignin.configure({
     webClientId: GOOGLE_WEB_CLIENT_ID,
     offlineAccess: false,
   });
@@ -20,12 +39,18 @@ function ensureConfigured() {
 // Triggers the native Google Sign-In sheet and returns the ID token to send
 // to the backend (`POST /api/auth/google`). Returns null if the user cancelled.
 export async function signInWithGoogle(): Promise<string | null> {
-  ensureConfigured();
+  const module = getGoogleSignInModule();
+  ensureConfigured(module);
 
-  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-  const response = await GoogleSignin.signIn();
+  if (Platform.OS === "android") {
+    await module.GoogleSignin.hasPlayServices({
+      showPlayServicesUpdateDialog: true,
+    });
+  }
 
-  if (!isSuccessResponse(response)) {
+  const response = await module.GoogleSignin.signIn();
+
+  if (!module.isSuccessResponse(response)) {
     return null;
   }
 
@@ -38,15 +63,21 @@ export async function signInWithGoogle(): Promise<string | null> {
 }
 
 export function isGoogleSignInCancelled(error: unknown): boolean {
-  return (
-    isErrorWithCode(error) && error.code === statusCodes.SIGN_IN_CANCELLED
+  // Do not attempt to load the package on the error path. When sign-in reached
+  // the native SDK, the module is already cached and its platform-specific
+  // cancellation code is available. In Expo Go the module remains null.
+  return Boolean(
+    googleSignInModule &&
+      googleSignInModule.isErrorWithCode(error) &&
+      error.code === googleSignInModule.statusCodes.SIGN_IN_CANCELLED,
   );
 }
 
 export async function signOutGoogle(): Promise<void> {
   try {
-    await GoogleSignin.signOut();
+    const module = getGoogleSignInModule();
+    await module.GoogleSignin.signOut();
   } catch {
-    // ignore — user may not have an active Google session
+    // Ignore when running in Expo Go or when no Google session is active.
   }
 }

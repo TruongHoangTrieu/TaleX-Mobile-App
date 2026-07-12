@@ -18,6 +18,7 @@ import {
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/context/AuthContext";
+import { useReward } from "@/context/RewardContext";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootNavigator";
 import { useNavigation, useFocusEffect } from "@react-navigation/native"; // Thêm điều hướng sang trang Đăng nhập khi cần
@@ -27,6 +28,7 @@ export default function ProfileScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const { user, isAuthenticated, loading, refreshProfile, logout } = useAuth();
+  const { balance, isLoading: isWalletLoading } = useReward();
 
   const [activeShelfTab, setActiveShelfTab] = useState<"history" | "follow">(
     "history",
@@ -181,7 +183,7 @@ export default function ProfileScreen() {
                   Số dư xu hiện tại
                 </Text>
                 <Text className="text-white text-2xl font-black mt-0.5">
-                  {user?.coins ?? 0}{" "}
+                  {isWalletLoading ? "..." : balance}{" "}
                   <Text className="text-xs font-bold text-stone-400">Xu</Text>
                 </Text>
               </View>
@@ -189,12 +191,7 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() =>
-                Toast.show({
-                  type: "success",
-                  text1: "Điểm danh thành công! Bạn nhận được +10 Xu.",
-                })
-              }
+              onPress={() => navigation.navigate("CoinCenter")}
             >
               <LinearGradient
                 colors={["#D4AF37", "#E6B800"]}
@@ -218,7 +215,7 @@ export default function ProfileScreen() {
                     marginLeft: 6,
                   }}
                 >
-                  Điểm Danh
+                  Nhận Xu
                 </Text>
               </LinearGradient>
             </TouchableOpacity>

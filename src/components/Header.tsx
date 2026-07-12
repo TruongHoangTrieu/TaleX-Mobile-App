@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useReward } from "@/context/RewardContext";
 
 interface HeaderProps {
   titleType?: "logo" | "text";
@@ -29,6 +30,7 @@ export default function Header({
   onCategoryChange,
 }: HeaderProps) {
   const navigation = useNavigation<any>();
+  const { balance, isLoading } = useReward();
 
   return (
     <SafeAreaView
@@ -65,7 +67,9 @@ export default function Header({
           <View className="mr-1.5">
             <FontAwesome5 name="coins" size={11} color="#D4AF37" />
           </View>
-          <Text className="text-[#E5E0D8] text-xs font-bold">150</Text>
+          <Text className="text-[#E5E0D8] text-xs font-bold">
+            {isLoading ? "..." : balance}
+          </Text>
         </TouchableOpacity>
       </View>
 

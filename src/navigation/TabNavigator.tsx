@@ -3,11 +3,14 @@ import ComicsScreen from "@/screens/comics/ComicsScreen";
 import HomeScreen from "@/screens/home/HomeScreen";
 import MoviesScreen from "@/screens/movies/MoviesScreen";
 import ProfileScreen from "@/screens/profile/ProfileScreen";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
 const Tab = createBottomTabNavigator();
 
 export default function TabNavigator() {
+  useHeartbeat();
+
   return (
     <Tab.Navigator
       screenOptions={{

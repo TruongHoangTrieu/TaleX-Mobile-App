@@ -121,7 +121,9 @@ export default function UploadComicScreen() {
   const [episodeNumber, setEpisodeNumber] = useState("");
   const [episodeTitle, setEpisodeTitle] = useState("");
   const [episodeDesc, setEpisodeDesc] = useState("");
-  const [releaseType, setReleaseType] = useState<"free" | "premium" | "coin">("free");
+  const [releaseType, setReleaseType] = useState<"free" | "premium" | "coin">(
+    "free",
+  );
   const [coinPrice, setCoinPrice] = useState("5");
   const [createdEpisodeId, setCreatedEpisodeId] = useState<string | null>(null);
 
@@ -142,7 +144,10 @@ export default function UploadComicScreen() {
   useEffect(() => {
     const fetchMeta = async () => {
       try {
-        const [catsRes, tagsRes] = await Promise.all([getCategories(), getTags()]);
+        const [catsRes, tagsRes] = await Promise.all([
+          getCategories(),
+          getTags(),
+        ]);
         setCategories(catsRes?.content || []);
         setTags(tagsRes?.content || []);
       } catch (err) {
@@ -298,7 +303,9 @@ export default function UploadComicScreen() {
 
   const toggleCategory = (categoryId: string) => {
     if (selectedCategoryIds.includes(categoryId)) {
-      setSelectedCategoryIds(selectedCategoryIds.filter((id) => id !== categoryId));
+      setSelectedCategoryIds(
+        selectedCategoryIds.filter((id) => id !== categoryId),
+      );
     } else {
       setSelectedCategoryIds([...selectedCategoryIds, categoryId]);
     }
@@ -315,9 +322,13 @@ export default function UploadComicScreen() {
   // Image Picker for Cover Art
   const handleSelectCover = async () => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert("Cấp quyền", "Vui lòng cấp quyền thư viện ảnh để chọn ảnh bìa.");
+        Alert.alert(
+          "Cấp quyền",
+          "Vui lòng cấp quyền thư viện ảnh để chọn ảnh bìa.",
+        );
         return;
       }
 
@@ -345,9 +356,13 @@ export default function UploadComicScreen() {
   // Multiple Image Picker for Comic Pages
   const handleSelectPages = async () => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert("Cấp quyền", "Vui lòng cấp quyền thư viện ảnh để chọn trang truyện.");
+        Alert.alert(
+          "Cấp quyền",
+          "Vui lòng cấp quyền thư viện ảnh để chọn trang truyện.",
+        );
         return;
       }
 
@@ -397,7 +412,9 @@ export default function UploadComicScreen() {
           onPress: async () => {
             try {
               await deleteSeason(seasonId);
-              setSeasonList((prev) => prev.filter((s) => s.seasonId !== seasonId));
+              setSeasonList((prev) =>
+                prev.filter((s) => s.seasonId !== seasonId),
+              );
               if (selectedSeasonId === seasonId) {
                 setSelectedSeasonId("");
               }
@@ -412,7 +429,7 @@ export default function UploadComicScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -433,8 +450,10 @@ export default function UploadComicScreen() {
                 await unhideSeason(season.seasonId);
                 setSeasonList((prev) =>
                   prev.map((s) =>
-                    s.seasonId === season.seasonId ? { ...s, status: "PUBLISHED" } : s
-                  )
+                    s.seasonId === season.seasonId
+                      ? { ...s, status: "PUBLISHED" }
+                      : s,
+                  ),
                 );
                 Toast.show({
                   type: "success",
@@ -445,8 +464,10 @@ export default function UploadComicScreen() {
                 await hideSeason(season.seasonId);
                 setSeasonList((prev) =>
                   prev.map((s) =>
-                    s.seasonId === season.seasonId ? { ...s, status: "HIDDEN" } : s
-                  )
+                    s.seasonId === season.seasonId
+                      ? { ...s, status: "HIDDEN" }
+                      : s,
+                  ),
                 );
                 Toast.show({
                   type: "success",
@@ -456,11 +477,14 @@ export default function UploadComicScreen() {
               }
             } catch (err: any) {
               console.error("[ToggleHideSeason] Error:", err);
-              Alert.alert("Lỗi", err.message || "Không thể thực hiện thao tác.");
+              Alert.alert(
+                "Lỗi",
+                err.message || "Không thể thực hiện thao tác.",
+              );
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -468,7 +492,17 @@ export default function UploadComicScreen() {
     setEditingSeriesId(s.seriesId);
     setNewSeriesTitle(s.title);
     setNewSeriesDesc(s.description || "");
-    setSeriesCover(s.coverUrl ? { uri: s.coverUrl, name: s.coverUrl.split("/").pop() || "cover.jpg", size: 0, type: "image/jpeg", isUrl: true } : null);
+    setSeriesCover(
+      s.coverUrl
+        ? {
+            uri: s.coverUrl,
+            name: s.coverUrl.split("/").pop() || "cover.jpg",
+            size: 0,
+            type: "image/jpeg",
+            isUrl: true,
+          }
+        : null,
+    );
     setSelectedCategoryIds(s.categories?.map((c) => c.categoryId) || []);
     setSelectedTagIds(s.tags?.map((t) => t.tagId) || []);
     setSeriesMode("create");
@@ -489,7 +523,9 @@ export default function UploadComicScreen() {
           onPress: async () => {
             try {
               await deleteSeries(seriesId);
-              setSeriesList((prev) => prev.filter((s) => s.seriesId !== seriesId));
+              setSeriesList((prev) =>
+                prev.filter((s) => s.seriesId !== seriesId),
+              );
               if (selectedSeriesId === seriesId) {
                 setSelectedSeriesId("");
                 setSeasonList([]);
@@ -505,7 +541,7 @@ export default function UploadComicScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -531,7 +567,7 @@ export default function UploadComicScreen() {
                   seriesCover.name,
                   seriesCover.size,
                   seriesCover.type,
-                  "cover"
+                  "cover",
                 );
                 coverUrl = uploadRes.publicUrl;
               }
@@ -550,7 +586,7 @@ export default function UploadComicScreen() {
             const seriesData = await listSeriesByCreator();
             if (seriesData) {
               const filtered = seriesData.filter(
-                (item) => item.contentType?.toUpperCase() === "COMIC"
+                (item) => item.contentType?.toUpperCase() === "COMIC",
               );
               setSeriesList(filtered);
             }
@@ -588,7 +624,7 @@ export default function UploadComicScreen() {
                 seriesCover.name,
                 seriesCover.size,
                 seriesCover.type,
-                "cover"
+                "cover",
               );
               coverUrl = uploadRes.publicUrl;
             }
@@ -695,7 +731,10 @@ export default function UploadComicScreen() {
         }
       } else {
         if (seasonList.length === 0) {
-          Alert.alert("Lỗi", "Bộ truyện này chưa có Season nào. Vui lòng chuyển sang tab 'Tạo Season mới'.");
+          Alert.alert(
+            "Lỗi",
+            "Bộ truyện này chưa có Season nào. Vui lòng chuyển sang tab 'Tạo Season mới'.",
+          );
           return;
         }
         if (!selectedSeasonId) {
@@ -712,7 +751,10 @@ export default function UploadComicScreen() {
         setSubmitMsg("Đang chuẩn bị thông tin tập mới...");
         try {
           const eps = await listEpisodesBySeason(selectedSeasonId);
-          const maxEpNumber = eps.reduce((max, ep) => ep.episodeNumber > max ? ep.episodeNumber : max, 0);
+          const maxEpNumber = eps.reduce(
+            (max, ep) => (ep.episodeNumber > max ? ep.episodeNumber : max),
+            0,
+          );
           setEpisodeNumber(String(maxEpNumber + 1));
         } catch (err) {
           console.error("Lỗi tự động gợi ý số thứ tự tập truyện:", err);
@@ -891,7 +933,10 @@ export default function UploadComicScreen() {
 
   const getSeriesTitle = () => {
     if (seriesMode === "select") {
-      return seriesList.find((s) => s.seriesId === selectedSeriesId)?.title || "Chưa chọn";
+      return (
+        seriesList.find((s) => s.seriesId === selectedSeriesId)?.title ||
+        "Chưa chọn"
+      );
     }
     return newSeriesTitle || "Series mới chưa đặt tên";
   };
@@ -899,9 +944,13 @@ export default function UploadComicScreen() {
   const getSeasonTitle = () => {
     if (seasonMode === "select") {
       const se = seasonList.find((s) => s.seasonId === selectedSeasonId);
-      return se ? `Season ${se.seasonNumber}: ${se.title || "Không có tiêu đề"}` : "Chưa chọn";
+      return se
+        ? `Season ${se.seasonNumber}: ${se.title || "Không có tiêu đề"}`
+        : "Chưa chọn";
     }
-    return newSeasonNumber ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}` : "Season mới";
+    return newSeasonNumber
+      ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}`
+      : "Season mới";
   };
 
   const wizardSteps = [
@@ -918,10 +967,15 @@ export default function UploadComicScreen() {
 
       {/* HEADER */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-zinc-950 bg-[#0F0F10]">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 active:opacity-60">
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          className="p-2 active:opacity-60"
+        >
           <Feather name="arrow-left" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text className="text-white text-lg font-black tracking-tight">Đăng Truyện Lên TaleX</Text>
+        <Text className="text-white text-lg font-black tracking-tight">
+          Đăng Truyện Lên TaleX
+        </Text>
         <View className="w-10" />
       </View>
 

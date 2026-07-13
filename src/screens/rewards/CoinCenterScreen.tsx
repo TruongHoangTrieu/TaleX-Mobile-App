@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  RefreshControl,
   ScrollView,
   StatusBar,
   Text,
@@ -102,7 +101,6 @@ export default function CoinCenterScreen() {
   const [checkInStatus, setCheckInStatus] = useState<CheckInStatus>(
     INITIAL_CHECK_IN_STATUS,
   );
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [activeAdMission, setActiveAdMission] = useState<string | null>(null);
   const hasPendingOnlineMission = missions.some(
@@ -142,17 +140,7 @@ export default function CoinCenterScreen() {
     }, [hasPendingOnlineMission, loadCheckInStatus, refreshRewardData]),
   );
 
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await Promise.all([
-        loadCheckInStatus(),
-        refreshRewardData({ silent: true }),
-      ]);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [loadCheckInStatus, refreshRewardData]);
+
 
   const handleCheckIn = async () => {
     if (isCheckingIn || checkInStatus.isCheckedInToday) return;
@@ -206,14 +194,6 @@ export default function CoinCenterScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor="#D4AF37"
-            colors={["#D4AF37"]}
-          />
-        }
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
       >
         <View className="mb-5 rounded-3xl border border-[#D4AF37]/20 bg-[#1C1A18] p-5">
@@ -307,3 +287,4 @@ export default function CoinCenterScreen() {
     </SafeAreaView>
   );
 }
+

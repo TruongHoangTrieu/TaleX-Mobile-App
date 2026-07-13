@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   FlatList,
   Image,
@@ -7,9 +7,8 @@ import {
   Text,
   TouchableOpacity,
   View,
-  RefreshControl,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { RootStackParamList } from "@/navigation/RootNavigator";
@@ -30,14 +29,14 @@ export default function ComicsScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
   const [apiComics, setApiComics] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
 
   const loadComics = async (isRefreshing = false) => {
     try {
       const res = await getPublicSeries(1, 100);
       if (res && res.data && res.data.content) {
         const filtered = res.data.content.filter(
-          (item: any) => item.contentType === "COMIC" || item.contentType === "comic"
+          (item: any) =>
+            item.contentType === "COMIC" || item.contentType === "comic",
         );
         setApiComics(filtered);
       }
@@ -46,15 +45,11 @@ export default function ComicsScreen() {
     }
   };
 
-  useEffect(() => {
-    loadComics(false);
-  }, []);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadComics(true);
-    setRefreshing(false);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      loadComics(false);
+    }, [])
+  );
 
   const filterByCategory = (comicList: ComicItem[]) => {
     if (selectedCategory === "Tất cả") return comicList;
@@ -105,13 +100,20 @@ export default function ComicsScreen() {
         backgroundColor="transparent"
       />
 
-      <Header titleType="text" titleText="Truyện Tranh" showCategories={false} />
+      <Header
+        titleType="text"
+        titleText="Truyện Tranh"
+        showCategories={false}
+      />
 
       <View className="h-10 border-b border-white/5 bg-[#141210]">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, alignItems: "center" }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            alignItems: "center",
+          }}
         >
           {comicCategories.map((category) => {
             const isSelected = selectedCategory === category;
@@ -142,17 +144,6 @@ export default function ComicsScreen() {
         alwaysBounceVertical={true}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 130 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#D4AF37"
-            colors={["#D4AF37"]}
-            progressViewOffset={100}
-            title="Đang cập nhật..."
-            titleColor="#D4AF37"
-          />
-        }
       >
         <View className="mt-3">
           <ComicCarousel />
@@ -163,10 +154,13 @@ export default function ComicsScreen() {
           data={apiComics.map((item) => ({
             id: item.seriesId || item.id,
             title: item.title,
-            image: item.coverUrl ? { uri: item.coverUrl } : require("@assets/comic1.webp"),
+            image: item.coverUrl
+              ? { uri: item.coverUrl }
+              : require("@assets/comic1.webp"),
             category: "Tất cả",
             author: item.author || "TaleX Creator",
-            status: item.status === "PUBLISHED" ? "Đã xuất bản" : "Đang tiến hành",
+            status:
+              item.status === "PUBLISHED" ? "Đã xuất bản" : "Đang tiến hành",
             views: item.views || "0",
             rating: item.rating || "10.0",
             chapters: [],
@@ -218,7 +212,9 @@ function ComicSection({
   return (
     <View
       className={`mt-7 ${
-        highlighted ? "bg-zinc-900/40 py-5 border-t border-b border-white/5" : ""
+        highlighted
+          ? "bg-zinc-900/40 py-5 border-t border-b border-white/5"
+          : ""
       }`}
     >
       <View className="flex-row justify-between items-center px-4 mb-3">

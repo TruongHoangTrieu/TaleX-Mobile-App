@@ -45,31 +45,13 @@ export default function PublishStep({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const formatLocalISOString = (date: Date): string => {
-    const pad = (num: number) => String(num).padStart(2, "0");
-    const year = date.getFullYear();
-    const month = pad(date.getMonth() + 1);
-    const day = pad(date.getDate());
-    const hours = pad(date.getHours());
-    const minutes = pad(date.getMinutes());
-    const seconds = pad(date.getSeconds());
-    
-    const timezoneOffset = date.getTimezoneOffset();
-    const offsetSign = timezoneOffset > 0 ? "-" : "+";
-    const absOffset = Math.abs(timezoneOffset);
-    const offsetHours = pad(Math.floor(absOffset / 60));
-    const offsetMinutes = pad(absOffset % 60);
-    
-    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`;
-  };
-
   const handlePublishPress = () => {
     if (isScheduled) {
       if (scheduleDate.getTime() <= Date.now()) {
         Alert.alert("Lỗi thời gian", "Thời gian lên lịch phải ở trong tương lai.");
         return;
       }
-      onPublish(formatLocalISOString(scheduleDate));
+      onPublish(scheduleDate.toISOString());
     } else {
       onPublish();
     }

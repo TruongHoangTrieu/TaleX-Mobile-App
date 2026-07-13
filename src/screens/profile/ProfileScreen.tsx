@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   StatusBar,
-  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -30,18 +29,6 @@ export default function ProfileScreen() {
 
   const { user, isAuthenticated, loading, refreshProfile, logout } = useAuth();
   const { balance, isLoading: isWalletLoading } = useReward();
-  const [refreshing, setRefreshing] = useState(false);
-
-  const onRefresh = React.useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await refreshProfile();
-    } catch (err) {
-      console.log("Error refreshing profile:", err);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refreshProfile]);
 
   const [activeShelfTab, setActiveShelfTab] = useState<"history" | "follow">(
     "history",
@@ -73,7 +60,9 @@ export default function ProfileScreen() {
       >
         <View className="flex-row items-center">
           <View className="w-6 items-center justify-center mr-3">{icon}</View>
-          <Text className="text-stone-300 text-[14px] font-medium">{title}</Text>
+          <Text className="text-stone-300 text-[14px] font-medium">
+            {title}
+          </Text>
         </View>
         <Feather name="chevron-right" size={16} color="#444446" />
       </TouchableOpacity>
@@ -97,17 +86,6 @@ export default function ProfileScreen() {
           paddingTop: 60,
           paddingBottom: 120,
         }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#D4AF37"
-            colors={["#D4AF37"]}
-            progressViewOffset={60}
-            title="Đang cập nhật..."
-            titleColor="#D4AF37"
-          />
-        }
       >
         {/* ================= HEADER UTILS (GUEST hoặc USER đều có thể xem Cài đặt) ================= */}
         <View className="flex-row justify-end items-center mb-4 w-full">
@@ -153,8 +131,15 @@ export default function ProfileScreen() {
                   className="flex-row items-center"
                   style={{ flexShrink: 0 }}
                 >
-                  <Text className="text-[#D4AF37] text-xs font-bold">Xem kênh</Text>
-                  <Feather name="chevron-right" size={12} color="#D4AF37" style={{ marginLeft: 1 }} />
+                  <Text className="text-[#D4AF37] text-xs font-bold">
+                    Xem kênh
+                  </Text>
+                  <Feather
+                    name="chevron-right"
+                    size={12}
+                    color="#D4AF37"
+                    style={{ marginLeft: 1 }}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -308,8 +293,6 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </View>
-
-
 
         {/* ================= CARD 2.5: CREATOR STUDIO (LUÔN HIỆN KHI ĐÃ ĐĂNG NHẬP) ================= */}
         {isAuthenticated && (

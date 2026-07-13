@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   ScrollView,
   StatusBar,
@@ -7,11 +7,10 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
-  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FontAwesome5 } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootNavigator";
 
@@ -25,14 +24,12 @@ import {
 } from "./movieMockData";
 import { getPublicSeries, SeriesItem } from "@/services/series";
 
-
 export default function MoviesScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [activeCategory, setActiveCategory] = useState("Đề xuất");
   const [apiSeries, setApiSeries] = useState<SeriesItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   const loadMovies = async (isRefreshing = false) => {
     if (!isRefreshing) setLoading(true);
@@ -40,7 +37,8 @@ export default function MoviesScreen() {
       const res = await getPublicSeries(1, 20);
       if (res && res.code === 200 && res.data && res.data.content) {
         const filtered = res.data.content.filter(
-          (item) => item.contentType === "VIDEO" || item.contentType === "video"
+          (item) =>
+            item.contentType === "VIDEO" || item.contentType === "video",
         );
         setApiSeries(filtered);
       }
@@ -51,15 +49,11 @@ export default function MoviesScreen() {
     }
   };
 
-  useEffect(() => {
-    loadMovies(false);
-  }, []);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadMovies(true);
-    setRefreshing(false);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      loadMovies(false);
+    }, [])
+  );
 
   const filterContent = (list: MovieItem[]) => {
     if (activeCategory === "Đề xuất") return list;
@@ -70,7 +64,9 @@ export default function MoviesScreen() {
     <TouchableOpacity
       className="mr-4 w-[210px]"
       activeOpacity={0.85}
-      onPress={() => navigation.navigate("MovieDetailScreen", { movieId: item.id })}
+      onPress={() =>
+        navigation.navigate("MovieDetailScreen", { movieId: item.id })
+      }
     >
       <View className="w-full h-[120px] rounded-2xl overflow-hidden bg-zinc-800 relative">
         <Image
@@ -96,9 +92,10 @@ export default function MoviesScreen() {
   );
 
   const renderApiSeriesCard = ({ item }: { item: SeriesItem }) => {
-    const imageSource = (item.coverUrl || item.bannerUrl || item.thumbnailUrl)
-      ? { uri: item.coverUrl || item.bannerUrl || item.thumbnailUrl }
-      : require("@assets/movie2.jpg");
+    const imageSource =
+      item.coverUrl || item.bannerUrl || item.thumbnailUrl
+        ? { uri: item.coverUrl || item.bannerUrl || item.thumbnailUrl }
+        : require("@assets/movie2.jpg");
 
     return (
       <TouchableOpacity
@@ -122,7 +119,10 @@ export default function MoviesScreen() {
           </View>
         </View>
 
-        <Text className="text-white text-xs font-semibold mt-2" numberOfLines={1}>
+        <Text
+          className="text-white text-xs font-semibold mt-2"
+          numberOfLines={1}
+        >
           {item.title}
         </Text>
 
@@ -150,17 +150,6 @@ export default function MoviesScreen() {
         alwaysBounceVertical={true}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#D4AF37"
-            colors={["#D4AF37"]}
-            progressViewOffset={100}
-            title="Đang cập nhật..."
-            titleColor="#D4AF37"
-          />
-        }
       >
         {/* ================= HERO CAROUSEL ================= */}
         <View className="mt-3">
@@ -170,13 +159,17 @@ export default function MoviesScreen() {
         {/* ================= SECTION SYSTEM SERIES (FROM API) ================= */}
         <View className="mt-7">
           <View className="flex-row justify-between items-center px-4 mb-3">
-            <Text className="text-white font-bold text-base">🎬 Phim bộ mới (Hệ thống)</Text>
+            <Text className="text-white font-bold text-base">
+              🎬 Phim bộ mới (Hệ thống)
+            </Text>
             <Text className="text-[#7C766B] text-xs">Xem thêm</Text>
           </View>
 
           {loading ? (
             <View className="px-4 py-4">
-              <Text className="text-[#7C766B] text-xs italic">Đang tải phim bộ...</Text>
+              <Text className="text-[#7C766B] text-xs italic">
+                Đang tải phim bộ...
+              </Text>
             </View>
           ) : (
             <FlatList
@@ -198,7 +191,9 @@ export default function MoviesScreen() {
         {/* ================= SECTION 1 (Đã áp dụng bộ lọc) ================= */}
         <View className="mt-7">
           <View className="flex-row justify-between items-center px-4 mb-3">
-            <Text className="text-white font-bold text-base">🔥 Đang thịnh hành</Text>
+            <Text className="text-white font-bold text-base">
+              🔥 Đang thịnh hành
+            </Text>
             <Text className="text-[#7C766B] text-xs">Xem thêm</Text>
           </View>
 
@@ -209,7 +204,11 @@ export default function MoviesScreen() {
             keyExtractor={(i) => "trend-" + i.id}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16 }}
-            ListEmptyComponent={<Text className="text-[#7C766B] text-xs px-4 py-2 italic">Không có phim thuộc thể loại này</Text>}
+            ListEmptyComponent={
+              <Text className="text-[#7C766B] text-xs px-4 py-2 italic">
+                Không có phim thuộc thể loại này
+              </Text>
+            }
           />
         </View>
 
@@ -227,14 +226,20 @@ export default function MoviesScreen() {
             keyExtractor={(i) => "anime-" + i.id}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16 }}
-            ListEmptyComponent={<Text className="text-[#7C766B] text-xs px-4 py-2 italic">Không có phim thuộc thể loại này</Text>}
+            ListEmptyComponent={
+              <Text className="text-[#7C766B] text-xs px-4 py-2 italic">
+                Không có phim thuộc thể loại này
+              </Text>
+            }
           />
         </View>
 
         {/* ================= SECTION 3 (Đã áp dụng bộ lọc) ================= */}
         <View className="mt-7">
           <View className="flex-row justify-between items-center px-4 mb-3">
-            <Text className="text-white font-bold text-base">🎬 Phim bộ mới</Text>
+            <Text className="text-white font-bold text-base">
+              🎬 Phim bộ mới
+            </Text>
             <Text className="text-[#7C766B] text-xs">Xem thêm</Text>
           </View>
 
@@ -245,7 +250,11 @@ export default function MoviesScreen() {
             keyExtractor={(i) => "series-" + i.id}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16 }}
-            ListEmptyComponent={<Text className="text-[#7C766B] text-xs px-4 py-2 italic">Không có phim thuộc thể loại này</Text>}
+            ListEmptyComponent={
+              <Text className="text-[#7C766B] text-xs px-4 py-2 italic">
+                Không có phim thuộc thể loại này
+              </Text>
+            }
           />
         </View>
       </ScrollView>

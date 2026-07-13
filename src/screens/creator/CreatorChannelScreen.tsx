@@ -12,7 +12,6 @@ import {
   Modal,
   Alert,
   TextInput,
-  RefreshControl,
   Platform,
 } from "react-native";
 import {
@@ -155,10 +154,8 @@ export default function CreatorChannelScreen() {
   useFocusEffect(
     React.useCallback(() => {
       fetchChannelData();
-    }, [])
+    }, []),
   );
-
-  const [refreshing, setRefreshing] = useState(false);
 
   const fetchChannelData = async (isRefreshing = false) => {
     if (!isRefreshing) setLoading(true);
@@ -179,12 +176,6 @@ export default function CreatorChannelScreen() {
     } finally {
       if (!isRefreshing) setLoading(false);
     }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchChannelData(true);
-    setRefreshing(false);
   };
 
   const getSortedAndFilteredList = (list: SeriesItem[]) => {
@@ -528,24 +519,6 @@ export default function CreatorChannelScreen() {
     );
   };
 
-  const formatLocalISOString = (date: Date): string => {
-    const pad = (num: number) => String(num).padStart(2, "0");
-    const year = date.getFullYear();
-    const month = pad(date.getMonth() + 1);
-    const day = pad(date.getDate());
-    const hours = pad(date.getHours());
-    const minutes = pad(date.getMinutes());
-    const seconds = pad(date.getSeconds());
-
-    const timezoneOffset = date.getTimezoneOffset();
-    const offsetSign = timezoneOffset > 0 ? "-" : "+";
-    const absOffset = Math.abs(timezoneOffset);
-    const offsetHours = pad(Math.floor(absOffset / 60));
-    const offsetMinutes = pad(absOffset % 60);
-
-    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetSign}${offsetHours}:${offsetMinutes}`;
-  };
-
   const handleConfirmSchedule = async () => {
     if (!scheduledEpisode) return;
 
@@ -555,8 +528,8 @@ export default function CreatorChannelScreen() {
     }
 
     try {
-      const localIso = formatLocalISOString(scheduleDate);
-      await schedulePublishEpisode(scheduledEpisode.episodeId, localIso);
+      const utcIso = scheduleDate.toISOString();
+      await schedulePublishEpisode(scheduledEpisode.episodeId, utcIso);
 
       Alert.alert("Thành công", "Đã lên lịch xuất bản tập thành công.");
 
@@ -747,7 +720,7 @@ export default function CreatorChannelScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -1084,17 +1057,6 @@ export default function CreatorChannelScreen() {
         className="flex-1"
         alwaysBounceVertical={true}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#D4AF37"
-            colors={["#D4AF37"]}
-            progressViewOffset={60}
-            title="Đang cập nhật..."
-            titleColor="#D4AF37"
-          />
-        }
       >
         {/* BANNER KÊNH */}
         <View className="w-full h-[120px] bg-zinc-800 relative">

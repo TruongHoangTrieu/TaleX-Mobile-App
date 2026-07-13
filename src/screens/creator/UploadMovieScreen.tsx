@@ -101,7 +101,9 @@ export default function UploadMovieScreen() {
   const [episodeNumber, setEpisodeNumber] = useState("");
   const [episodeTitle, setEpisodeTitle] = useState("");
   const [episodeDesc, setEpisodeDesc] = useState("");
-  const [releaseType, setReleaseType] = useState<"free" | "premium" | "coin">("free");
+  const [releaseType, setReleaseType] = useState<"free" | "premium" | "coin">(
+    "free",
+  );
   const [coinPrice, setCoinPrice] = useState("5");
   const [createdEpisodeId, setCreatedEpisodeId] = useState<string | null>(null);
 
@@ -137,7 +139,10 @@ export default function UploadMovieScreen() {
         xhrRef.current.abort();
       }
       if (activeUploadSessionIdRef.current) {
-        cancelVideoUpload(activeUploadSessionIdRef.current, actorId || undefined).catch(() => {});
+        cancelVideoUpload(
+          activeUploadSessionIdRef.current,
+          actorId || undefined,
+        ).catch(() => {});
       }
     };
   }, [actorId]);
@@ -148,7 +153,10 @@ export default function UploadMovieScreen() {
   useEffect(() => {
     const fetchMeta = async () => {
       try {
-        const [catsRes, tagsRes] = await Promise.all([getCategories(), getTags()]);
+        const [catsRes, tagsRes] = await Promise.all([
+          getCategories(),
+          getTags(),
+        ]);
         setCategories(catsRes?.content || []);
         setTags(tagsRes?.content || []);
       } catch (err) {
@@ -244,7 +252,9 @@ export default function UploadMovieScreen() {
 
   const toggleCategory = (categoryId: string) => {
     if (selectedCategoryIds.includes(categoryId)) {
-      setSelectedCategoryIds(selectedCategoryIds.filter((id) => id !== categoryId));
+      setSelectedCategoryIds(
+        selectedCategoryIds.filter((id) => id !== categoryId),
+      );
     } else {
       setSelectedCategoryIds([...selectedCategoryIds, categoryId]);
     }
@@ -261,9 +271,13 @@ export default function UploadMovieScreen() {
   // Image Picker for Cover Art
   const handleSelectCover = async () => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {
-        Alert.alert("Cấp quyền", "Vui lòng cấp quyền thư viện ảnh để chọn ảnh bìa.");
+        Alert.alert(
+          "Cấp quyền",
+          "Vui lòng cấp quyền thư viện ảnh để chọn ảnh bìa.",
+        );
         return;
       }
 
@@ -352,7 +366,12 @@ export default function UploadMovieScreen() {
         if (e.lengthComputable) {
           const percent = Math.round((e.loaded / e.total) * 100);
           setUploadProgress(percent);
-          updateVideoUploadProgress(session.uploadSessionId, e.loaded, "UPLOADING", actorId || undefined).catch(() => {});
+          updateVideoUploadProgress(
+            session.uploadSessionId,
+            e.loaded,
+            "UPLOADING",
+            actorId || undefined,
+          ).catch(() => {});
         }
       };
 
@@ -361,12 +380,15 @@ export default function UploadMovieScreen() {
           setUploadProgress(100);
           try {
             // Confirm complete on backend
-            const completedMedia = await completeVideoUpload(session.uploadSessionId, {
-              publicId: session.publicId,
-              secureUrl: session.publicId,
-              bytes: videoFile.size,
-              actorId: actorId || undefined,
-            });
+            const completedMedia = await completeVideoUpload(
+              session.uploadSessionId,
+              {
+                publicId: session.publicId,
+                secureUrl: session.publicId,
+                bytes: videoFile.size,
+                actorId: actorId || undefined,
+              },
+            );
 
             setIsSuccess(true);
             setUploading(false);
@@ -381,10 +403,14 @@ export default function UploadMovieScreen() {
             // Start Polling pipeline
             startPollingPipeline(completedMedia.mediaId);
           } catch (completeErr: any) {
-            Alert.alert("Lỗi", "Không thể cập nhật trạng thái tệp: " + completeErr.message);
+            Alert.alert(
+              "Lỗi",
+              "Không thể cập nhật trạng thái tệp: " + completeErr.message,
+            );
             setUploading(false);
             failVideoUpload(session.uploadSessionId, {
-              errorMessage: completeErr.message || "Không thể cập nhật trạng thái tệp",
+              errorMessage:
+                completeErr.message || "Không thể cập nhật trạng thái tệp",
               actorId: actorId || undefined,
             }).catch(() => {});
             activeUploadSessionIdRef.current = null;
@@ -403,7 +429,10 @@ export default function UploadMovieScreen() {
       };
 
       xhr.onerror = () => {
-        Alert.alert("Lỗi kết nối", "Quá trình tải video lên S3 gặp sự cố mạng.");
+        Alert.alert(
+          "Lỗi kết nối",
+          "Quá trình tải video lên S3 gặp sự cố mạng.",
+        );
         setUploading(false);
         failVideoUpload(session.uploadSessionId, {
           errorMessage: "Quá trình tải video lên S3 gặp sự cố mạng.",
@@ -415,7 +444,10 @@ export default function UploadMovieScreen() {
 
       xhr.send(blob);
     } catch (err: any) {
-      Alert.alert("Lỗi khởi tạo", "Không thể bắt đầu phiên tải lên: " + err.message);
+      Alert.alert(
+        "Lỗi khởi tạo",
+        "Không thể bắt đầu phiên tải lên: " + err.message,
+      );
       setUploading(false);
       activeUploadSessionIdRef.current = null;
       xhrRef.current = null;
@@ -444,35 +476,57 @@ export default function UploadMovieScreen() {
 
           // Copyright checking update
           if (violationsRes.copyrightViolations.length > 0) {
-            setCopyrightStatus(`Cảnh báo: Phát hiện trùng lặp bản quyền (${violationsRes.copyrightViolations.length} đoạn)!`);
-          } else if (currentMedia.status === "ACTIVE" || currentMedia.status === "HLS_READY") {
+            setCopyrightStatus(
+              `Cảnh báo: Phát hiện trùng lặp bản quyền (${violationsRes.copyrightViolations.length} đoạn)!`,
+            );
+          } else if (
+            currentMedia.status === "ACTIVE" ||
+            currentMedia.status === "HLS_READY"
+          ) {
             setCopyrightStatus("Đạt: Không phát hiện vi phạm bản quyền.");
           }
 
           // Content moderation update
           const activeCensorships = violationsRes.censorshipResults.filter(
-            (r) => r.status !== "APPROVED" && r.status !== "approve"
+            (r) => r.status !== "APPROVED" && r.status !== "approve",
           );
 
           if (activeCensorships.length > 0) {
-            const labels = activeCensorships.map((r) => r.primaryViolationLabel).filter(Boolean);
-            setModerationStatus(`Từ chối: Phát hiện nhãn vi phạm [${labels.join(", ")}].`);
-          } else if (currentMedia.status === "ACTIVE" || currentMedia.status === "HLS_READY" || currentMedia.approvalStatus === "APPROVED") {
+            const labels = activeCensorships
+              .map((r) => r.primaryViolationLabel)
+              .filter(Boolean);
+            setModerationStatus(
+              `Từ chối: Phát hiện nhãn vi phạm [${labels.join(", ")}].`,
+            );
+          } else if (
+            currentMedia.status === "ACTIVE" ||
+            currentMedia.status === "HLS_READY" ||
+            currentMedia.approvalStatus === "APPROVED"
+          ) {
             setModerationStatus("Đạt: Nội dung sạch và an toàn.");
           }
 
           // Complete conditions
-          if (["ACTIVE", "HLS_READY", "FAILED", "DELETED"].includes(currentMedia.status)) {
+          if (
+            ["ACTIVE", "HLS_READY", "FAILED", "DELETED"].includes(
+              currentMedia.status,
+            )
+          ) {
             if (pollTimerRef.current) {
               clearInterval(pollTimerRef.current);
               pollTimerRef.current = null;
             }
 
-            if (currentMedia.status === "FAILED" || currentMedia.status === "DELETED") {
+            if (
+              currentMedia.status === "FAILED" ||
+              currentMedia.status === "DELETED"
+            ) {
               Toast.show({
                 type: "error",
                 text1: "Kiểm duyệt thất bại",
-                text2: currentMedia.errorMessage || "Nội dung vi phạm chính sách nghiêm trọng.",
+                text2:
+                  currentMedia.errorMessage ||
+                  "Nội dung vi phạm chính sách nghiêm trọng.",
               });
             } else {
               Toast.show({
@@ -512,7 +566,9 @@ export default function UploadMovieScreen() {
           onPress: async () => {
             try {
               await deleteSeason(seasonId);
-              setSeasonList((prev) => prev.filter((s) => s.seasonId !== seasonId));
+              setSeasonList((prev) =>
+                prev.filter((s) => s.seasonId !== seasonId),
+              );
               if (selectedSeasonId === seasonId) {
                 setSelectedSeasonId("");
               }
@@ -527,7 +583,7 @@ export default function UploadMovieScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -548,8 +604,10 @@ export default function UploadMovieScreen() {
                 await unhideSeason(season.seasonId);
                 setSeasonList((prev) =>
                   prev.map((s) =>
-                    s.seasonId === season.seasonId ? { ...s, status: "PUBLISHED" } : s
-                  )
+                    s.seasonId === season.seasonId
+                      ? { ...s, status: "PUBLISHED" }
+                      : s,
+                  ),
                 );
                 Toast.show({
                   type: "success",
@@ -560,8 +618,10 @@ export default function UploadMovieScreen() {
                 await hideSeason(season.seasonId);
                 setSeasonList((prev) =>
                   prev.map((s) =>
-                    s.seasonId === season.seasonId ? { ...s, status: "HIDDEN" } : s
-                  )
+                    s.seasonId === season.seasonId
+                      ? { ...s, status: "HIDDEN" }
+                      : s,
+                  ),
                 );
                 Toast.show({
                   type: "success",
@@ -571,11 +631,14 @@ export default function UploadMovieScreen() {
               }
             } catch (err: any) {
               console.error("[ToggleHideSeason] Error:", err);
-              Alert.alert("Lỗi", err.message || "Không thể thực hiện thao tác.");
+              Alert.alert(
+                "Lỗi",
+                err.message || "Không thể thực hiện thao tác.",
+              );
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -583,7 +646,17 @@ export default function UploadMovieScreen() {
     setEditingSeriesId(s.seriesId);
     setNewSeriesTitle(s.title);
     setNewSeriesDesc(s.description || "");
-    setSeriesCover(s.coverUrl ? { uri: s.coverUrl, name: s.coverUrl.split("/").pop() || "cover.jpg", size: 0, type: "image/jpeg", isUrl: true } : null);
+    setSeriesCover(
+      s.coverUrl
+        ? {
+            uri: s.coverUrl,
+            name: s.coverUrl.split("/").pop() || "cover.jpg",
+            size: 0,
+            type: "image/jpeg",
+            isUrl: true,
+          }
+        : null,
+    );
     setSelectedCategoryIds(s.categories?.map((c) => c.categoryId) || []);
     setSelectedTagIds(s.tags?.map((t) => t.tagId) || []);
     setSeriesMode("create");
@@ -604,7 +677,9 @@ export default function UploadMovieScreen() {
           onPress: async () => {
             try {
               await deleteSeries(seriesId);
-              setSeriesList((prev) => prev.filter((s) => s.seriesId !== seriesId));
+              setSeriesList((prev) =>
+                prev.filter((s) => s.seriesId !== seriesId),
+              );
               if (selectedSeriesId === seriesId) {
                 setSelectedSeriesId("");
                 setSeasonList([]);
@@ -620,7 +695,7 @@ export default function UploadMovieScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -647,7 +722,7 @@ export default function UploadMovieScreen() {
                   seriesCover.name,
                   seriesCover.size,
                   seriesCover.type,
-                  "cover"
+                  "cover",
                 );
                 coverUrl = uploadRes.publicUrl;
               }
@@ -666,7 +741,7 @@ export default function UploadMovieScreen() {
             const seriesData = await listSeriesByCreator();
             if (seriesData) {
               const filtered = seriesData.filter(
-                (item) => item.contentType?.toUpperCase() === "VIDEO"
+                (item) => item.contentType?.toUpperCase() === "VIDEO",
               );
               setSeriesList(filtered);
             }
@@ -704,7 +779,7 @@ export default function UploadMovieScreen() {
                 seriesCover.name,
                 seriesCover.size,
                 seriesCover.type,
-                "cover"
+                "cover",
               );
               coverUrl = uploadRes.publicUrl;
             }
@@ -757,7 +832,10 @@ export default function UploadMovieScreen() {
         }
       } else {
         if (!selectedSeriesId) {
-          Alert.alert("Thiếu thông tin", "Vui lòng chọn một Series trong danh sách.");
+          Alert.alert(
+            "Thiếu thông tin",
+            "Vui lòng chọn một Series trong danh sách.",
+          );
           return;
         }
       }
@@ -808,11 +886,17 @@ export default function UploadMovieScreen() {
       }
       if (seasonMode === "select") {
         if (seasonList.length === 0) {
-          Alert.alert("Thiếu thông tin", "Bộ phim này chưa có Season nào. Vui lòng chuyển sang tab 'Tạo Season mới'.");
+          Alert.alert(
+            "Thiếu thông tin",
+            "Bộ phim này chưa có Season nào. Vui lòng chuyển sang tab 'Tạo Season mới'.",
+          );
           return;
         }
         if (!selectedSeasonId) {
-          Alert.alert("Thiếu thông tin", "Vui lòng chọn một Season trong danh sách.");
+          Alert.alert(
+            "Thiếu thông tin",
+            "Vui lòng chọn một Season trong danh sách.",
+          );
           return;
         }
       }
@@ -825,7 +909,10 @@ export default function UploadMovieScreen() {
         setSubmitMsg("Đang chuẩn bị thông tin tập mới...");
         try {
           const eps = await listEpisodesBySeason(selectedSeasonId);
-          const maxEpNumber = eps.reduce((max, ep) => ep.episodeNumber > max ? ep.episodeNumber : max, 0);
+          const maxEpNumber = eps.reduce(
+            (max, ep) => (ep.episodeNumber > max ? ep.episodeNumber : max),
+            0,
+          );
           setEpisodeNumber(String(maxEpNumber + 1));
         } catch (err) {
           console.error("Lỗi tự động gợi ý số thứ tự tập phim:", err);
@@ -840,7 +927,10 @@ export default function UploadMovieScreen() {
       setStep(3);
     } else if (step === 3) {
       if (!episodeNumber.trim() || !episodeTitle.trim()) {
-        Alert.alert("Thiếu thông tin", "Vui lòng nhập đầy đủ Số tập và Tên tập phim.");
+        Alert.alert(
+          "Thiếu thông tin",
+          "Vui lòng nhập đầy đủ Số tập và Tên tập phim.",
+        );
         return;
       }
 
@@ -868,7 +958,8 @@ export default function UploadMovieScreen() {
         // 3. Create Episode (Draft)
         setSubmitMsg("Đang tạo Episode...");
         const unlockType = releaseType === "free" ? "FREE" : "PAID";
-        const priceVnd = releaseType === "coin" ? parseInt(coinPrice) * 1000 : 0;
+        const priceVnd =
+          releaseType === "coin" ? parseInt(coinPrice) * 1000 : 0;
 
         const newEpisode = await createEpisode(finalSeasonId, {
           episodeNumber: parseInt(episodeNumber) || 1,
@@ -882,7 +973,10 @@ export default function UploadMovieScreen() {
         setCreatedEpisodeId(newEpisode.episodeId);
         setStep(4);
       } catch (err: any) {
-        Alert.alert("Lỗi quy trình", err.message || "Không thể khởi tạo tập phim.");
+        Alert.alert(
+          "Lỗi quy trình",
+          err.message || "Không thể khởi tạo tập phim.",
+        );
       } finally {
         setSubmitting(false);
       }
@@ -896,7 +990,10 @@ export default function UploadMovieScreen() {
     }
 
     if (mediaStatus === "FAILED" || mediaStatus === "DELETED") {
-      Alert.alert("Không thể đăng", "Nội dung này vi phạm chính sách nghiêm trọng và đã bị hệ thống từ chối.");
+      Alert.alert(
+        "Không thể đăng",
+        "Nội dung này vi phạm chính sách nghiêm trọng và đã bị hệ thống từ chối.",
+      );
       return;
     }
 
@@ -904,23 +1001,34 @@ export default function UploadMovieScreen() {
     try {
       if (scheduledPublishAt) {
         await schedulePublishEpisode(createdEpisodeId, scheduledPublishAt);
-        Alert.alert("Thành công", "Bộ phim đã được lên lịch xuất bản thành công!", [
-          {
-            text: "OK",
-            onPress: () => navigation.goBack(),
-          },
-        ]);
+        Alert.alert(
+          "Thành công",
+          "Bộ phim đã được lên lịch xuất bản thành công!",
+          [
+            {
+              text: "OK",
+              onPress: () => navigation.goBack(),
+            },
+          ],
+        );
       } else {
         await publishEpisode(createdEpisodeId);
-        Alert.alert("Thành công", "Bộ phim đã được xuất bản và hiển thị trực tuyến!", [
-          {
-            text: "OK",
-            onPress: () => navigation.goBack(),
-          },
-        ]);
+        Alert.alert(
+          "Thành công",
+          "Bộ phim đã được xuất bản và hiển thị trực tuyến!",
+          [
+            {
+              text: "OK",
+              onPress: () => navigation.goBack(),
+            },
+          ],
+        );
       }
     } catch (err: any) {
-      Alert.alert("Lỗi xuất bản", err.message || "Không thể thay đổi trạng thái tập phim.");
+      Alert.alert(
+        "Lỗi xuất bản",
+        err.message || "Không thể thay đổi trạng thái tập phim.",
+      );
     } finally {
       setPublishing(false);
     }
@@ -928,7 +1036,10 @@ export default function UploadMovieScreen() {
 
   const getSeriesTitle = () => {
     if (seriesMode === "select") {
-      return seriesList.find((s) => s.seriesId === selectedSeriesId)?.title || "Chưa chọn";
+      return (
+        seriesList.find((s) => s.seriesId === selectedSeriesId)?.title ||
+        "Chưa chọn"
+      );
     }
     return newSeriesTitle || "Series mới chưa đặt tên";
   };
@@ -936,9 +1047,13 @@ export default function UploadMovieScreen() {
   const getSeasonTitle = () => {
     if (seasonMode === "select") {
       const se = seasonList.find((s) => s.seasonId === selectedSeasonId);
-      return se ? `Season ${se.seasonNumber}: ${se.title || "Không có tiêu đề"}` : "Chưa chọn";
+      return se
+        ? `Season ${se.seasonNumber}: ${se.title || "Không có tiêu đề"}`
+        : "Chưa chọn";
     }
-    return newSeasonNumber ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}` : "Season mới";
+    return newSeasonNumber
+      ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}`
+      : "Season mới";
   };
 
   const wizardSteps = [
@@ -955,10 +1070,15 @@ export default function UploadMovieScreen() {
 
       {/* HEADER */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-zinc-950 bg-[#0F0F10]">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 active:opacity-60">
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          className="p-2 active:opacity-60"
+        >
           <Feather name="arrow-left" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text className="text-white text-lg font-black tracking-tight">Đăng Phim Lên TaleX</Text>
+        <Text className="text-white text-lg font-black tracking-tight">
+          Đăng Phim Lên TaleX
+        </Text>
         <View className="w-10" />
       </View>
 
@@ -1089,7 +1209,10 @@ export default function UploadMovieScreen() {
             handleDeleteVideo={() => {
               if (uploading && activeUploadSessionIdRef.current) {
                 xhrRef.current?.abort();
-                cancelVideoUpload(activeUploadSessionIdRef.current, actorId || undefined).catch(() => {});
+                cancelVideoUpload(
+                  activeUploadSessionIdRef.current,
+                  actorId || undefined,
+                ).catch(() => {});
                 activeUploadSessionIdRef.current = null;
               }
               setVideoFile(null);
@@ -1112,7 +1235,10 @@ export default function UploadMovieScreen() {
             onBack={() => {
               if (uploading && activeUploadSessionIdRef.current) {
                 xhrRef.current?.abort();
-                cancelVideoUpload(activeUploadSessionIdRef.current, actorId || undefined).catch(() => {});
+                cancelVideoUpload(
+                  activeUploadSessionIdRef.current,
+                  actorId || undefined,
+                ).catch(() => {});
                 activeUploadSessionIdRef.current = null;
               }
               setUploading(false);

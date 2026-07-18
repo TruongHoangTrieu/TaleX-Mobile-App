@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  AppState,
   BackHandler,
   Modal,
   Text,
@@ -9,20 +8,16 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useAuth } from "@/context/AuthContext";
 import { useReward } from "@/context/RewardContext";
 import {
-  completeAdSession,
-  RewardApiError,
-  startAdSession,
-} from "@/services/rewardService";
+  AdEventType,
+  RewardedAd,
+  RewardedAdEventType,
+  TestIds,
+} from "react-native-google-mobile-ads";
 
-type AdRewardStatus =
-  | "idle"
-  | "starting"
-  | "playing"
-  | "completing"
-  | "success"
-  | "error";
+type AdRewardStatus = "idle" | "loading" | "showing" | "success" | "error";
 
 type AdRewardModalProps = {
   visible: boolean;
@@ -30,31 +25,24 @@ type AdRewardModalProps = {
   onClose: () => void;
 };
 
-const AD_COUNTDOWN_SECONDS = 15;
+const adUnitId = process.env.EXPO_PUBLIC_ADMOB_REWARD_ID || TestIds.REWARDED;
 
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof RewardApiError) {
-    return error.message;
-  }
-  return error instanceof Error ? error.message : "Đã xảy ra lỗi không xác định.";
-};
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Da xay ra loi khong xac dinh.";
 
 export default function AdRewardModal({
   visible,
   missionCode,
   onClose,
 }: AdRewardModalProps) {
+  const { user } = useAuth();
   const { refreshRewardData } = useReward();
   const [status, setStatus] = useState<AdRewardStatus>("idle");
-  const [countdown, setCountdown] = useState(AD_COUNTDOWN_SECONDS);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const lifecycleIdRef = useRef(0);
 
   const resetState = useCallback(() => {
     setStatus("idle");
-    setCountdown(AD_COUNTDOWN_SECONDS);
-    setSessionId(null);
     setErrorMessage("");
   }, []);
 
@@ -63,39 +51,6 @@ export default function AdRewardModal({
     resetState();
     onClose();
   }, [onClose, resetState]);
-
-  useEffect(() => {
-    if (!visible) return;
-
-    const lifecycleId = ++lifecycleIdRef.current;
-    setStatus("starting");
-    setCountdown(AD_COUNTDOWN_SECONDS);
-    setSessionId(null);
-    setErrorMessage("");
-
-    const startSession = async () => {
-      try {
-        const session = await startAdSession(missionCode);
-        if (lifecycleId !== lifecycleIdRef.current) return;
-
-        setSessionId(session.sessionId);
-        setCountdown(AD_COUNTDOWN_SECONDS);
-        setStatus("playing");
-      } catch (error) {
-        if (lifecycleId !== lifecycleIdRef.current) return;
-        setErrorMessage(getErrorMessage(error));
-        setStatus("error");
-      }
-    };
-
-    void startSession();
-
-    return () => {
-      if (lifecycleId === lifecycleIdRef.current) {
-        lifecycleIdRef.current += 1;
-      }
-    };
-  }, [missionCode, visible]);
 
   useEffect(() => {
     if (!visible || status === "success" || status === "error") return;
@@ -109,51 +64,38 @@ export default function AdRewardModal({
   }, [status, visible]);
 
   useEffect(() => {
-    if (!visible || status !== "playing") return;
+    if (!visible) return;
 
-    const subscription = AppState.addEventListener("change", (nextState) => {
-      if (nextState === "background") {
-        lifecycleIdRef.current += 1;
-        setSessionId(null);
-        setErrorMessage("Quá trình xem bị gián đoạn");
-        setStatus("error");
-      }
-    });
+    const accountId = user?.accountId;
+    const lifecycleId = ++lifecycleIdRef.current;
+    let hasEarnedReward = false;
 
-    return () => subscription.remove();
-  }, [status, visible]);
+    setStatus("loading");
+    setErrorMessage("");
 
-  useEffect(() => {
-    if (!visible || status !== "playing") return;
-
-    const interval = setInterval(() => {
-      setCountdown((current) => Math.max(0, current - 1));
-    }, 1_000);
-
-    return () => clearInterval(interval);
-  }, [status, visible]);
-
-  useEffect(() => {
-    if (
-      !visible ||
-      status !== "playing" ||
-      countdown > 0 ||
-      !sessionId
-    ) {
+    if (!accountId) {
+      setErrorMessage("Khong tim thay accountId cua nguoi dung.");
+      setStatus("error");
       return;
     }
 
-    const lifecycleId = lifecycleIdRef.current;
-    setStatus("completing");
+    if (!missionCode) {
+      setErrorMessage("Khong tim thay ma nhiem vu quang cao.");
+      setStatus("error");
+      return;
+    }
 
-    const completeSession = async () => {
+    const rewarded = RewardedAd.createForAdRequest(adUnitId, {
+      serverSideVerificationOptions: {
+        userId: accountId,
+        customData: JSON.stringify({ accountId, missionCode }),
+      },
+    });
+
+    const finishWithSuccess = async () => {
       try {
-        await completeAdSession(sessionId);
-        if (lifecycleId !== lifecycleIdRef.current) return;
-
         await refreshRewardData();
         if (lifecycleId !== lifecycleIdRef.current) return;
-
         setStatus("success");
       } catch (error) {
         if (lifecycleId !== lifecycleIdRef.current) return;
@@ -162,10 +104,67 @@ export default function AdRewardModal({
       }
     };
 
-    void completeSession();
-  }, [countdown, refreshRewardData, sessionId, status, visible]);
+    const unsubscribeLoaded = rewarded.addAdEventListener(
+      RewardedAdEventType.LOADED,
+      () => {
+        if (lifecycleId !== lifecycleIdRef.current) return;
+        setStatus("showing");
+        rewarded.show().catch((error) => {
+          if (lifecycleId !== lifecycleIdRef.current) return;
+          setErrorMessage(getErrorMessage(error));
+          setStatus("error");
+        });
+      },
+    );
+
+    const unsubscribeEarnedReward = rewarded.addAdEventListener(
+      RewardedAdEventType.EARNED_REWARD,
+      () => {
+        if (lifecycleId !== lifecycleIdRef.current) return;
+        hasEarnedReward = true;
+      },
+    );
+
+    const unsubscribeClosed = rewarded.addAdEventListener(
+      AdEventType.CLOSED,
+      () => {
+        if (lifecycleId !== lifecycleIdRef.current) return;
+
+        if (!hasEarnedReward) {
+          handleClose();
+          return;
+        }
+
+        void finishWithSuccess();
+      },
+    );
+
+    const unsubscribeError = rewarded.addAdEventListener(
+      AdEventType.ERROR,
+      (error) => {
+        if (lifecycleId !== lifecycleIdRef.current) return;
+        setErrorMessage(getErrorMessage(error));
+        setStatus("error");
+      },
+    );
+
+    rewarded.load();
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeEarnedReward();
+      unsubscribeClosed();
+      unsubscribeError();
+
+      if (lifecycleId === lifecycleIdRef.current) {
+        lifecycleIdRef.current += 1;
+      }
+    };
+  }, [handleClose, missionCode, refreshRewardData, user?.accountId, visible]);
 
   const canClose = status === "success" || status === "error";
+  const isLoading =
+    status === "idle" || status === "loading" || status === "showing";
 
   return (
     <Modal
@@ -179,40 +178,14 @@ export default function AdRewardModal({
     >
       <View className="flex-1 items-center justify-center bg-black/95 px-6">
         <View className="w-full max-w-[380px] items-center rounded-3xl border border-[#D4AF37] bg-[#1C1A18] px-6 py-8">
-          {(status === "idle" || status === "starting") && (
+          {isLoading && (
             <>
               <ActivityIndicator size="large" color="#D4AF37" />
               <Text className="mt-5 text-center text-base font-bold text-[#E5E0D8]">
-                Đang tải dữ liệu quảng cáo...
-              </Text>
-            </>
-          )}
-
-          {status === "playing" && (
-            <>
-              <View className="h-14 w-14 items-center justify-center rounded-full bg-[#D4AF37]/10">
-                <Feather name="play" size={25} color="#D4AF37" />
-              </View>
-              <Text className="mt-5 text-center text-lg font-black text-white">
-                Vui lòng không đóng ứng dụng
+                Dang tai quang cao...
               </Text>
               <Text className="mt-2 text-center text-sm leading-5 text-[#A19E95]">
-                Phần thưởng sẽ được xác nhận sau khi quảng cáo kết thúc.
-              </Text>
-              <Text className="my-8 text-7xl font-black text-[#D4AF37]">
-                {countdown}
-              </Text>
-              <Text className="text-xs font-bold uppercase tracking-widest text-[#7C766B]">
-                Giây còn lại
-              </Text>
-            </>
-          )}
-
-          {status === "completing" && (
-            <>
-              <ActivityIndicator size="large" color="#D4AF37" />
-              <Text className="mt-5 text-center text-base font-bold text-[#E5E0D8]">
-                Đang xác nhận phần thưởng...
+                Vui long cho trong giay lat.
               </Text>
             </>
           )}
@@ -223,17 +196,17 @@ export default function AdRewardModal({
                 <Feather name="check" size={34} color="#10B981" />
               </View>
               <Text className="mt-5 text-center text-xl font-black text-white">
-                Nhận thưởng thành công!
+                Nhan thuong thanh cong!
               </Text>
               <Text className="mt-2 text-center text-sm text-[#A19E95]">
-                Số dư xu và nhiệm vụ của bạn đã được cập nhật.
+                So du xu va nhiem vu cua ban da duoc cap nhat.
               </Text>
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={handleClose}
                 className="mt-7 h-12 w-full items-center justify-center rounded-xl bg-[#D4AF37]"
               >
-                <Text className="font-black text-[#141210]">Đóng</Text>
+                <Text className="font-black text-[#141210]">Dong</Text>
               </TouchableOpacity>
             </>
           )}
@@ -244,17 +217,17 @@ export default function AdRewardModal({
                 <Feather name="x" size={34} color="#EF4444" />
               </View>
               <Text className="mt-5 text-center text-xl font-black text-white">
-                Xem quảng cáo thất bại
+                Xem quang cao that bai
               </Text>
               <Text className="mt-3 text-center text-sm leading-5 text-[#F87171]">
-                {errorMessage || "Vui lòng thử lại sau."}
+                {errorMessage || "Vui long thu lai sau."}
               </Text>
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={handleClose}
                 className="mt-7 h-12 w-full items-center justify-center rounded-xl bg-[#262628]"
               >
-                <Text className="font-black text-[#E5E0D8]">Đóng</Text>
+                <Text className="font-black text-[#E5E0D8]">Dong</Text>
               </TouchableOpacity>
             </>
           )}

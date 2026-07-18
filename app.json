@@ -37,7 +37,22 @@
       "expo-font",
       "expo-secure-store",
       "@react-native-google-signin/google-signin",
-      "./plugins/with-shared-debug-keystore.js"
+      "./plugins/with-shared-debug-keystore.js",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458041361"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ]
   }
 }

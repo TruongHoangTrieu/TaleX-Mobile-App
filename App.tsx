@@ -22,7 +22,6 @@ export default function App() {
     <AuthProvider>
       <RewardProvider>
         <RootNavigator />
-
       </RewardProvider>
     </AuthProvider>
   );

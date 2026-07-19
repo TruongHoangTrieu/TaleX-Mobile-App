@@ -49,6 +49,7 @@ import {
 } from "@/services/creatorContent";
 import { getOwnCreator } from "@/services/creator";
 import { useAuth } from "@/context/AuthContext";
+import { connectPipelineSSE } from "@/services/pipelineSSE";
 
 // Component imports
 import StepIndicator from "./components/StepIndicator";
@@ -125,6 +126,7 @@ export default function UploadMovieScreen() {
   const [moderationStatus, setModerationStatus] = useState<string | null>(null);
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sseSessionRef = useRef<{ close: () => void } | null>(null);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const activeUploadSessionIdRef = useRef<string | null>(null);
   const actorId = user?.accountId || "";
@@ -132,6 +134,10 @@ export default function UploadMovieScreen() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (sseSessionRef.current) {
+        sseSessionRef.current.close();
+        sseSessionRef.current = null;
+      }
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
       }
@@ -454,93 +460,148 @@ export default function UploadMovieScreen() {
     }
   };
 
-  // Poll Backend to show live copyright check & content moderation
+  // Listen to Backend via SSE for live real-time copyright check & content moderation
   const startPollingPipeline = (mediaId: string) => {
+    if (sseSessionRef.current) {
+      sseSessionRef.current.close();
+      sseSessionRef.current = null;
+    }
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
     }
 
     setMediaStatus("PROCESSING");
     setCopyrightStatus("Đang kiểm tra trùng lặp bản quyền...");
     setModerationStatus("Đang quét nội dung nhạy cảm...");
 
-    pollTimerRef.current = setInterval(async () => {
-      try {
-        const violationsRes = await fetchMediaViolations(mediaId);
-
-        const mediaList = await listMediaByEpisode(createdEpisodeId!);
-        const currentMedia = mediaList.find((m) => m.mediaId === mediaId);
-
-        if (currentMedia) {
-          setMediaStatus(currentMedia.status);
-
-          // Copyright checking update
-          if (violationsRes.copyrightViolations.length > 0) {
+    // 1. Connect Real-time SSE Stream (Same as Web)
+    connectPipelineSSE({
+      onCopyrightComplete: (data) => {
+        if (!data.mediaId || data.mediaId === mediaId) {
+          if (data.isDuplicate && (data.violationsCount ?? 0) > 0) {
             setCopyrightStatus(
-              `Cảnh báo: Phát hiện trùng lặp bản quyền (${violationsRes.copyrightViolations.length} đoạn)!`,
+              `Cảnh báo: Phát hiện trùng lặp bản quyền (${data.violationsCount} đoạn)!`,
             );
-          } else if (
-            currentMedia.status === "ACTIVE" ||
-            currentMedia.status === "HLS_READY"
-          ) {
+            Toast.show({
+              type: "info",
+              text1: "Phát hiện trùng lặp bản quyền",
+              text2: `Nội dung có ${data.violationsCount} đoạn trùng lặp với nội dung đã có trên hệ thống.`,
+            });
+          } else {
             setCopyrightStatus("Đạt: Không phát hiện vi phạm bản quyền.");
           }
-
-          // Content moderation update
-          const activeCensorships = violationsRes.censorshipResults.filter(
-            (r) => r.status !== "APPROVED" && r.status !== "approve",
-          );
-
-          if (activeCensorships.length > 0) {
-            const labels = activeCensorships
-              .map((r) => r.primaryViolationLabel)
-              .filter(Boolean);
-            setModerationStatus(
-              `Từ chối: Phát hiện nhãn vi phạm [${labels.join(", ")}].`,
-            );
-          } else if (
-            currentMedia.status === "ACTIVE" ||
-            currentMedia.status === "HLS_READY" ||
-            currentMedia.approvalStatus === "APPROVED"
-          ) {
+        }
+      },
+      onModerationComplete: (data) => {
+        if (!data.mediaId || data.mediaId === mediaId) {
+          if (data.isSafe) {
+            setMediaStatus("ACTIVE");
             setModerationStatus("Đạt: Nội dung sạch và an toàn.");
+            Toast.show({
+              type: "success",
+              text1: "Đăng tải hoàn tất",
+              text2: "Kiểm duyệt thành công! Nội dung đã sẵn sàng xuất bản.",
+            });
+          } else {
+            setMediaStatus("FAILED");
+            const labelMap: Record<string, string> = {
+              "Explicit Nudity": "nội dung khỏa thân",
+              Violence: "bạo lực",
+              "Visually Disturbing": "hình ảnh gây khó chịu",
+              Drugs: "ma túy / chất cấm",
+              Tobacco: "thuốc lá",
+              Alcohol: "rượu bia",
+              Gambling: "cờ bạc",
+              "Hate Symbols": "biểu tượng thù hận",
+              "Rude Gestures": "cử chỉ thô tục",
+            };
+            const label = data.primaryLabel
+              ? labelMap[data.primaryLabel] || data.primaryLabel
+              : "nội dung không phù hợp";
+            setModerationStatus(`Từ chối: Phát hiện nhãn vi phạm [${label}].`);
+            Toast.show({
+              type: "error",
+              text1: "Kiểm duyệt thất bại",
+              text2: `Lý do: Phát hiện ${label}. Nội dung đã bị tạm ẩn.`,
+            });
           }
 
-          // Complete conditions
-          if (
-            ["ACTIVE", "HLS_READY", "FAILED", "DELETED"].includes(
-              currentMedia.status,
-            )
-          ) {
-            if (pollTimerRef.current) {
-              clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
+          if (sseSessionRef.current) {
+            sseSessionRef.current.close();
+            sseSessionRef.current = null;
+          }
+        }
+      },
+      onFailed: (data) => {
+        if (!data.mediaId || data.mediaId === mediaId) {
+          setMediaStatus("FAILED");
+          Toast.show({
+            type: "error",
+            text1: "Xử lý nội dung thất bại",
+            text2: data.errorMessage || "Đã xảy ra lỗi trong quá trình xử lý.",
+          });
+          if (sseSessionRef.current) {
+            sseSessionRef.current.close();
+            sseSessionRef.current = null;
+          }
+        }
+      },
+      onError: (err) => {
+        console.warn("[SSE Mobile] Error connection, fallback polling", err);
+      },
+    })
+      .then((session) => {
+        sseSessionRef.current = session;
+      })
+      .catch((err) => {
+        console.error("Lỗi khởi tạo SSE:", err);
+      });
+
+    // 2. Initial manual check after 2s (in case processing finished before SSE listener attached)
+    setTimeout(async () => {
+      try {
+        const violationsRes = await fetchMediaViolations(mediaId);
+        if (createdEpisodeId) {
+          const mediaList = await listMediaByEpisode(createdEpisodeId);
+          const currentMedia = mediaList.find((m) => m.mediaId === mediaId);
+          if (currentMedia) {
+            setMediaStatus(currentMedia.status);
+
+            if (violationsRes.copyrightViolations.length > 0) {
+              setCopyrightStatus(
+                `Cảnh báo: Phát hiện trùng lặp bản quyền (${violationsRes.copyrightViolations.length} đoạn)!`,
+              );
+            } else if (
+              currentMedia.status === "ACTIVE" ||
+              currentMedia.status === "HLS_READY"
+            ) {
+              setCopyrightStatus("Đạt: Không phát hiện vi phạm bản quyền.");
             }
 
-            if (
-              currentMedia.status === "FAILED" ||
-              currentMedia.status === "DELETED"
+            const activeCensorships = violationsRes.censorshipResults.filter(
+              (r) => r.status !== "APPROVED" && r.status !== "approve",
+            );
+            if (activeCensorships.length > 0) {
+              const labels = activeCensorships
+                .map((r) => r.primaryViolationLabel)
+                .filter(Boolean);
+              setModerationStatus(
+                `Từ chối: Phát hiện nhãn vi phạm [${labels.join(", ")}].`,
+              );
+            } else if (
+              currentMedia.status === "ACTIVE" ||
+              currentMedia.status === "HLS_READY" ||
+              currentMedia.approvalStatus === "APPROVED"
             ) {
-              Toast.show({
-                type: "error",
-                text1: "Kiểm duyệt thất bại",
-                text2:
-                  currentMedia.errorMessage ||
-                  "Nội dung vi phạm chính sách nghiêm trọng.",
-              });
-            } else {
-              Toast.show({
-                type: "success",
-                text1: "Đăng tải hoàn tất",
-                text2: "Kiểm duyệt thành công! Nội dung đã sẵn sàng xuất bản.",
-              });
+              setModerationStatus("Đạt: Nội dung sạch và an toàn.");
             }
           }
         }
       } catch (err) {
-        console.error("Lỗi đồng bộ hóa pipeline:", err);
+        // Ignore fallback errors
       }
-    }, 4000);
+    }, 2000);
   };
 
   const handleStartEditSeason = (se: SeasonItem) => {

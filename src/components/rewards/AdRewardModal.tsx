@@ -10,6 +10,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import { useReward } from "@/context/RewardContext";
+import { startAdSession } from "@/services/rewardService";
 import {
   AdEventType,
   RewardedAd,
@@ -17,7 +18,13 @@ import {
   TestIds,
 } from "react-native-google-mobile-ads";
 
-type AdRewardStatus = "idle" | "loading" | "showing" | "success" | "error";
+type AdRewardStatus =
+  | "idle"
+  | "loading"
+  | "showing"
+  | "verifying"
+  | "success"
+  | "error";
 
 type AdRewardModalProps = {
   visible: boolean;
@@ -26,9 +33,11 @@ type AdRewardModalProps = {
 };
 
 const adUnitId = process.env.EXPO_PUBLIC_ADMOB_REWARD_ID || TestIds.REWARDED;
+const SSV_POLL_INTERVAL_MS = 3000;
+const SSV_MAX_POLL_ATTEMPTS = 3;
 
 const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Da xay ra loi khong xac dinh.";
+  error instanceof Error ? error.message : "Đã xảy ra lỗi không xác định.";
 
 export default function AdRewardModal({
   visible,
@@ -40,17 +49,35 @@ export default function AdRewardModal({
   const [status, setStatus] = useState<AdRewardStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const lifecycleIdRef = useRef(0);
+  const activeRequestKeyRef = useRef<string | null>(null);
+  const hasEarnedRewardRef = useRef(false);
+  const hasAdClosedRef = useRef(false);
+  const isVerifyingRewardRef = useRef(false);
+  const refreshRewardDataRef = useRef(refreshRewardData);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    refreshRewardDataRef.current = refreshRewardData;
+  }, [refreshRewardData]);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const resetState = useCallback(() => {
     setStatus("idle");
     setErrorMessage("");
+    activeRequestKeyRef.current = null;
+    hasEarnedRewardRef.current = false;
+    hasAdClosedRef.current = false;
+    isVerifyingRewardRef.current = false;
   }, []);
 
   const handleClose = useCallback(() => {
     lifecycleIdRef.current += 1;
     resetState();
-    onClose();
-  }, [onClose, resetState]);
+    onCloseRef.current();
+  }, [resetState]);
 
   useEffect(() => {
     if (!visible || status === "success" || status === "error") return;
@@ -64,107 +91,208 @@ export default function AdRewardModal({
   }, [status, visible]);
 
   useEffect(() => {
+    if (visible) return;
+    resetState();
+  }, [resetState, visible]);
+
+  useEffect(() => {
     if (!visible) return;
 
     const accountId = user?.accountId;
-    const lifecycleId = ++lifecycleIdRef.current;
-    let hasEarnedReward = false;
+    const requestKey = `${accountId ?? "missing-account"}:${missionCode}`;
+
+    if (activeRequestKeyRef.current === requestKey) return;
 
     setStatus("loading");
     setErrorMessage("");
 
     if (!accountId) {
-      setErrorMessage("Khong tim thay accountId cua nguoi dung.");
+      setErrorMessage("Không tìm thấy accountId của người dùng.");
       setStatus("error");
       return;
     }
 
     if (!missionCode) {
-      setErrorMessage("Khong tim thay ma nhiem vu quang cao.");
+      setErrorMessage("Không tìm thấy mã nhiệm vụ quảng cáo.");
       setStatus("error");
       return;
     }
 
-    const rewarded = RewardedAd.createForAdRequest(adUnitId, {
-      serverSideVerificationOptions: {
-        userId: accountId,
-        customData: JSON.stringify({ accountId, missionCode }),
-      },
-    });
+    activeRequestKeyRef.current = requestKey;
+    hasEarnedRewardRef.current = false;
+    hasAdClosedRef.current = false;
+    isVerifyingRewardRef.current = false;
 
-    const finishWithSuccess = async () => {
-      try {
-        await refreshRewardData();
-        if (lifecycleId !== lifecycleIdRef.current) return;
-        setStatus("success");
-      } catch (error) {
-        if (lifecycleId !== lifecycleIdRef.current) return;
-        setErrorMessage(getErrorMessage(error));
-        setStatus("error");
-      }
+    const lifecycleId = ++lifecycleIdRef.current;
+    let rewardNotEarnedTimeout: ReturnType<typeof setTimeout> | undefined;
+    let pollRewardTimeout: ReturnType<typeof setTimeout> | undefined;
+    let pollAttemptCount = 0;
+    let unsubscribeLoaded: (() => void) | undefined;
+    let unsubscribeEarnedReward: (() => void) | undefined;
+    let unsubscribeClosed: (() => void) | undefined;
+    let unsubscribeError: (() => void) | undefined;
+
+    const failCurrentSession = (message: string) => {
+      if (lifecycleId !== lifecycleIdRef.current) return;
+      setErrorMessage(message);
+      setStatus("error");
     };
 
-    const unsubscribeLoaded = rewarded.addAdEventListener(
-      RewardedAdEventType.LOADED,
-      () => {
-        if (lifecycleId !== lifecycleIdRef.current) return;
-        setStatus("showing");
-        rewarded.show().catch((error) => {
-          if (lifecycleId !== lifecycleIdRef.current) return;
-          setErrorMessage(getErrorMessage(error));
-          setStatus("error");
-        });
-      },
-    );
+    const startRewardVerificationPolling = () => {
+      if (
+        lifecycleId !== lifecycleIdRef.current ||
+        !hasEarnedRewardRef.current ||
+        !hasAdClosedRef.current ||
+        isVerifyingRewardRef.current
+      ) {
+        return;
+      }
 
-    const unsubscribeEarnedReward = rewarded.addAdEventListener(
-      RewardedAdEventType.EARNED_REWARD,
-      () => {
-        if (lifecycleId !== lifecycleIdRef.current) return;
-        hasEarnedReward = true;
-      },
-    );
+      isVerifyingRewardRef.current = true;
+      pollAttemptCount = 0;
+      setStatus("verifying");
+      console.log("[AdMob] Verifying rewarded ad reward through SSV polling");
 
-    const unsubscribeClosed = rewarded.addAdEventListener(
-      AdEventType.CLOSED,
-      () => {
+      const pollRewardData = async () => {
         if (lifecycleId !== lifecycleIdRef.current) return;
 
-        if (!hasEarnedReward) {
-          handleClose();
+        pollAttemptCount += 1;
+
+        try {
+          await refreshRewardDataRef.current({ silent: true });
+        } catch (error) {
+          console.warn(
+            "[AdMob] Reward verification polling failed:",
+            getErrorMessage(error),
+          );
+        }
+
+        if (lifecycleId !== lifecycleIdRef.current) return;
+
+        if (pollAttemptCount >= SSV_MAX_POLL_ATTEMPTS) {
+          isVerifyingRewardRef.current = false;
+          setStatus("success");
           return;
         }
 
-        void finishWithSuccess();
-      },
-    );
+        pollRewardTimeout = setTimeout(() => {
+          void pollRewardData();
+        }, SSV_POLL_INTERVAL_MS);
+      };
 
-    const unsubscribeError = rewarded.addAdEventListener(
-      AdEventType.ERROR,
-      (error) => {
+      pollRewardTimeout = setTimeout(() => {
+        void pollRewardData();
+      }, SSV_POLL_INTERVAL_MS);
+    };
+
+    const loadRewardedAd = async () => {
+      try {
+        await startAdSession(missionCode);
         if (lifecycleId !== lifecycleIdRef.current) return;
-        setErrorMessage(getErrorMessage(error));
-        setStatus("error");
-      },
-    );
 
-    rewarded.load();
+        const rewarded = RewardedAd.createForAdRequest(adUnitId, {
+          serverSideVerificationOptions: {
+            userId: accountId,
+            customData: JSON.stringify({
+              accountId,
+              missionCode,
+            }),
+          },
+        });
+
+        unsubscribeLoaded = rewarded.addAdEventListener(
+          RewardedAdEventType.LOADED,
+          () => {
+            if (lifecycleId !== lifecycleIdRef.current) return;
+            console.log("[AdMob] Rewarded ad loaded");
+            setStatus("showing");
+            rewarded.show().catch((error) => {
+              if (lifecycleId !== lifecycleIdRef.current) return;
+              setErrorMessage(getErrorMessage(error));
+              setStatus("error");
+            });
+          },
+        );
+
+        unsubscribeEarnedReward = rewarded.addAdEventListener(
+          RewardedAdEventType.EARNED_REWARD,
+          () => {
+            if (lifecycleId !== lifecycleIdRef.current) return;
+            console.log("[AdMob] User earned rewarded ad reward");
+            hasEarnedRewardRef.current = true;
+            startRewardVerificationPolling();
+          },
+        );
+
+        unsubscribeClosed = rewarded.addAdEventListener(
+          AdEventType.CLOSED,
+          () => {
+            if (lifecycleId !== lifecycleIdRef.current) return;
+            console.log("[AdMob] Rewarded ad closed");
+            hasAdClosedRef.current = true;
+            startRewardVerificationPolling();
+
+            rewardNotEarnedTimeout = setTimeout(() => {
+              if (
+                lifecycleId !== lifecycleIdRef.current ||
+                hasEarnedRewardRef.current ||
+                isVerifyingRewardRef.current
+              ) {
+                return;
+              }
+
+              failCurrentSession("Bạn cần xem hết quảng cáo để nhận thưởng.");
+            }, 1000);
+          },
+        );
+
+        unsubscribeError = rewarded.addAdEventListener(
+          AdEventType.ERROR,
+          (error) => {
+            if (lifecycleId !== lifecycleIdRef.current) return;
+            setErrorMessage(getErrorMessage(error));
+            setStatus("error");
+          },
+        );
+
+        rewarded.load();
+      } catch (error) {
+        failCurrentSession(getErrorMessage(error));
+      }
+    };
+
+    void loadRewardedAd();
 
     return () => {
-      unsubscribeLoaded();
-      unsubscribeEarnedReward();
-      unsubscribeClosed();
-      unsubscribeError();
+      if (rewardNotEarnedTimeout) clearTimeout(rewardNotEarnedTimeout);
+      if (pollRewardTimeout) clearTimeout(pollRewardTimeout);
+      unsubscribeLoaded?.();
+      unsubscribeEarnedReward?.();
+      unsubscribeClosed?.();
+      unsubscribeError?.();
 
       if (lifecycleId === lifecycleIdRef.current) {
         lifecycleIdRef.current += 1;
       }
     };
-  }, [handleClose, missionCode, refreshRewardData, user?.accountId, visible]);
+  }, [missionCode, user?.accountId, visible]);
 
   const canClose = status === "success" || status === "error";
   const isLoading =
-    status === "idle" || status === "loading" || status === "showing";
+    status === "idle" ||
+    status === "loading" ||
+    status === "showing" ||
+    status === "verifying";
+  const loadingTitle =
+    status === "verifying"
+      ? "Đang xác minh phần thưởng từ hệ thống..."
+      : status === "showing"
+        ? "Đang chạy quảng cáo..."
+        : "Đang tải quảng cáo...";
+  const loadingDescription =
+    status === "verifying"
+      ? "Vui lòng chờ trong giây lát."
+      : "Vui lòng chờ trong giây lát.";
 
   return (
     <Modal
@@ -182,10 +310,10 @@ export default function AdRewardModal({
             <>
               <ActivityIndicator size="large" color="#D4AF37" />
               <Text className="mt-5 text-center text-base font-bold text-[#E5E0D8]">
-                Dang tai quang cao...
+                {loadingTitle}
               </Text>
               <Text className="mt-2 text-center text-sm leading-5 text-[#A19E95]">
-                Vui long cho trong giay lat.
+                {loadingDescription}
               </Text>
             </>
           )}
@@ -196,17 +324,17 @@ export default function AdRewardModal({
                 <Feather name="check" size={34} color="#10B981" />
               </View>
               <Text className="mt-5 text-center text-xl font-black text-white">
-                Nhan thuong thanh cong!
+                Nhận thưởng thành công!
               </Text>
               <Text className="mt-2 text-center text-sm text-[#A19E95]">
-                So du xu va nhiem vu cua ban da duoc cap nhat.
+                Số dư xu và nhiệm vụ của bạn đã được cập nhật.
               </Text>
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={handleClose}
                 className="mt-7 h-12 w-full items-center justify-center rounded-xl bg-[#D4AF37]"
               >
-                <Text className="font-black text-[#141210]">Dong</Text>
+                <Text className="font-black text-[#141210]">Đóng</Text>
               </TouchableOpacity>
             </>
           )}
@@ -217,17 +345,17 @@ export default function AdRewardModal({
                 <Feather name="x" size={34} color="#EF4444" />
               </View>
               <Text className="mt-5 text-center text-xl font-black text-white">
-                Xem quang cao that bai
+                Xem quảng cáo thất bại
               </Text>
               <Text className="mt-3 text-center text-sm leading-5 text-[#F87171]">
-                {errorMessage || "Vui long thu lai sau."}
+                {errorMessage || "Vui lòng thử lại sau."}
               </Text>
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={handleClose}
                 className="mt-7 h-12 w-full items-center justify-center rounded-xl bg-[#262628]"
               >
-                <Text className="font-black text-[#E5E0D8]">Dong</Text>
+                <Text className="font-black text-[#E5E0D8]">Đóng</Text>
               </TouchableOpacity>
             </>
           )}

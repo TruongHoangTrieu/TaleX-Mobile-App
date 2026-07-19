@@ -4,7 +4,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { RewardProvider } from "@/context/RewardContext";
 import { useEffect } from "react";
 import mobileAds from "react-native-google-mobile-ads";
-import Toast from "react-native-toast-message";
+// import Toast from "react-native-toast-message";
 
 export default function App() {
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function App() {
     <AuthProvider>
       <RewardProvider>
         <RootNavigator />
-        <Toast />
+
       </RewardProvider>
     </AuthProvider>
   );

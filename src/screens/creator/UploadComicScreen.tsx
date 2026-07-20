@@ -43,6 +43,7 @@ import {
 } from "@/services/creatorContent";
 import { getOwnCreator } from "@/services/creator";
 import { useAuth } from "@/context/AuthContext";
+import { connectPipelineSSE } from "@/services/pipelineSSE";
 
 // Component imports
 import StepIndicator from "./components/StepIndicator";
@@ -139,6 +140,7 @@ export default function UploadComicScreen() {
   const [moderationStatus, setModerationStatus] = useState<string | null>(null);
   const [isModerationDone, setIsModerationDone] = useState(false);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const sseSessionRef = useRef<{ close: () => void } | null>(null);
 
   // Fetch Categories & Tags on mount
   useEffect(() => {
@@ -157,73 +159,114 @@ export default function UploadComicScreen() {
     fetchMeta();
   }, []);
 
-  // Clean polling on unmount
+  // Clean polling & SSE on unmount
   useEffect(() => {
     return () => {
+      if (sseSessionRef.current) {
+        sseSessionRef.current.close();
+        sseSessionRef.current = null;
+      }
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
       }
     };
   }, []);
 
+  const checkComicMediaStatus = async (episodeId: string) => {
+    try {
+      const mediaList = await listMediaByEpisode(episodeId);
+      if (mediaList.length > 0) {
+        const total = mediaList.length;
+        const approvedCount = mediaList.filter(
+          (m) => m.approvalStatus === "APPROVED",
+        ).length;
+        const rejectedCount = mediaList.filter(
+          (m) => m.approvalStatus === "REJECTED",
+        ).length;
+
+        if (rejectedCount > 0) {
+          setModerationStatus(
+            `Từ chối: Phát hiện ${rejectedCount} trang vi phạm chính sách!`,
+          );
+          setIsModerationDone(false);
+          if (sseSessionRef.current) {
+            sseSessionRef.current.close();
+            sseSessionRef.current = null;
+          }
+          Toast.show({
+            type: "error",
+            text1: "Kiểm duyệt thất bại",
+            text2: "Một số trang truyện vi phạm chính sách và bị từ chối.",
+          });
+        } else if (approvedCount === total) {
+          setModerationStatus(
+            "Đạt: Toàn bộ ảnh đã được kiểm duyệt và an toàn.",
+          );
+          setIsModerationDone(true);
+          if (sseSessionRef.current) {
+            sseSessionRef.current.close();
+            sseSessionRef.current = null;
+          }
+          Toast.show({
+            type: "success",
+            text1: "Kiểm duyệt hoàn tất",
+            text2: "Tất cả các trang truyện đã được phê duyệt.",
+          });
+        } else {
+          setModerationStatus(
+            `Đang duyệt ảnh bằng AI: ${approvedCount}/${total} trang đã đạt...`,
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Lỗi kiểm tra trạng thái kiểm duyệt truyện:", err);
+    }
+  };
+
   const startPollingPipeline = (episodeId: string) => {
+    if (sseSessionRef.current) {
+      sseSessionRef.current.close();
+      sseSessionRef.current = null;
+    }
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
     }
 
     setModerationStatus("Đang kiểm duyệt các trang ảnh bằng AI...");
     setIsModerationDone(false);
 
-    pollTimerRef.current = setInterval(async () => {
-      try {
-        const mediaList = await listMediaByEpisode(episodeId);
-        if (mediaList.length > 0) {
-          const total = mediaList.length;
-          const approvedCount = mediaList.filter(
-            (m) => m.approvalStatus === "APPROVED",
-          ).length;
-          const rejectedCount = mediaList.filter(
-            (m) => m.approvalStatus === "REJECTED",
-          ).length;
+    // 1. Connect Real-time SSE Stream (Same as Web)
+    connectPipelineSSE({
+      onModerationComplete: () => {
+        checkComicMediaStatus(episodeId);
+      },
+      onCopyrightComplete: () => {
+        checkComicMediaStatus(episodeId);
+      },
+      onFailed: (data) => {
+        setModerationStatus("Xử lý trang truyện thất bại");
+        Toast.show({
+          type: "error",
+          text1: "Xử lý thất bại",
+          text2: data.errorMessage || "Có lỗi trong quá trình xử lý ảnh.",
+        });
+      },
+      onError: (err) => {
+        console.warn("[SSE Comic] Connection error", err);
+      },
+    })
+      .then((session) => {
+        sseSessionRef.current = session;
+      })
+      .catch((err) => {
+        console.error("Lỗi kết nối SSE cho truyện:", err);
+      });
 
-          if (rejectedCount > 0) {
-            setModerationStatus(
-              `Từ chối: Phát hiện ${rejectedCount} trang vi phạm chính sách!`,
-            );
-            setIsModerationDone(false);
-            if (pollTimerRef.current) {
-              clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
-            }
-            Toast.show({
-              type: "error",
-              text1: "Kiểm duyệt thất bại",
-              text2: "Một số ảnh vi phạm chính sách và bị từ chối.",
-            });
-          } else if (approvedCount === total) {
-            setModerationStatus(
-              "Đạt: Toàn bộ ảnh đã được kiểm duyệt và an toàn.",
-            );
-            setIsModerationDone(true);
-            if (pollTimerRef.current) {
-              clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
-            }
-            Toast.show({
-              type: "success",
-              text1: "Kiểm duyệt hoàn tất",
-              text2: "Tất cả các trang truyện đã được phê duyệt.",
-            });
-          } else {
-            setModerationStatus(
-              `Đang duyệt ảnh bằng AI: ${approvedCount}/${total} trang đã đạt...`,
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Lỗi đồng bộ kiểm duyệt truyện:", err);
-      }
-    }, 4000);
+    // 2. Immediate check after 1.5s in case approval finished quickly
+    setTimeout(() => {
+      checkComicMediaStatus(episodeId);
+    }, 1500);
   };
 
   // Load Creator Profile (creatorId & actorId)

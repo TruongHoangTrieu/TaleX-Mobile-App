@@ -36,8 +36,30 @@ const adUnitId = process.env.EXPO_PUBLIC_ADMOB_REWARD_ID || TestIds.REWARDED;
 const SSV_POLL_INTERVAL_MS = 3000;
 const SSV_MAX_POLL_ATTEMPTS = 3;
 
+type AdmobSsvCustomData = {
+  accountId: string;
+  missionCode: string;
+};
+
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Đã xảy ra lỗi không xác định.";
+
+const buildAdmobSsvOptions = (
+  accountId: string,
+  missionCode: string,
+) => {
+  const normalizedAccountId = accountId.trim();
+  const normalizedMissionCode = missionCode.trim();
+  const customData: AdmobSsvCustomData = {
+    accountId: normalizedAccountId,
+    missionCode: normalizedMissionCode,
+  };
+
+  return {
+    userId: normalizedAccountId,
+    customData: encodeURIComponent(JSON.stringify(customData)),
+  };
+};
 
 export default function AdRewardModal({
   visible,
@@ -98,8 +120,9 @@ export default function AdRewardModal({
   useEffect(() => {
     if (!visible) return;
 
-    const accountId = user?.accountId;
-    const requestKey = `${accountId ?? "missing-account"}:${missionCode}`;
+    const accountId = user?.accountId?.trim();
+    const normalizedMissionCode = missionCode.trim();
+    const requestKey = `${accountId ?? "missing-account"}:${normalizedMissionCode}`;
 
     if (activeRequestKeyRef.current === requestKey) return;
 
@@ -112,7 +135,7 @@ export default function AdRewardModal({
       return;
     }
 
-    if (!missionCode) {
+    if (!normalizedMissionCode) {
       setErrorMessage("Không tìm thấy mã nhiệm vụ quảng cáo.");
       setStatus("error");
       return;
@@ -187,17 +210,25 @@ export default function AdRewardModal({
 
     const loadRewardedAd = async () => {
       try {
-        await startAdSession(missionCode);
+        await startAdSession(normalizedMissionCode);
         if (lifecycleId !== lifecycleIdRef.current) return;
 
+        const serverSideVerificationOptions = buildAdmobSsvOptions(
+          accountId,
+          normalizedMissionCode,
+        );
+
+        if (__DEV__) {
+          console.log("[AdMob] SSV options", {
+            userId: serverSideVerificationOptions.userId,
+            customData: decodeURIComponent(
+              serverSideVerificationOptions.customData,
+            ),
+          });
+        }
+
         const rewarded = RewardedAd.createForAdRequest(adUnitId, {
-          serverSideVerificationOptions: {
-            userId: accountId,
-            customData: JSON.stringify({
-              accountId,
-              missionCode,
-            }),
-          },
+          serverSideVerificationOptions,
         });
 
         unsubscribeLoaded = rewarded.addAdEventListener(

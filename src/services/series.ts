@@ -1,4 +1,5 @@
 import { BASE_URL } from "@/config";
+import { authFetch } from "@/services/auth";
 
 export interface SeriesItem {
   id?: string;
@@ -182,9 +183,13 @@ export async function getEpisodePlayback(
   return res.json();
 }
 
-export async function getPublicEpisodeMedia(episodeId: string): Promise<any> {
-  const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/episodes/${episodeId}/media`;
-  const res = await fetch(url, {
+export async function getPublicEpisodeMedia(episodeId: string, viewerId?: string): Promise<any> {
+  let endpoint = `/api/v1/public/episodes/${episodeId}/media`;
+  if (viewerId) {
+    endpoint += `?viewerId=${viewerId}`;
+  }
+  const url = `${BASE_URL.replace(/\/$/, "")}${endpoint}`;
+  const res = await authFetch(url, {
     method: "GET",
     headers: {
       Accept: "*/*",
@@ -192,7 +197,29 @@ export async function getPublicEpisodeMedia(episodeId: string): Promise<any> {
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch public episode media: ${res.status}`);
+    const text = await res.text();
+    let msg = `Failed to fetch public episode media: ${res.status}`;
+    try {
+      const json = JSON.parse(text);
+      if (json.message) msg = json.message;
+    } catch (e) {}
+    const err: any = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+
+  return res.json();
+}
+
+export async function getPublicEpisodeDetail(episodeId: string): Promise<any> {
+  const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/episodes/${episodeId}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "*/*" },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch episode detail: ${res.status}`);
   }
 
   return res.json();

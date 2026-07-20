@@ -27,6 +27,8 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { getOwnCreator, type OwnCreatorResponse } from "@/services/creator";
+import { getFollowers, type AccountFollowInfoDto } from "@/services/follow";
+import { FollowButton } from "@/components/FollowButton";
 import {
   listSeriesByCreator,
   updateSeries,
@@ -71,9 +73,13 @@ export default function CreatorChannelScreen() {
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<OwnCreatorResponse | null>(null);
   const [series, setSeries] = useState<SeriesItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"comics" | "movies" | "about">(
-    "comics",
+  const [activeTab, setActiveTab] = useState<
+    "comics" | "movies" | "followers" | "about"
+  >("comics");
+  const [followersList, setFollowersList] = useState<AccountFollowInfoDto[]>(
+    [],
   );
+  const [loadingFollowers, setLoadingFollowers] = useState(false);
   const [isNotCreator, setIsNotCreator] = useState(false);
   const [filterStatus, setFilterStatus] = useState<
     "ALL" | "PUBLIC" | "PRIVATE"
@@ -168,6 +174,14 @@ export default function CreatorChannelScreen() {
       // 2. Lấy danh sách series của Creator này
       const seriesList = await listSeriesByCreator();
       setSeries(seriesList || []);
+
+      // 3. Lấy danh sách người theo dõi
+      try {
+        const followersRes = await getFollowers(0, 100);
+        setFollowersList(followersRes.content || []);
+      } catch (e) {
+        setFollowersList([]);
+      }
     } catch (err: any) {
       console.log("[Channel] Fetch error:", err);
       if (err.code === 4041) {
@@ -1125,8 +1139,12 @@ export default function CreatorChannelScreen() {
           </Text>
         </View>
 
-        {/* TAB BAR STYLE YOUTUBE */}
-        <View className="flex-row border-b border-white/5 px-2">
+        {/* TAB BAR STYLE YOUTUBE (SCROLLABLE HORIZONTALLY) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="border-b border-white/5 px-2"
+        >
           <TouchableOpacity
             onPress={() => setActiveTab("comics")}
             className={`py-3 px-4 border-b-2 ${activeTab === "comics" ? "border-[#D4AF37]" : "border-transparent"}`}
@@ -1150,6 +1168,17 @@ export default function CreatorChannelScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            onPress={() => setActiveTab("followers")}
+            className={`py-3 px-4 border-b-2 ${activeTab === "followers" ? "border-[#D4AF37]" : "border-transparent"}`}
+          >
+            <Text
+              className={`text-xs font-bold ${activeTab === "followers" ? "text-[#D4AF37]" : "text-zinc-500"}`}
+            >
+              NGƯỜI THEO DÕI ({followersList.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             onPress={() => setActiveTab("about")}
             className={`py-3 px-4 border-b-2 ${activeTab === "about" ? "border-[#D4AF37]" : "border-transparent"}`}
           >
@@ -1159,7 +1188,7 @@ export default function CreatorChannelScreen() {
               GIỚI THIỆU
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
 
         {/* BỘ LỌC VÀ SẮP XẾP */}
         {(activeTab === "comics" || activeTab === "movies") && (
@@ -1255,6 +1284,64 @@ export default function CreatorChannelScreen() {
         {activeTab === "comics" &&
           renderContentGrid(comicsList, "truyện tranh")}
         {activeTab === "movies" && renderContentGrid(moviesList, "phim ảnh")}
+        {activeTab === "followers" && (
+          <View className="px-4 py-3">
+            {followersList.length === 0 ? (
+              <View className="py-16 items-center justify-center">
+                <Feather name="users" size={48} color="#3F3F46" />
+                <Text className="text-zinc-500 text-sm mt-3 italic">
+                  Chưa có người dùng nào theo dõi kênh của bạn
+                </Text>
+              </View>
+            ) : (
+              followersList.map((item, index) => (
+                <View
+                  key={item.accountId || index}
+                  className="flex-row items-center justify-between py-3 border-b border-white/5"
+                >
+                  <View className="flex-row items-center flex-1 mr-3">
+                    <View className="w-10 h-10 rounded-full bg-zinc-800 overflow-hidden border border-white/10 mr-3">
+                      {item.avatarUrl ? (
+                        <Image
+                          source={{ uri: item.avatarUrl }}
+                          className="w-full h-full"
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Image
+                          source={require("@assets/icon.png")}
+                          className="w-full h-full"
+                          resizeMode="cover"
+                        />
+                      )}
+                    </View>
+                    <View className="flex-1">
+                      <Text
+                        className="text-white font-bold text-sm"
+                        numberOfLines={1}
+                      >
+                        {item.username || item.fullName || "Người dùng TaleX"}
+                      </Text>
+                      {item.followedAt && (
+                        <Text className="text-zinc-500 text-[11px] mt-0.5">
+                          Theo dõi từ:{" "}
+                          {new Date(item.followedAt).toLocaleDateString(
+                            "vi-VN",
+                          )}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <FollowButton
+                    isFollowing={true}
+                    onFollowToggle={() => {}}
+                    size="small"
+                  />
+                </View>
+              ))
+            )}
+          </View>
+        )}
         {activeTab === "about" && (
           <View className="p-5">
             <Text className="text-white font-bold text-sm mb-2">Tiểu sử</Text>

@@ -19,6 +19,11 @@ import {
   getSeasonEpisodes,
   SeasonItem,
 } from "@/services/series";
+import { useCreatorFollow } from "@/hooks/useCreatorFollow";
+import { FollowButton } from "@/components/FollowButton";
+import { BookmarkButton } from "@/components/BookmarkButton";
+import { ShareButton } from "@/components/ShareButton";
+import { FollowersModal } from "@/components/FollowersModal";
 
 type ComicDetailRouteParams = {
   comicId?: string;
@@ -40,6 +45,14 @@ export default function ComicDetailScreen() {
   const [episodesMap, setEpisodesMap] = useState<Record<string, any[]>>({}); // seasonId -> episodes
   const [loading, setLoading] = useState(false);
   const [expandedChapter, setExpandedChapter] = useState<string | null>(null);
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+
+  const creatorAccountId = comic?.creatorAccountId || comic?.authorAccountId;
+  const {
+    isFollowing,
+    toggleFollow,
+    isMutating: isFollowMutating,
+  } = useCreatorFollow(creatorAccountId);
 
   useEffect(() => {
     const isMock = !comicId || comicId.length < 10;
@@ -57,19 +70,37 @@ export default function ComicDetailScreen() {
           const detail = res.data;
           if (detail.status === "HIDDEN") {
             Alert.alert("Thông báo", "Tác phẩm này đã bị ẩn bởi tác giả.", [
-              { text: "OK", onPress: () => navigation.goBack() }
+              { text: "OK", onPress: () => navigation.goBack() },
             ]);
             return;
           }
           setComic({
             id: detail.seriesId || detail.id,
             title: detail.title,
-            image: detail.coverUrl ? { uri: detail.coverUrl } : require("@assets/comic1.webp"),
-            author: detail.author || "TaleX Creator",
-            status: detail.status === "PUBLISHED" ? "Đã xuất bản" : "Đang tiến hành",
-            views: detail.views || "0",
-            rating: detail.rating || "10.0",
-            description: detail.description || "Chưa có mô tả.",
+            creatorAccountId:
+              detail.accountId ||
+              detail.creatorAccountId ||
+              detail.authorAccountId ||
+              detail.creator?.accountId,
+            image: detail.coverUrl
+              ? { uri: detail.coverUrl }
+              : detail.thumbnailUrl
+                ? { uri: detail.thumbnailUrl }
+                : require("@assets/comic1.webp"),
+            author:
+              detail.creatorName || detail.creator?.username || detail.author,
+            status:
+              detail.status === "PUBLISHED"
+                ? "Đã xuất bản"
+                : detail.status === "DRAFT"
+                  ? "Bản nháp"
+                  : detail.status,
+            views: detail.views ?? detail.totalViews,
+            rating: detail.rating,
+            description: detail.description,
+            categories: detail.categories || [],
+            tags: detail.tags || [],
+            tag: detail.tag,
             chapters: [], // not used for real data
           });
         }
@@ -104,7 +135,9 @@ export default function ComicDetailScreen() {
     return (
       <SafeAreaView className="flex-1 bg-[#141210] items-center justify-center">
         <ActivityIndicator size="large" color="#D4AF37" />
-        <Text className="text-zinc-500 text-xs mt-3">Đang tải chi tiết truyện...</Text>
+        <Text className="text-zinc-500 text-xs mt-3">
+          Đang tải chi tiết truyện...
+        </Text>
       </SafeAreaView>
     );
   }
@@ -143,76 +176,159 @@ export default function ComicDetailScreen() {
             </View>
 
             <View className="flex-1 ml-4">
-              <Text className="text-white text-[20px] font-bold" numberOfLines={3}>
+              <Text
+                className="text-white text-[20px] font-bold"
+                numberOfLines={3}
+              >
                 {comic.title}
               </Text>
 
-              <Text className="text-gray-400 mt-1 text-[14px]" numberOfLines={2}>
-                Tác giả: {comic.author}
-              </Text>
-
-              <View className="flex-row items-center mt-3">
-                <FontAwesome name="star" size={14} color="#FFD54F" />
-                <Text className="text-[#FFD54F] ml-1 font-bold">
-                  {comic.rating}
+              {comic.author ? (
+                <Text
+                  className="text-gray-400 mt-1 text-[14px]"
+                  numberOfLines={2}
+                >
+                  Tác giả: {comic.author}
                 </Text>
+              ) : null}
 
-                <Feather
-                  name="eye"
-                  size={14}
-                  color="#ccc"
-                  style={{ marginLeft: 16 }}
-                />
-                <Text className="text-[#ccc] ml-1">{comic.views}</Text>
-              </View>
+              {comic.rating || comic.views != null ? (
+                <View className="flex-row items-center mt-3">
+                  {comic.rating ? (
+                    <>
+                      <FontAwesome name="star" size={14} color="#FFD54F" />
+                      <Text className="text-[#FFD54F] ml-1 font-bold mr-4">
+                        {comic.rating}
+                      </Text>
+                    </>
+                  ) : null}
 
-              <View className="mt-3 px-3 py-1 rounded-full bg-[#252830] self-start">
-                <Text className="text-[#D4AF37] text-[12px] font-bold">
-                  {comic.status}
-                </Text>
-              </View>
+                  {comic.views != null ? (
+                    <>
+                      <Feather name="eye" size={14} color="#ccc" />
+                      <Text className="text-[#ccc] ml-1 font-semibold">
+                        {comic.views}
+                      </Text>
+                    </>
+                  ) : null}
+                </View>
+              ) : null}
 
-              {comic.tag && (
+              {comic.status ? (
+                <View className="mt-3 px-3 py-1 rounded-full bg-[#252830] self-start">
+                  <Text className="text-[#D4AF37] text-[12px] font-bold">
+                    {comic.status}
+                  </Text>
+                </View>
+              ) : null}
+
+              {comic.tag ? (
                 <View className="mt-2 px-3 py-1 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/30 self-start">
                   <Text className="text-[#D4AF37] text-[12px] font-bold">
                     {comic.tag}
                   </Text>
                 </View>
-              )}
+              ) : null}
 
-              <TouchableOpacity className="mt-3 flex-row items-center px-4 h-[40px] rounded-full bg-[#252830] self-start">
-                <FontAwesome name="star" size={16} color="#D4AF37" />
-                <Text className="text-white ml-2">Theo dõi</Text>
-              </TouchableOpacity>
+              {creatorAccountId ? (
+                <View className="flex-row items-center mt-3 gap-2">
+                  <FollowButton
+                    isFollowing={isFollowing}
+                    onFollowToggle={toggleFollow}
+                    isMutating={isFollowMutating}
+                    size="small"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowFollowersModal(true)}
+                    className="px-3 py-1.5 rounded-full bg-[#252830] border border-white/5"
+                  >
+                    <Text className="text-[#D4AF37] text-xs font-semibold">
+                      Người theo dõi
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {/* ACTION BUTTONS (Bookmark & Share) */}
+              {(() => {
+                const firstSeason = seasons[0];
+                const firstEpList = firstSeason
+                  ? episodesMap[firstSeason.seasonId]
+                  : [];
+                const firstEp =
+                  firstEpList && firstEpList.length > 0 ? firstEpList[0] : null;
+                const activeEpId = firstEp?.episodeId || comicId;
+
+                return (
+                  <View className="flex-row items-center gap-2 mt-4">
+                    <BookmarkButton
+                      episodeId={activeEpId}
+                      contentType="COMIC"
+                      size="sm"
+                      showLabel
+                    />
+                    <ShareButton
+                      episodeId={activeEpId}
+                      title={comic?.title || "Truyện tranh TaleX"}
+                      size="sm"
+                      showLabel
+                    />
+                  </View>
+                );
+              })()}
             </View>
           </View>
 
-          <Text className="text-[#E5E0D8] text-[16px] font-bold mt-6">
-            Giới thiệu nội dung
-          </Text>
+          {creatorAccountId && (
+            <FollowersModal
+              visible={showFollowersModal}
+              creatorAccountId={creatorAccountId}
+              onClose={() => setShowFollowersModal(false)}
+            />
+          )}
 
-          <Text className="text-gray-300 mt-2 leading-5">
-            {comic.description}
-          </Text>
-
-          <View className="flex-row mt-5 bg-[#252830] rounded-xl p-3">
-            <View className="flex-1 items-center">
-              <Text className="text-white font-bold">{comic.views}</Text>
-              <Text className="text-gray-500 text-[12px]">Lượt xem</Text>
-            </View>
-
-            <View className="flex-1 items-center">
-              <Text className="text-white font-bold">{comic.rating}</Text>
-              <Text className="text-gray-500 text-[12px]">Đánh giá</Text>
-            </View>
-
-            <View className="flex-1 items-center">
-              <Text className="text-white font-bold">
-                {seasons.length > 0 ? seasons.length : (comic.chapters?.length || 0)}
+          {comic.description ? (
+            <>
+              <Text className="text-[#E5E0D8] text-[16px] font-bold mt-6">
+                Giới thiệu nội dung
               </Text>
-              <Text className="text-gray-500 text-[12px]">Seasons/Chương</Text>
+              <Text className="text-gray-300 mt-2 leading-5">
+                {comic.description}
+              </Text>
+            </>
+          ) : null}
+
+          {comic.views != null ||
+          comic.rating ||
+          seasons.length > 0 ||
+          comic.chapters?.length > 0 ? (
+            <View className="flex-row mt-5 bg-[#252830] rounded-xl p-3">
+              {comic.views != null ? (
+                <View className="flex-1 items-center">
+                  <Text className="text-white font-bold">{comic.views}</Text>
+                  <Text className="text-gray-500 text-[12px]">Lượt xem</Text>
+                </View>
+              ) : null}
+
+              {comic.rating ? (
+                <View className="flex-1 items-center">
+                  <Text className="text-white font-bold">{comic.rating}</Text>
+                  <Text className="text-gray-500 text-[12px]">Đánh giá</Text>
+                </View>
+              ) : null}
+
+              <View className="flex-1 items-center">
+                <Text className="text-white font-bold">
+                  {seasons.length > 0
+                    ? seasons.length
+                    : comic.chapters?.length || 0}
+                </Text>
+                <Text className="text-gray-500 text-[12px]">
+                  Seasons/Chương
+                </Text>
+              </View>
             </View>
-          </View>
+          ) : null}
 
           <View className="h-[1px] bg-[#252830] my-6" />
 
@@ -221,132 +337,154 @@ export default function ComicDetailScreen() {
           </Text>
 
           <View className="mt-3">
-            {seasons.length > 0 ? (
-              seasons.map((se, seIndex) => {
-                const isExpanded = expandedChapter === se.seasonId;
-                const seasonEps = episodesMap[se.seasonId] || [];
-                return (
-                  <View key={se.seasonId} className="mb-2">
-                    <TouchableOpacity
-                      className={`h-12 border border-white/5 px-4 flex-row items-center justify-between bg-[#1F1C1A] ${
-                        isExpanded ? "rounded-t-xl border-b-0" : "rounded-xl"
-                      }`}
-                      activeOpacity={0.75}
-                      onPress={() =>
-                        setExpandedChapter(isExpanded ? null : se.seasonId)
-                      }
-                    >
-                      <View>
-                        <Text className="text-white font-semibold">Season {se.seasonNumber}: {se.title || "Không tiêu đề"}</Text>
-                        <Text className="text-[#7C766B] text-[11px] mt-0.5">
-                          {seasonEps.length} tập • Cập nhật phần {seIndex + 1}
-                        </Text>
-                      </View>
-                      <Feather
-                        name={isExpanded ? "chevron-down" : "chevron-right"}
-                        size={18}
-                        color={isExpanded ? "#D4AF37" : "#7C766B"}
-                      />
-                    </TouchableOpacity>
+            {seasons.length > 0
+              ? seasons.map((se, seIndex) => {
+                  const isExpanded = expandedChapter === se.seasonId;
+                  const seasonEps = episodesMap[se.seasonId] || [];
+                  return (
+                    <View key={se.seasonId} className="mb-2">
+                      <TouchableOpacity
+                        className={`h-12 border border-white/5 px-4 flex-row items-center justify-between bg-[#1F1C1A] ${
+                          isExpanded ? "rounded-t-xl border-b-0" : "rounded-xl"
+                        }`}
+                        activeOpacity={0.75}
+                        onPress={() =>
+                          setExpandedChapter(isExpanded ? null : se.seasonId)
+                        }
+                      >
+                        <View>
+                          <Text className="text-white font-semibold">
+                            Season {se.seasonNumber}:{" "}
+                            {se.title || "Không tiêu đề"}
+                          </Text>
+                          <Text className="text-[#7C766B] text-[11px] mt-0.5">
+                            {seasonEps.length} tập • Cập nhật phần {seIndex + 1}
+                          </Text>
+                        </View>
+                        <Feather
+                          name={isExpanded ? "chevron-down" : "chevron-right"}
+                          size={18}
+                          color={isExpanded ? "#D4AF37" : "#7C766B"}
+                        />
+                      </TouchableOpacity>
 
-                    {isExpanded && (
-                      <View className="bg-[#181614] border-x border-b border-white/5 rounded-b-xl px-4 py-1">
-                        {seasonEps.map((ep, epIndex) => (
-                          <TouchableOpacity
-                            key={ep.episodeId}
-                            onPress={() =>
-                              navigation.navigate("ComicReader", {
-                                comicId: comic.id,
-                                comicTitle: comic.title,
-                                chapterTitle: `Season ${se.seasonNumber}`,
-                                episodeTitle: ep.title || `Chương ${ep.episodeNumber}`,
-                                episodeIndex: epIndex,
-                                episodeId: ep.episodeId,
-                              })
-                            }
-                            className="py-3 flex-row items-center justify-between border-b border-white/5 last:border-b-0"
-                            activeOpacity={0.7}
-                          >
-                            <View className="flex-row items-center">
-                              <View className="w-5 h-5 rounded-full bg-[#D4AF37]/10 items-center justify-center mr-2.5">
-                                <Text className="text-[#D4AF37] text-[10px] font-bold">
-                                  {ep.episodeNumber}
+                      {isExpanded && (
+                        <View className="bg-[#181614] border-x border-b border-white/5 rounded-b-xl px-4 py-1">
+                          {seasonEps.map((ep, epIndex) => (
+                            <TouchableOpacity
+                              key={ep.episodeId}
+                              onPress={() =>
+                                navigation.navigate("ComicReader", {
+                                  comicId: comic.id,
+                                  comicTitle: comic.title,
+                                  chapterTitle: `Season ${se.seasonNumber}`,
+                                  episodeTitle:
+                                    ep.title || `Chương ${ep.episodeNumber}`,
+                                  episodeIndex: epIndex,
+                                  episodeId: ep.episodeId,
+                                })
+                              }
+                              className="py-3 flex-row items-center justify-between border-b border-white/5 last:border-b-0"
+                              activeOpacity={0.7}
+                            >
+                              <View className="flex-row items-center">
+                                <View className="w-5 h-5 rounded-full bg-[#D4AF37]/10 items-center justify-center mr-2.5">
+                                  <Text className="text-[#D4AF37] text-[10px] font-bold">
+                                    {ep.episodeNumber}
+                                  </Text>
+                                </View>
+                                <Text className="text-gray-300 text-sm font-medium">
+                                  {ep.title || `Chương ${ep.episodeNumber}`}
                                 </Text>
                               </View>
-                              <Text className="text-gray-300 text-sm font-medium">
-                                {ep.title || `Chương ${ep.episodeNumber}`}
-                              </Text>
-                            </View>
-                            <Feather name="book-open" size={16} color="#7C766B" />
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })
-            ) : (
-              comic.chapters?.map((chapter: any, index: number) => {
-                const isExpanded = expandedChapter === chapter.title;
-                return (
-                  <View key={chapter.title} className="mb-2">
-                    <TouchableOpacity
-                      className={`h-12 border border-white/5 px-4 flex-row items-center justify-between bg-[#1F1C1A] ${
-                        isExpanded ? "rounded-t-xl border-b-0" : "rounded-xl"
-                      }`}
-                      activeOpacity={0.75}
-                      onPress={() =>
-                        setExpandedChapter(isExpanded ? null : chapter.title)
-                      }
-                    >
-                      <View>
-                        <Text className="text-white font-semibold">{chapter.title}</Text>
-                        <Text className="text-[#7C766B] text-[11px] mt-0.5">
-                          {chapter.episodes.length} tập con • Cập nhật tập {index + 1}
-                        </Text>
-                      </View>
-                      <Feather
-                        name={isExpanded ? "chevron-down" : "chevron-right"}
-                        size={18}
-                        color={isExpanded ? "#D4AF37" : "#7C766B"}
-                      />
-                    </TouchableOpacity>
-
-                    {isExpanded && (
-                      <View className="bg-[#181614] border-x border-b border-white/5 rounded-b-xl px-4 py-1">
-                        {chapter.episodes.map((episode: any, epIndex: number) => (
-                          <TouchableOpacity
-                            key={episode}
-                            onPress={() =>
-                              navigation.navigate("ComicReader", {
-                                comicId: comic.id,
-                                chapterTitle: chapter.title,
-                                episodeTitle: episode,
-                                episodeIndex: epIndex,
-                              })
-                            }
-                            className="py-3 flex-row items-center justify-between border-b border-white/5 last:border-b-0"
-                            activeOpacity={0.7}
-                          >
-                            <View className="flex-row items-center">
-                              <View className="w-5 h-5 rounded-full bg-[#D4AF37]/10 items-center justify-center mr-2.5">
-                                <Text className="text-[#D4AF37] text-[10px] font-bold">
-                                  {epIndex + 1}
-                                </Text>
+                              <View className="flex-row items-center gap-2">
+                                <BookmarkButton
+                                  episodeId={ep.episodeId}
+                                  contentType="COMIC"
+                                  size="sm"
+                                />
+                                <Feather
+                                  name="book-open"
+                                  size={16}
+                                  color="#7C766B"
+                                />
                               </View>
-                              <Text className="text-gray-300 text-sm font-medium">
-                                {episode}
-                              </Text>
-                            </View>
-                            <Feather name="book-open" size={16} color="#7C766B" />
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })
-            )}
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              : comic.chapters?.map((chapter: any, index: number) => {
+                  const isExpanded = expandedChapter === chapter.title;
+                  return (
+                    <View key={chapter.title} className="mb-2">
+                      <TouchableOpacity
+                        className={`h-12 border border-white/5 px-4 flex-row items-center justify-between bg-[#1F1C1A] ${
+                          isExpanded ? "rounded-t-xl border-b-0" : "rounded-xl"
+                        }`}
+                        activeOpacity={0.75}
+                        onPress={() =>
+                          setExpandedChapter(isExpanded ? null : chapter.title)
+                        }
+                      >
+                        <View>
+                          <Text className="text-white font-semibold">
+                            {chapter.title}
+                          </Text>
+                          <Text className="text-[#7C766B] text-[11px] mt-0.5">
+                            {chapter.episodes.length} tập con • Cập nhật tập{" "}
+                            {index + 1}
+                          </Text>
+                        </View>
+                        <Feather
+                          name={isExpanded ? "chevron-down" : "chevron-right"}
+                          size={18}
+                          color={isExpanded ? "#D4AF37" : "#7C766B"}
+                        />
+                      </TouchableOpacity>
+
+                      {isExpanded && (
+                        <View className="bg-[#181614] border-x border-b border-white/5 rounded-b-xl px-4 py-1">
+                          {chapter.episodes.map(
+                            (episode: any, epIndex: number) => (
+                              <TouchableOpacity
+                                key={episode}
+                                onPress={() =>
+                                  navigation.navigate("ComicReader", {
+                                    comicId: comic.id,
+                                    chapterTitle: chapter.title,
+                                    episodeTitle: episode,
+                                    episodeIndex: epIndex,
+                                  })
+                                }
+                                className="py-3 flex-row items-center justify-between border-b border-white/5 last:border-b-0"
+                                activeOpacity={0.7}
+                              >
+                                <View className="flex-row items-center">
+                                  <View className="w-5 h-5 rounded-full bg-[#D4AF37]/10 items-center justify-center mr-2.5">
+                                    <Text className="text-[#D4AF37] text-[10px] font-bold">
+                                      {epIndex + 1}
+                                    </Text>
+                                  </View>
+                                  <Text className="text-gray-300 text-sm font-medium">
+                                    {episode}
+                                  </Text>
+                                </View>
+                                <Feather
+                                  name="book-open"
+                                  size={16}
+                                  color="#7C766B"
+                                />
+                              </TouchableOpacity>
+                            ),
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
           </View>
         </View>
       </ScrollView>
@@ -363,7 +501,9 @@ export default function ComicDetailScreen() {
                   comicId: comic.id,
                   comicTitle: comic.title,
                   chapterTitle: `Season ${firstSeason.seasonNumber}`,
-                  episodeTitle: firstEpisode.title || `Chương ${firstEpisode.episodeNumber}`,
+                  episodeTitle:
+                    firstEpisode.title ||
+                    `Chương ${firstEpisode.episodeNumber}`,
                   episodeIndex: 0,
                   episodeId: firstEpisode.episodeId,
                 });

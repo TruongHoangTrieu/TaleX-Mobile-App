@@ -18,6 +18,9 @@ import SubscriptionPlansScreen from "@/screens/subscription/SubscriptionPlansScr
 import UploadMovieScreen from "@/screens/creator/UploadMovieScreen";
 import UploadComicScreen from "@/screens/creator/UploadComicScreen";
 import CoinCenterScreen from "@/screens/rewards/CoinCenterScreen";
+import LikedScreen from "@/screens/profile/LikedScreen";
+import SubscriptionsScreen from "@/screens/profile/SubscriptionsScreen";
+import BookmarkedScreen from "@/screens/profile/BookmarkedScreen";
 import { navigationRef } from "./navigationRef";
 import type { SeriesItem } from "@/services/series";
 
@@ -36,6 +39,9 @@ export type RootStackParamList = {
     verificationToken: string;
   };
   EditProfileScreen: undefined;
+  LikedScreen: undefined;
+  SubscriptionsScreen: undefined;
+  BookmarkedScreen: undefined;
   ComicDetailScreen: { comicId?: string } | undefined;
   ComicReader:
     | {
@@ -77,6 +83,9 @@ export default function RootNavigator() {
           component={GoogleCompleteProfileScreen}
         />
         <Stack.Screen name="EditProfileScreen" component={EditProfileScreen} />
+        <Stack.Screen name="LikedScreen" component={LikedScreen} />
+        <Stack.Screen name="SubscriptionsScreen" component={SubscriptionsScreen} />
+        <Stack.Screen name="BookmarkedScreen" component={BookmarkedScreen} />
         <Stack.Screen name="ComicDetailScreen" component={ComicDetailScreen} />
         <Stack.Screen name="MovieDetailScreen" component={MovieDetailScreen} />
         <Stack.Screen

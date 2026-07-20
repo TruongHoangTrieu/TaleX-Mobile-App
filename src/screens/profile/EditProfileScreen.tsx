@@ -368,7 +368,9 @@ function ProfileTextRow({
           </Text>
           <Text
             className={`text-[14px] mt-1 ${
-              accent ? "text-[#D4AF37] font-black" : "text-stone-300 font-medium"
+              accent
+                ? "text-[#D4AF37] font-black"
+                : "text-stone-300 font-medium"
             }`}
             numberOfLines={1}
           >

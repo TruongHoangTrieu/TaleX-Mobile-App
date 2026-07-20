@@ -23,6 +23,14 @@ import {
   getEpisodePlayback,
   SeasonItem,
 } from "@/services/series";
+import { useCreatorFollow } from "@/hooks/useCreatorFollow";
+import { useEpisodeLikes } from "@/hooks/useEpisodeLikes";
+import { FollowButton } from "@/components/FollowButton";
+import { LikeButton } from "@/components/LikeButton";
+import { BookmarkButton } from "@/components/BookmarkButton";
+import { ShareButton } from "@/components/ShareButton";
+import { LikedUsersModal } from "@/components/LikedUsersModal";
+import { FollowersModal } from "@/components/FollowersModal";
 
 type MovieDetailRouteParams = {
   movieId?: string;
@@ -40,7 +48,11 @@ function MoviePlayer({
   const source = React.useMemo(() => {
     const headers: Record<string, string> = {};
     try {
-      if (videoUrl && videoUrl.includes("Policy=") && videoUrl.includes("Signature=")) {
+      if (
+        videoUrl &&
+        videoUrl.includes("Policy=") &&
+        videoUrl.includes("Signature=")
+      ) {
         const urlObj = new URL(videoUrl);
         const policy = urlObj.searchParams.get("Policy");
         const signature = urlObj.searchParams.get("Signature");
@@ -101,11 +113,11 @@ function MoviePlayer({
   );
 }
 
-
-
 export default function MovieDetailScreen() {
   const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList, "MovieDetailScreen">>();
+    useNavigation<
+      NativeStackNavigationProp<RootStackParamList, "MovieDetailScreen">
+    >();
   const route = useRoute<any>();
   const { movieId, seriesItem } = (route.params || {}) as any;
 
@@ -114,9 +126,15 @@ export default function MovieDetailScreen() {
       return {
         id: seriesItem.seriesId || seriesItem.id,
         title: seriesItem.title,
-        image: (seriesItem.coverUrl || seriesItem.bannerUrl || seriesItem.thumbnailUrl)
-          ? { uri: seriesItem.coverUrl || seriesItem.bannerUrl || seriesItem.thumbnailUrl }
-          : require("@assets/movie2.jpg"),
+        image:
+          seriesItem.coverUrl || seriesItem.bannerUrl || seriesItem.thumbnailUrl
+            ? {
+                uri:
+                  seriesItem.coverUrl ||
+                  seriesItem.bannerUrl ||
+                  seriesItem.thumbnailUrl,
+              }
+            : require("@assets/movie2.jpg"),
         subtitle: seriesItem.subtitle || "Trọn bộ",
         category: seriesItem.category || "Phim Bộ",
         rating: seriesItem.rating || "10.0",
@@ -144,8 +162,29 @@ export default function MovieDetailScreen() {
   const [isFinished, setIsFinished] = useState(false);
   const [replayCounter, setReplayCounter] = useState(0);
 
+  const currentEpisodeId = episodes[activeEpisodeIndex]?.episodeId;
+  const creatorAccountId = movie?.creatorAccountId || movie?.authorAccountId;
+
+  const {
+    isFollowing,
+    toggleFollow,
+    isMutating: isFollowMutating,
+  } = useCreatorFollow(creatorAccountId);
+  const {
+    isLiked,
+    likeCount,
+    toggleLike,
+    isMutating: isLikeMutating,
+  } = useEpisodeLikes(currentEpisodeId);
+
+  const [showLikedUsersModal, setShowLikedUsersModal] = useState(false);
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
   const handleReplay = () => {
-    const isMock = !movieId || movieId.startsWith("tm") || movieId.startsWith("am") || movieId.startsWith("nm");
+    const isMock =
+      !movieId ||
+      movieId.startsWith("tm") ||
+      movieId.startsWith("am") ||
+      movieId.startsWith("nm");
     if (isMock) {
       setReplayCounter((prev) => prev + 1);
     } else {
@@ -161,7 +200,11 @@ export default function MovieDetailScreen() {
 
   // 1. Reset and fetch detail / seasons when movieId changes
   useEffect(() => {
-    const isMock = !movieId || movieId.startsWith("tm") || movieId.startsWith("am") || movieId.startsWith("nm");
+    const isMock =
+      !movieId ||
+      movieId.startsWith("tm") ||
+      movieId.startsWith("am") ||
+      movieId.startsWith("nm");
 
     if (isMock) {
       const mockMovie = getMovieById(movieId);
@@ -170,7 +213,10 @@ export default function MovieDetailScreen() {
       setActiveSeasonId(null);
       setEpisodes(mockMovie.episodes || []);
       setActiveEpisodeIndex(0);
-      setPlaybackUrl(mockMovie.episodes?.[0]?.videoUrl || "https://www.w3schools.com/html/mov_bbb.mp4");
+      setPlaybackUrl(
+        mockMovie.episodes?.[0]?.videoUrl ||
+          "https://www.w3schools.com/html/mov_bbb.mp4",
+      );
       setIsFinished(false);
       setLoading(false);
       return;
@@ -186,25 +232,41 @@ export default function MovieDetailScreen() {
           const detail = res.data;
           if (detail.status === "HIDDEN") {
             Alert.alert("Thông báo", "Tác phẩm này đã bị ẩn bởi tác giả.", [
-              { text: "OK", onPress: () => navigation.goBack() }
+              { text: "OK", onPress: () => navigation.goBack() },
             ]);
             return;
           }
           setMovie({
             id: detail.seriesId || detail.id,
             title: detail.title,
-            image: (detail.coverUrl || detail.bannerUrl || detail.thumbnailUrl)
-              ? { uri: detail.coverUrl || detail.bannerUrl || detail.thumbnailUrl }
-              : require("@assets/movie2.jpg"),
-            subtitle: detail.subtitle || "Trọn bộ",
-            category: detail.category || "Phim Bộ",
-            rating: detail.rating || "10.0",
-            year: detail.year || "2026",
-            ageRating: detail.ageRating || "T16",
-            translation: detail.translation || "Vietsub",
-            regionAndGenre: detail.regionAndGenre || "Việt Nam",
-            description: detail.description || "Chưa có mô tả.",
-            actors: detail.actors || [],
+            creatorAccountId:
+              detail.accountId ||
+              detail.creatorAccountId ||
+              detail.authorAccountId ||
+              detail.creator?.accountId,
+            creatorName:
+              detail.creatorName || detail.creator?.username || detail.author,
+            creatorAvatar: detail.creatorAvatar || detail.creator?.avatarUrl,
+            totalCreatorFollowers:
+              detail.totalCreatorFollowers ?? detail.creator?.followersCount,
+            image:
+              detail.coverUrl || detail.bannerUrl || detail.thumbnailUrl
+                ? {
+                    uri:
+                      detail.coverUrl ||
+                      detail.bannerUrl ||
+                      detail.thumbnailUrl,
+                  }
+                : require("@assets/movie2.jpg"),
+            subtitle: detail.subtitle,
+            category: detail.category,
+            rating: detail.rating,
+            year: detail.year,
+            ageRating: detail.ageRating,
+            translation: detail.translation || detail.language,
+            regionAndGenre: detail.regionAndGenre,
+            description: detail.description,
+            actors: detail.actors,
           });
         }
       })
@@ -279,7 +341,11 @@ export default function MovieDetailScreen() {
 
   // 4. Handle when an episode is selected
   const handleEpisodePress = (ep: any, index: number) => {
-    const isMock = !movieId || movieId.startsWith("tm") || movieId.startsWith("am") || movieId.startsWith("nm");
+    const isMock =
+      !movieId ||
+      movieId.startsWith("tm") ||
+      movieId.startsWith("am") ||
+      movieId.startsWith("nm");
     if (index === activeEpisodeIndex) {
       handleReplay();
       return;
@@ -288,13 +354,17 @@ export default function MovieDetailScreen() {
     setIsFinished(false);
     if (isMock) {
       setActiveEpisodeIndex(index);
-      setPlaybackUrl(ep.videoUrl || "https://www.w3schools.com/html/mov_bbb.mp4");
+      setPlaybackUrl(
+        ep.videoUrl || "https://www.w3schools.com/html/mov_bbb.mp4",
+      );
     } else {
       fetchPlaybackUrl(ep.episodeId, index);
     }
   };
 
-  const recommendations = allMovies.filter((m) => m.id !== movie?.id).slice(0, 4);
+  const recommendations = allMovies
+    .filter((m) => m.id !== movie?.id)
+    .slice(0, 4);
 
   return (
     <SafeAreaView edges={["top", "bottom"]} className="flex-1 bg-[#141210]">
@@ -309,7 +379,10 @@ export default function MovieDetailScreen() {
         >
           <Feather name="arrow-left" size={22} color="#E5E0D8" />
         </TouchableOpacity>
-        <Text className="text-[#E5E0D8] text-[16px] font-bold max-w-[70%]" numberOfLines={1}>
+        <Text
+          className="text-[#E5E0D8] text-[16px] font-bold max-w-[70%]"
+          numberOfLines={1}
+        >
           {movie?.title}
         </Text>
         <View className="w-10 items-center justify-center">
@@ -327,12 +400,16 @@ export default function MovieDetailScreen() {
             onFinishedChange={setIsFinished}
           />
         ) : (
-          <Text className="text-gray-400 text-xs">Không có luồng phát video</Text>
+          <Text className="text-gray-400 text-xs">
+            Không có luồng phát video
+          </Text>
         )}
         {loadingPlayback && (
           <View className="absolute inset-0 bg-black/60 items-center justify-center">
             <ActivityIndicator size="large" color="#D4AF37" />
-            <Text className="text-white text-xs mt-2">Đang tải luồng phát...</Text>
+            <Text className="text-white text-xs mt-2">
+              Đang tải luồng phát...
+            </Text>
           </View>
         )}
         {isFinished && (
@@ -343,7 +420,9 @@ export default function MovieDetailScreen() {
               activeOpacity={0.8}
             >
               <Feather name="rotate-ccw" size={16} color="#141210" />
-              <Text className="text-[#141210] font-bold text-sm ml-2">Phát lại</Text>
+              <Text className="text-[#141210] font-bold text-sm ml-2">
+                Phát lại
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -351,7 +430,6 @@ export default function MovieDetailScreen() {
 
       {/* ================= BODY ================= */}
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-
         {/* ===== VIP BANNER ===== */}
         <TouchableOpacity
           activeOpacity={0.85}
@@ -369,9 +447,7 @@ export default function MovieDetailScreen() {
             </Text>
           </View>
 
-          <Text className="text-white font-bold text-xs">
-            Ưu Đãi Có Hạn
-          </Text>
+          <Text className="text-white font-bold text-xs">Ưu Đãi Có Hạn</Text>
         </TouchableOpacity>
 
         {/* ===== TITLE ===== */}
@@ -380,69 +456,195 @@ export default function MovieDetailScreen() {
             {movie.title}
           </Text>
 
-          {/* META INFO */}
-          <View className="flex-row flex-wrap items-center mt-2">
-            <Text className="text-[#D4AF37] font-bold mr-3">⭐ {movie.rating}</Text>
+          {/* META INFO (Render conditionally) */}
+          {movie.rating ||
+          movie.year ||
+          movie.ageRating ||
+          movie.translation ||
+          movie.regionAndGenre ||
+          movie.category ? (
+            <View className="flex-row flex-wrap items-center mt-2">
+              {movie.rating ? (
+                <Text className="text-[#D4AF37] font-bold mr-3">
+                  ⭐ {movie.rating}
+                </Text>
+              ) : null}
 
-            <View className="bg-[#252830] px-2 py-1 rounded mr-2">
-              <Text className="text-[#7C766B] text-xs">{movie.year}</Text>
+              {movie.category ? (
+                <View className="bg-[#D4AF37]/10 border border-[#D4AF37]/30 px-2 py-0.5 rounded mr-2">
+                  <Text className="text-[#D4AF37] text-xs font-semibold">
+                    {movie.category}
+                  </Text>
+                </View>
+              ) : null}
+
+              {movie.year ? (
+                <View className="bg-[#252830] px-2 py-1 rounded mr-2">
+                  <Text className="text-[#7C766B] text-xs">{movie.year}</Text>
+                </View>
+              ) : null}
+
+              {movie.ageRating ? (
+                <View className="bg-[#252830] px-2 py-1 rounded mr-2">
+                  <Text className="text-[#7C766B] text-xs">
+                    {movie.ageRating}
+                  </Text>
+                </View>
+              ) : null}
+
+              {movie.translation ? (
+                <View className="bg-[#252830] px-2 py-1 rounded mr-2">
+                  <Text className="text-[#7C766B] text-xs">
+                    {movie.translation}
+                  </Text>
+                </View>
+              ) : null}
+
+              {movie.regionAndGenre ? (
+                <Text className="text-[#B5AFA5] text-xs">
+                  {movie.regionAndGenre}
+                </Text>
+              ) : null}
             </View>
-
-            <View className="bg-[#252830] px-2 py-1 rounded mr-2">
-              <Text className="text-[#7C766B] text-xs">{movie.ageRating}</Text>
-            </View>
-
-            <View className="bg-[#252830] px-2 py-1 rounded mr-2">
-              <Text className="text-[#7C766B] text-xs">{movie.translation}</Text>
-            </View>
-
-            <Text className="text-[#B5AFA5] text-xs">
-              {movie.regionAndGenre}
-            </Text>
-          </View>
+          ) : null}
 
           {/* ===== DESCRIPTION ===== */}
-          <View className="mt-3">
-            <Text className="text-[#7C766B] text-sm leading-5">
-              {movie.description}
-            </Text>
+          {movie.description ? (
+            <View className="mt-3">
+              <Text className="text-[#7C766B] text-sm leading-5">
+                {movie.description}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* ===== CREATOR & SUBSCRIPTION CARD ===== */}
+          {movie.creatorName || creatorAccountId ? (
+            <View className="flex-row items-center justify-between bg-[#1C1A17] p-3.5 rounded-2xl border border-white/5 mt-4">
+              <View className="flex-row items-center flex-1 mr-2">
+                <View className="w-11 h-11 rounded-full bg-[#252830] overflow-hidden border border-white/10 mr-3 justify-center items-center">
+                  {movie.creatorAvatar ? (
+                    <Image
+                      source={{ uri: movie.creatorAvatar }}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Feather name="user" size={20} color="#7C766B" />
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider">
+                    Tác giả
+                  </Text>
+                  <Text
+                    className="text-white font-bold text-sm"
+                    numberOfLines={1}
+                  >
+                    {movie.creatorName || "Tác giả TaleX"}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      creatorAccountId && setShowFollowersModal(true)
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Text className="text-[#D4AF37] text-[11px] font-semibold mt-0.5">
+                      {movie.totalCreatorFollowers != null
+                        ? `${movie.totalCreatorFollowers.toLocaleString("vi-VN")} người theo dõi`
+                        : "Xem người theo dõi"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {creatorAccountId ? (
+                <FollowButton
+                  isFollowing={isFollowing}
+                  onFollowToggle={toggleFollow}
+                  isMutating={isFollowMutating}
+                  size="small"
+                />
+              ) : null}
+            </View>
+          ) : null}
+
+          {creatorAccountId && (
+            <FollowersModal
+              visible={showFollowersModal}
+              creatorAccountId={creatorAccountId}
+              onClose={() => setShowFollowersModal(false)}
+            />
+          )}
+
+          {/* ===== ACTION BUTTONS ===== */}
+          <View className="flex-row items-center flex-wrap gap-2 mt-4">
+            <LikeButton
+              isLiked={isLiked}
+              likeCount={likeCount}
+              onLikeToggle={toggleLike}
+              isMutating={isLikeMutating}
+              size="md"
+            />
+
+            <BookmarkButton
+              episodeId={currentEpisodeId}
+              contentType="VIDEO"
+              size="md"
+              showLabel
+            />
+
+            <ShareButton
+              episodeId={currentEpisodeId}
+              title={movie?.title || "Phim TaleX"}
+              size="md"
+              showLabel
+            />
+
+            {currentEpisodeId ? (
+              <TouchableOpacity
+                onPress={() => setShowLikedUsersModal(true)}
+                className="flex-row items-center px-3.5 py-2.5 rounded-full bg-white/[0.04] border border-white/10"
+              >
+                <Feather name="users" size={14} color="#E5E0D8" />
+                <Text className="text-[#E5E0D8] text-xs font-bold ml-1.5">
+                  Lượt thích
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
 
-          {/* ===== ACTION ICONS ===== */}
-          <View className="flex-row mt-4">
-            <TouchableOpacity className="flex-row items-center mr-6">
-              <Feather name="download" size={20} color="#E5E0D8" />
-              <Text className="text-[#E5E0D8] text-xs ml-2">Tải về</Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex-row items-center mr-6">
-              <Feather name="plus" size={20} color="#E5E0D8" />
-              <Text className="text-[#E5E0D8] text-xs ml-2">Danh sách</Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="flex-row items-center">
-              <Feather name="share-2" size={20} color="#E5E0D8" />
-              <Text className="text-[#E5E0D8] text-xs ml-2">Chia sẻ</Text>
-            </TouchableOpacity>
-          </View>
+          {currentEpisodeId && (
+            <LikedUsersModal
+              visible={showLikedUsersModal}
+              episodeId={currentEpisodeId}
+              onClose={() => setShowLikedUsersModal(false)}
+            />
+          )}
 
           <View className="h-[1px] bg-[#252830] mt-4" />
         </View>
 
-        {/* ================= ACTORS ================= */}
-        <View className="mt-4 px-4">
-          <Text className="text-white font-bold mb-2">Diễn viên</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {movie.actors.map((actor: { name?: string }, i: number) => (
-              <View key={i} className="mr-4 items-center">
-                <View className="w-14 h-14 bg-[#252830] rounded-full items-center justify-center border border-white/5">
-                  <Feather name="user" size={24} color="#7C766B" />
+        {/* ================= ACTORS (Only show if non-empty) ================= */}
+        {movie.actors && movie.actors.length > 0 ? (
+          <View className="mt-4 px-4">
+            <Text className="text-white font-bold mb-2">Diễn viên</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {movie.actors.map((actor: { name?: string }, i: number) => (
+                <View key={i} className="mr-4 items-center">
+                  <View className="w-14 h-14 bg-[#252830] rounded-full items-center justify-center border border-white/5">
+                    <Feather name="user" size={24} color="#7C766B" />
+                  </View>
+                  <Text
+                    className="text-[#7C766B] text-xs mt-1.5 font-medium text-center w-16"
+                    numberOfLines={1}
+                  >
+                    {actor.name}
+                  </Text>
                 </View>
-                <Text className="text-[#7C766B] text-xs mt-1.5 font-medium text-center w-16" numberOfLines={1}>
-                  {actor.name}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {/* ================= TABS ================= */}
         <View className="flex-row px-4 mt-5">
@@ -482,7 +684,6 @@ export default function MovieDetailScreen() {
 
         {/* ================= TAB CONTENT ================= */}
         <View className="px-4 mt-4 pb-20">
-
           {/* ===== EPISODES ===== */}
           {tab === "episodes" ? (
             <>
@@ -533,18 +734,35 @@ export default function MovieDetailScreen() {
                       }`}
                       activeOpacity={0.8}
                     >
-                      <Text className={isActive ? "text-[#141210] font-bold" : "text-white"}>
+                      <Text
+                        className={
+                          isActive ? "text-[#141210] font-bold" : "text-white"
+                        }
+                      >
                         {ep.title || `Tập ${ep.episodeNumber || i + 1}`}
                       </Text>
-                      {isActive ? (
-                        isFinished ? (
-                          <Feather name="rotate-ccw" size={14} color="#141210" />
+                      <View className="flex-row items-center gap-2">
+                        {ep.episodeId ? (
+                          <BookmarkButton
+                            episodeId={ep.episodeId}
+                            contentType="VIDEO"
+                            size="sm"
+                          />
+                        ) : null}
+                        {isActive ? (
+                          isFinished ? (
+                            <Feather
+                              name="rotate-ccw"
+                              size={14}
+                              color="#141210"
+                            />
+                          ) : (
+                            <Feather name="pause" size={14} color="#141210" />
+                          )
                         ) : (
-                          <Feather name="pause" size={14} color="#141210" />
-                        )
-                      ) : (
-                        <Feather name="play" size={14} color="#7C766B" />
-                      )}
+                          <Feather name="play" size={14} color="#7C766B" />
+                        )}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -562,7 +780,9 @@ export default function MovieDetailScreen() {
                 <TouchableOpacity
                   key={rec.id}
                   onPress={() => {
-                    navigation.replace("MovieDetailScreen", { movieId: rec.id });
+                    navigation.replace("MovieDetailScreen", {
+                      movieId: rec.id,
+                    });
                   }}
                   className="bg-[#252830] p-3 rounded-xl mb-3 flex-row items-center border border-white/5"
                   activeOpacity={0.85}

@@ -345,13 +345,31 @@ export default function ProfileScreen() {
         {/* ================= CARD 4: CÁ NHÂN (ẨN HOẶC CHẶN NẾU GUEST) ================= */}
         {isAuthenticated && (
           <View className="w-full bg-[#161618] rounded-[16px] overflow-hidden mb-4 border border-white/5">
-            <Text className="text-white font-black text-[14px] tracking-wide ml-4 mt-3.5 mb-1">
-              Cá Nhân
+            <Text className="text-[#D4AF37] font-black text-[14px] tracking-wide ml-4 mt-3.5 mb-1">
+              Cá Nhân & Yêu Thích
             </Text>
             {renderMenuItem(
               <Feather name="user" size={16} color="#A19E95" />,
               "Hồ sơ cá nhân",
               () => navigation.navigate("EditProfileScreen"),
+            )}
+            <View className="h-[1px] bg-zinc-800/40 mx-4" />
+            {renderMenuItem(
+              <Ionicons name="heart-outline" size={18} color="#EF4444" />,
+              "Tập phim & Truyện đã thích",
+              () => navigation.navigate("LikedScreen"),
+            )}
+            <View className="h-[1px] bg-zinc-800/40 mx-4" />
+            {renderMenuItem(
+              <Feather name="users" size={16} color="#D4AF37" />,
+              "Kênh đang theo dõi",
+              () => navigation.navigate("SubscriptionsScreen"),
+            )}
+            <View className="h-[1px] bg-zinc-800/40 mx-4" />
+            {renderMenuItem(
+              <Ionicons name="bookmark-outline" size={17} color="#D4AF37" />,
+              "Danh sách đã lưu (Bookmark)",
+              () => navigation.navigate("BookmarkedScreen"),
             )}
             <View className="h-[1px] bg-zinc-800/40 mx-4" />
             {renderMenuItem(

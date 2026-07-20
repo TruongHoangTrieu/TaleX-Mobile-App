@@ -17,6 +17,10 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getComicById } from "./comicMockData";
 import { getPublicEpisodeMedia, getSeriesSeasons, getSeasonEpisodes, getPublicSeriesDetail } from "@/services/series";
+import { useEpisodeLikes } from "@/hooks/useEpisodeLikes";
+import { LikeButton } from "@/components/LikeButton";
+import { BookmarkButton } from "@/components/BookmarkButton";
+import { ShareButton } from "@/components/ShareButton";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -42,10 +46,13 @@ const comicPagesMock = [
   require("@assets/comic1.webp"),
 ];
 
+import { useAuth } from "@/context/AuthContext";
+
 export default function ComicReaderScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   const {
     comicId,
@@ -74,6 +81,7 @@ export default function ComicReaderScreen() {
   const [pages, setPages] = useState<any[]>(comicPagesMock);
   const [loading, setLoading] = useState(false);
   const [dbEpisodes, setDbEpisodes] = useState<any[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Refs
   const flatListRef = useRef<FlatList>(null);
@@ -83,7 +91,8 @@ export default function ComicReaderScreen() {
   useEffect(() => {
     if (episodeId) {
       setLoading(true);
-      getPublicEpisodeMedia(episodeId)
+      setErrorMsg(null);
+      getPublicEpisodeMedia(episodeId, user?.accountId)
         .then((res) => {
           const data = res.data || res;
           if (data && data.length > 0) {
@@ -93,10 +102,17 @@ export default function ComicReaderScreen() {
             setPages(sorted.map((m) => m.fileUrl || ""));
           }
         })
-        .catch((err) => console.error("Lỗi tải trang truyện từ API:", err))
+        .catch((err: any) => {
+          console.error("Lỗi tải trang truyện từ API:", err);
+          if (err.status === 403 || (err.message && err.message.includes("403"))) {
+            setErrorMsg("Tập truyện này là nội dung trả phí hoặc yêu cầu quyền truy cập. Vui lòng mở khóa hoặc sở hữu gói trước khi đọc.");
+          } else {
+            setErrorMsg(err.message || "Lỗi tải trang truyện. Vui lòng thử lại sau.");
+          }
+        })
         .finally(() => setLoading(false));
     }
-  }, [episodeId]);
+  }, [episodeId, user?.accountId]);
 
   // Load real episodes structure if it is a database comic (id length >= 10)
   useEffect(() => {
@@ -193,6 +209,8 @@ export default function ComicReaderScreen() {
       : 0;
 
   const currentEp = allEpisodes[currentEpisodeIdx] || allEpisodes[0] || {};
+  const activeEpId = currentEp?.episodeId || episodeId;
+  const { isLiked, likeCount, toggleLike, isMutating: isLikeMutating } = useEpisodeLikes(activeEpId);
 
   // Chuyển tập tiếp theo hoặc tập trước
   const navigateEpisode = (direction: "prev" | "next") => {
@@ -275,12 +293,24 @@ export default function ComicReaderScreen() {
             </Text>
           </View>
 
-          <TouchableOpacity
-            onPress={() => setShowMenuModal(true)}
-            className="p-1 active:opacity-70"
-          >
-            <Feather name="list" size={22} color="#D4AF37" />
-          </TouchableOpacity>
+          <View className="flex-row items-center gap-1">
+            <BookmarkButton
+              episodeId={activeEpId}
+              contentType="COMIC"
+              size="sm"
+            />
+            <ShareButton
+              episodeId={activeEpId}
+              title={`${comicTitleState} - ${currentEp?.title || episodeTitle || "Truyện tranh"}`}
+              size="sm"
+            />
+            <TouchableOpacity
+              onPress={() => setShowMenuModal(true)}
+              className="p-1 active:opacity-70 ml-1"
+            >
+              <Feather name="list" size={22} color="#D4AF37" />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -290,6 +320,24 @@ export default function ComicReaderScreen() {
           <View className="items-center justify-center py-20">
             <ActivityIndicator size="large" color="#D4AF37" />
             <Text className="text-zinc-500 text-xs mt-3">Đang tải các trang truyện...</Text>
+          </View>
+        ) : errorMsg ? (
+          <View className="items-center justify-center px-6 py-20 max-w-sm text-center">
+            <MaterialCommunityIcons name="lock-alert-outline" size={56} color="#D4AF37" />
+            <Text className="text-white font-bold text-base mt-4 text-center">
+              Nội dung bị hạn chế truy cập
+            </Text>
+            <Text className="text-zinc-400 text-xs text-center mt-2 leading-5">
+              {errorMsg}
+            </Text>
+            <View className="flex-row gap-3 mt-6">
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                className="bg-zinc-800 px-5 py-2.5 rounded-full border border-white/10"
+              >
+                <Text className="text-stone-300 font-bold text-xs">Quay lại</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : readingMode === "vertical" ? (
           // Chế độ Webtoon cuộn dọc mượt mà
@@ -364,27 +412,36 @@ export default function ComicReaderScreen() {
                 }}
               />
             </View>
-            <TouchableOpacity
-              onPress={() =>
-                setReadingMode(
-                  readingMode === "vertical" ? "horizontal" : "vertical",
-                )
-              }
-              className="px-2.5 py-1 rounded bg-zinc-800 flex-row items-center active:bg-zinc-700"
-            >
-              <MaterialCommunityIcons
-                name={
-                  readingMode === "vertical"
-                    ? "page-layout-body"
-                    : "pan-horizontal"
-                }
-                size={12}
-                color="#D4AF37"
+            <View className="flex-row items-center gap-2">
+              <LikeButton
+                isLiked={isLiked}
+                likeCount={likeCount}
+                onLikeToggle={toggleLike}
+                isMutating={isLikeMutating}
+                size="small"
               />
-              <Text className="text-[#D4AF37] text-[10px] font-extrabold ml-1 uppercase">
-                {readingMode === "vertical" ? "Cuộn dọc" : "Vuốt ngang"}
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() =>
+                  setReadingMode(
+                    readingMode === "vertical" ? "horizontal" : "vertical",
+                  )
+                }
+                className="px-2.5 py-1.5 rounded-full bg-zinc-800 flex-row items-center active:bg-zinc-700"
+              >
+                <MaterialCommunityIcons
+                  name={
+                    readingMode === "vertical"
+                      ? "page-layout-body"
+                      : "pan-horizontal"
+                  }
+                  size={12}
+                  color="#D4AF37"
+                />
+                <Text className="text-[#D4AF37] text-[10px] font-extrabold ml-1 uppercase">
+                  {readingMode === "vertical" ? "Cuộn dọc" : "Vuốt ngang"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Điều hướng chương cũ/mới */}

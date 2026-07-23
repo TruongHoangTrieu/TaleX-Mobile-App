@@ -15,10 +15,12 @@ export interface BaseSliceResponse<T> {
   number: number;
   size: number;
   numberOfElements: number;
+  totalElements?: number;
   first: boolean;
   last: boolean;
   empty: boolean;
 }
+
 
 export interface ApiEnvelope<T = any> {
   code?: number;

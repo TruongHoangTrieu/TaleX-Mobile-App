@@ -10,6 +10,7 @@ import EditProfileScreen from "@/screens/profile/EditProfileScreen";
 import ComicDetailScreen from "@/screens/comics/ComicDetailScreen";
 import ComicReaderScreen from "@/screens/comics/ComicReaderScreen";
 import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
+import MoviePlayerScreen from "@/screens/movies/MoviePlayerScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
 import CreatorChannelScreen from "@/screens/creator/CreatorChannelScreen";
@@ -55,6 +56,17 @@ export type RootStackParamList = {
     | {
         movieId?: string;
         seriesItem?: SeriesItem;
+      }
+    | undefined;
+  MoviePlayer:
+    | {
+        movieId?: string;
+        movieTitle?: string;
+        seasonId?: string;
+        episodeId?: string;
+        episodeTitle?: string;
+        episodeIndex?: number;
+        episodesList?: any[];
       }
     | undefined;
   CreatorGuard: undefined;
@@ -131,6 +143,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="ComicReader"
           component={ComicReaderScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="MoviePlayer"
+          component={MoviePlayerScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

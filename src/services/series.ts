@@ -101,9 +101,16 @@ export interface EpisodeItem {
   episodeNumber: number;
   title: string;
   description?: string;
+  thumbnail?: string;
   contentType?: string;
   status?: string;
   playbackUrl?: string;
+  unlockType?: "FREE" | "PAID";
+  priceVnd?: number;
+  likes?: number;
+  views?: number;
+  publishedAt?: string;
+  totalPage?: number | null;
   [key: string]: any;
 }
 
@@ -223,4 +230,48 @@ export async function getPublicEpisodeDetail(episodeId: string): Promise<any> {
   }
 
   return res.json();
+}
+
+// ─── Combo ─────────────────────────────────────────────────────────────────
+
+export interface ComboEpisodeItem {
+  episodeId: string;
+  episodeNumber?: number;
+  title?: string;
+  seasonId?: string;
+  seriesTitle?: string;
+}
+
+export interface ComboItem {
+  comboId: string;
+  title: string;
+  description?: string;
+  priceVnd: number;
+  originalPriceVnd?: number;
+  episodes?: ComboEpisodeItem[];
+  [key: string]: any;
+}
+
+export interface ComboListResponse {
+  code: number;
+  message: string;
+  data: ComboItem[];
+}
+
+export async function getPublicCombos(): Promise<ComboItem[]> {
+  const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/combos`;
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "*/*" },
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    // Hỗ trợ cả dạng { data: [...] } và dạng mảng thẳng
+    if (Array.isArray(json?.data)) return json.data;
+    if (Array.isArray(json)) return json;
+    return [];
+  } catch {
+    return [];
+  }
 }

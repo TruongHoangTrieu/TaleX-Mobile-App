@@ -107,7 +107,11 @@ export default function ProfileScreen() {
               className="w-[68px] h-[68px] rounded-full overflow-hidden items-center justify-center border-2 border-yellow-500/50"
             >
               <Image
-                source={require("@assets/icon.png")}
+                source={
+                  user?.avatarUrl
+                    ? { uri: user.avatarUrl }
+                    : require("@assets/icon.png")
+                }
                 className="w-full h-full"
                 resizeMode="cover"
               />

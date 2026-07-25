@@ -12,11 +12,15 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { updateProfile } from "@/services/auth";
+import { uploadImageToS3 } from "@/services/creatorContent";
 import Toast from "react-native-toast-message";
+
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 
 const formatDateForApi = (date: Date) => {
   const year = date.getFullYear();
@@ -51,6 +55,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || "");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const email = user?.email || "N/A";
   const googleStatus = user?.googleLinked ? "Đã liên kết" : "Chưa liên kết";
@@ -125,6 +130,90 @@ export default function EditProfileScreen({ navigation }: any) {
     }
   };
 
+  const handlePickAvatar = async () => {
+    if (uploadingAvatar || saving) return;
+
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        Toast.show({
+          type: "info",
+          text1: "Vui lòng cấp quyền truy cập thư viện ảnh.",
+        });
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const fileSize = asset.fileSize || 0;
+      const mimeType = asset.mimeType || "image/jpeg";
+
+      if (!mimeType.startsWith("image/")) {
+        Toast.show({
+          type: "error",
+          text1: "Vui lòng chọn đúng file ảnh.",
+        });
+        return;
+      }
+
+      if (fileSize > MAX_AVATAR_SIZE) {
+        Toast.show({
+          type: "error",
+          text1: "Ảnh đại diện không được vượt quá 5MB.",
+        });
+        return;
+      }
+
+      setUploadingAvatar(true);
+
+      const uploadResult = await uploadImageToS3(
+        asset.uri,
+        asset.fileName || `avatar_${Date.now()}.jpg`,
+        fileSize || 1024 * 150,
+        mimeType,
+        "avatar",
+      );
+
+      await updateProfile({
+        username: username.trim() || user?.username || "",
+        fullName: fullName.trim() || user?.fullName || "",
+        phone: phone.trim(),
+        dateOfBirth: dateOfBirth || user?.dateOfBirth || "",
+        avatarUrl: uploadResult.publicUrl,
+      });
+
+      setAvatarUrl(uploadResult.publicUrl);
+      await refreshProfile();
+
+      Toast.show({
+        type: "success",
+        text1: "Cập nhật ảnh đại diện thành công.",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Không thể cập nhật ảnh đại diện.";
+
+      Toast.show({
+        type: "error",
+        text1: message,
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   return (
     <LinearGradient
       colors={["#0F0F0F", "#1A1A1A", "#0F0F0F"]}
@@ -177,7 +266,13 @@ export default function EditProfileScreen({ navigation }: any) {
         >
           <View className="flex-1 justify-center">
             <View className="items-center justify-center w-full mb-9">
-              <TouchableOpacity className="w-[88px] h-[88px] relative active:opacity-90">
+              <TouchableOpacity
+                onPress={handlePickAvatar}
+                disabled={uploadingAvatar || saving}
+                activeOpacity={0.75}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                className="w-[88px] h-[88px] relative active:opacity-90"
+              >
                 <View className="w-full h-full rounded-full overflow-hidden items-center justify-center border-2 border-yellow-500/50 bg-[#161618]">
                   <Image
                     source={
@@ -188,9 +283,18 @@ export default function EditProfileScreen({ navigation }: any) {
                     className="w-full h-full"
                     resizeMode="cover"
                   />
+                  {uploadingAvatar && (
+                    <View className="absolute inset-0 bg-black/65 items-center justify-center">
+                      <ActivityIndicator size="small" color="#D4AF37" />
+                    </View>
+                  )}
                 </View>
                 <View className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#161618] border border-white/10 justify-center items-center">
-                  <Feather name="camera" size={12} color="#D4AF37" />
+                  {uploadingAvatar ? (
+                    <ActivityIndicator size="small" color="#D4AF37" />
+                  ) : (
+                    <Feather name="camera" size={12} color="#D4AF37" />
+                  )}
                 </View>
               </TouchableOpacity>
 
@@ -198,6 +302,16 @@ export default function EditProfileScreen({ navigation }: any) {
                 {username || "Người dùng"}
               </Text>
               <Text className="text-zinc-500 text-xs mt-1">{email}</Text>
+              <TouchableOpacity
+                onPress={handlePickAvatar}
+                disabled={uploadingAvatar || saving}
+                activeOpacity={0.75}
+                className="mt-3 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-2"
+              >
+                <Text className="text-[#D4AF37] text-xs font-black">
+                  {uploadingAvatar ? "Đang tải ảnh..." : "Đổi ảnh đại diện"}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             <View className="w-full bg-[#161618]/40 border border-white/5 rounded-2xl overflow-hidden">
@@ -254,15 +368,17 @@ export default function EditProfileScreen({ navigation }: any) {
                 <Feather name="chevron-right" size={16} color="#444446" />
               </TouchableOpacity>
 
-              <ProfileInputRow
-                icon={<Feather name="image" size={16} color="#A19E95" />}
-                label="Avatar URL"
-                value={avatarUrl}
-                onChangeText={setAvatarUrl}
-                autoCapitalize="none"
-                keyboardType="url"
-                placeholder="Nhập link ảnh đại diện"
-              />
+              {false && (
+                <ProfileInputRow
+                  icon={<Feather name="image" size={16} color="#A19E95" />}
+                  label="Avatar URL"
+                  value={avatarUrl}
+                  onChangeText={setAvatarUrl}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                  placeholder="Nhập link ảnh đại diện"
+                />
+              )}
 
               <ProfileTextRow
                 icon={<FontAwesome5 name="google" size={14} color="#D4AF37" />}

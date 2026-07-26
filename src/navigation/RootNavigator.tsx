@@ -6,11 +6,13 @@ import LoginScreen from "@screens/auth/LoginScreen";
 import RegisterScreen from "@screens/auth/RegisterScreen";
 import OtpVerifyScreen from "@/screens/auth/OtpVerifyScreen";
 import GoogleCompleteProfileScreen from "@/screens/auth/GoogleCompleteProfileScreen";
+import SplashScreen from "@/screens/auth/SplashScreen";
 import EditProfileScreen from "@/screens/profile/EditProfileScreen";
 import ComicDetailScreen from "@/screens/comics/ComicDetailScreen";
 import ComicReaderScreen from "@/screens/comics/ComicReaderScreen";
 import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
 import MoviePlayerScreen from "@/screens/movies/MoviePlayerScreen";
+import Top10MoviesScreen from "@/screens/movies/Top10MoviesScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
 import CreatorChannelScreen from "@/screens/creator/CreatorChannelScreen";
@@ -26,6 +28,7 @@ import { navigationRef } from "./navigationRef";
 import type { SeriesItem } from "@/services/series";
 
 export type RootStackParamList = {
+  Splash: undefined;
   MainTabs: { screen?: "Home" | "Comics" | "Movies" | "Profile" } | undefined;
   Search: undefined;
   LoginScreen: undefined;
@@ -56,6 +59,8 @@ export type RootStackParamList = {
     | {
         movieId?: string;
         seriesItem?: SeriesItem;
+        movieTitle?: string;
+        movieImage?: any;
       }
     | undefined;
   MoviePlayer:
@@ -69,6 +74,7 @@ export type RootStackParamList = {
         episodesList?: any[];
       }
     | undefined;
+  Top10Movies: undefined;
   CreatorGuard: undefined;
   CreatorDashboard: undefined;
   CreatorChannel: undefined;
@@ -84,7 +90,8 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function RootNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="MainTabs" component={TabNavigator} />
         <Stack.Screen name="Search" component={SearchScreen} />
         <Stack.Screen name="LoginScreen" component={LoginScreen} />
@@ -96,10 +103,14 @@ export default function RootNavigator() {
         />
         <Stack.Screen name="EditProfileScreen" component={EditProfileScreen} />
         <Stack.Screen name="LikedScreen" component={LikedScreen} />
-        <Stack.Screen name="SubscriptionsScreen" component={SubscriptionsScreen} />
+        <Stack.Screen
+          name="SubscriptionsScreen"
+          component={SubscriptionsScreen}
+        />
         <Stack.Screen name="BookmarkedScreen" component={BookmarkedScreen} />
         <Stack.Screen name="ComicDetailScreen" component={ComicDetailScreen} />
         <Stack.Screen name="MovieDetailScreen" component={MovieDetailScreen} />
+        <Stack.Screen name="Top10Movies" component={Top10MoviesScreen} />
         <Stack.Screen
           name="CreatorGuard"
           component={CreatorGuardScreen}

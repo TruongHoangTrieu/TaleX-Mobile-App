@@ -21,6 +21,7 @@ import { useEpisodeLikes } from "@/hooks/useEpisodeLikes";
 import { LikeButton } from "@/components/LikeButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { ShareButton } from "@/components/ShareButton";
+import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -364,6 +365,12 @@ export default function ComicReaderScreen() {
                 />
               </TouchableOpacity>
             ))}
+
+            {activeEpId ? (
+              <View className="px-3 pt-6 pb-12">
+                <EpisodeCommentsSection episodeId={activeEpId} />
+              </View>
+            ) : null}
           </ScrollView>
         ) : (
           // Chế độ vuốt ngang (FlatList paging)

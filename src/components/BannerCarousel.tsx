@@ -1,51 +1,69 @@
-import React, { useRef, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  Dimensions, 
-  Animated 
-} from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import React, { useRef, useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Dimensions,
+  Animated,
+} from "react-native";
+import { FontAwesome5, Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get("window");
 
-interface ParallaxItem {
+export interface ParallaxItem {
   id: string;
   title: string;
   subtitle: string;
-  bg: any;         
-  character: any;  
+  bg: any;
+  character: any;
+  screenType: "movie" | "comic";
+  targetId: string;
 }
 
 const parallaxData: ParallaxItem[] = [
-  { 
-    id: 'p1', 
-    title: 'Vân Tú Hành', 
-    subtitle: 'Trung Quốc đại lục · Cập nhật tập 14', 
-    bg: require('@assets/movie1_bg.webp'),         
-    character: require('@assets/movie1_char.webp')  
+  {
+    id: "p1",
+    title: "Vân Tú Hành",
+    subtitle: "Trung Quốc đại lục · Cập nhật tập 14",
+    bg: require("@assets/movie1_bg.webp"),
+    character: require("@assets/movie1_char.webp"),
+    screenType: "movie",
+    targetId: "hm1",
   },
-  { 
-    id: 'p2', 
-    title: 'Mùa Hè Nồng Nhiệt', 
-    subtitle: 'Hàn Quốc · Trọn bộ bản đẹp', 
-    bg: require('@assets/movie2_bg.webp'), 
-    character: require('@assets/movie2_char.webp')
+  {
+    id: "p2",
+    title: "Mùa Hè Nồng Nhiệt",
+    subtitle: "Hàn Quốc · Trọn bộ bản đẹp",
+    bg: require("@assets/movie2_bg.webp"),
+    character: require("@assets/movie2_char.webp"),
+    screenType: "movie",
+    targetId: "hm2",
   },
-  { 
-    id: 'p3', 
-    title: 'Story Of Kunning Place', 
-    subtitle: 'Trung Quốc · Trọn bộ bản đẹp', 
-    bg: require('@assets/movie3_bg.webp'), 
-    character: require('@assets/movie3_char.webp')
+  {
+    id: "p3",
+    title: "Story Of Kunning Place",
+    subtitle: "Trung Quốc · Trọn bộ bản đẹp",
+    bg: require("@assets/movie3_bg.webp"),
+    character: require("@assets/movie3_char.webp"),
+    screenType: "movie",
+    targetId: "top-1",
   },
 ];
 
 export default function BannerCarousel() {
+  let navigation: any = null;
+  try {
+    navigation = useNavigation<any>();
+  } catch (_e) {
+    navigation = null;
+  }
   const scrollX = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<any>(null);
   const currentIndex = useRef(0);
+
+  const [bookmarkedIds, setBookmarkedIds] = useState<{ [key: string]: boolean }>({});
 
   // Tự động lướt trang sau mỗi 4.5 giây
   useEffect(() => {
@@ -58,9 +76,9 @@ export default function BannerCarousel() {
 
       flatListRef.current?.scrollToOffset({
         offset: nextIndex * screenWidth,
-        animated: true, // Chuyển động lướt tự động mượt mà của hệ thống
+        animated: true,
       });
-    }, 4500); 
+    }, 4500);
 
     return () => clearInterval(timer);
   }, []);
@@ -70,112 +88,218 @@ export default function BannerCarousel() {
     currentIndex.current = Math.round(contentOffsetX / screenWidth);
   };
 
-  const renderParallaxItem = ({ item, index }: { item: ParallaxItem, index: number }) => {
+  const toggleBookmark = (id: string) => {
+    setBookmarkedIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const handleNavigate = (item: ParallaxItem) => {
+    if (item.screenType === "movie") {
+      navigation.navigate("MovieDetailScreen", {
+        movieId: item.targetId,
+        movieTitle: item.title,
+        movieImage: item.bg,
+      });
+    } else {
+      navigation.navigate("ComicDetailScreen", {
+        comicId: item.targetId,
+        comicTitle: item.title,
+        comicImage: item.bg,
+      });
+    }
+  };
+
+  const renderParallaxItem = ({
+    item,
+    index,
+  }: {
+    item: ParallaxItem;
+    index: number;
+  }) => {
     const inputRange = [
       (index - 1) * screenWidth,
       index * screenWidth,
-      (index + 1) * screenWidth
+      (index + 1) * screenWidth,
     ];
 
-    // LỚP 1: NỀN - Ép di chuyển siêu chậm, gần như đứng im ở sau (Biên độ giảm xuống 0.05)
+    // LỚP 1: BACKGROUND NỀN ARTWORK
     const translateXBg = scrollX.interpolate({
       inputRange,
       outputRange: [-screenWidth * 0.05, 0, screenWidth * 0.05],
-      extrapolate: 'clamp',
+      extrapolate: "clamp",
     });
 
-    // LỚP 2: NHÂN VẬT - Trôi với biên độ vừa phải để tách biệt khỏi nền (Tăng lên 0.22)
+    // LỚP 2: CHARACTER NHÂN VẬT
     const translateXChar = scrollX.interpolate({
       inputRange,
       outputRange: [-screenWidth * 0.22, 0, screenWidth * 0.22],
-      extrapolate: 'clamp',
+      extrapolate: "clamp",
     });
 
     const scaleChar = scrollX.interpolate({
       inputRange,
       outputRange: [0.92, 1, 0.92],
-      extrapolate: 'clamp',
+      extrapolate: "clamp",
     });
 
-    // LỚP 3: CHỮ - Đẩy biên độ lên cực đại (0.65). Chữ sẽ bay vèo lên phía trước như tên bắn
+    // LỚP 3: CHỮ & BỘ 3 NÚT BẤM NETFLIX
     const translateXText = scrollX.interpolate({
       inputRange,
       outputRange: [-screenWidth * 0.65, 0, screenWidth * 0.65],
-      extrapolate: 'clamp',
+      extrapolate: "clamp",
     });
 
     const opacityText = scrollX.interpolate({
       inputRange,
       outputRange: [0, 1, 0],
-      extrapolate: 'clamp',
+      extrapolate: "clamp",
     });
 
+    const isBookmarked = !!bookmarkedIds[item.id];
+
     return (
-      <View style={{ width: screenWidth }} className="h-[400px] relative overflow-hidden">
-        
-        {/* LAYER 1: BACKGROUND */}
-        <Animated.Image 
-          source={item.bg} 
+      <View
+        style={{ width: screenWidth }}
+        className="h-[430px] relative overflow-hidden bg-[#141619]"
+      >
+        {/* LỚP 1: BACKGROUND ARTWORK */}
+        <Animated.Image
+          source={item.bg}
           style={{
-            width: screenWidth * 1.15, 
-            // 1. PHÓNG TO: Nâng chiều cao từ 100% lên 120% để ảnh nở rộng ra
-            height: '120%', 
-            position: 'absolute',
-            // 2. TRÀN VIỀN: Đẩy margin âm lên trên -10% để ảnh lọt hẳn lên trên vùng tai thỏ làm nền cho Header
-            top: '-10%', 
-            left: '-7.5%',
-            transform: [{ translateX: translateXBg }] // Giữ nguyên hiệu ứng trôi cũ của bạn
+            width: screenWidth * 1.15,
+            height: "120%",
+            position: "absolute",
+            top: "-10%",
+            left: "-7.5%",
+            transform: [{ translateX: translateXBg }],
           }}
           resizeMode="cover"
         />
 
-        {/* LAYER 2: CHARACTER */}
-        <Animated.Image 
-          source={item.character} 
+        {/* LỚP 2: CHARACTER ARTWORK */}
+        <Animated.Image
+          source={item.character}
           style={{
-            width: '100%',
-            height: '100%',
-            position: 'absolute',
-            transform: [
-              { translateX: translateXChar },
-              { scale: scaleChar }
-            ]
+            width: "100%",
+            height: "100%",
+            position: "absolute",
+            transform: [{ translateX: translateXChar }, { scale: scaleChar }],
           }}
           resizeMode="contain"
         />
 
-        {/* LAYER 3: TEXT & BUTTON (Lao vút đi trước không góc mờ) */}
-        <Animated.View 
+        {/* DẢI GRADIENT MỜ DỐC ĐEN CHÂN BANNER HÒA VÀO NỀN #141619 CỰC MỊN */}
+        <LinearGradient
+          colors={[
+            "transparent",
+            "rgba(20, 22, 25, 0.35)",
+            "rgba(20, 22, 25, 0.85)",
+            "#141619",
+            "#141619",
+          ]}
           style={{
-            position: 'absolute',
-            bottom: 24,
+            position: "absolute",
+            bottom: 0,
             left: 0,
             right: 0,
-            paddingHorizontal: 16,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            height: 160,
+          }}
+          pointerEvents="none"
+        />
+
+        {/* LỚP 3: BỘ 3 NÚT BẤM CỦA NETFLIX + TIÊU ĐỀ */}
+        <Animated.View
+          style={{
+            position: "absolute",
+            bottom: 20,
+            left: 0,
+            right: 0,
+            paddingHorizontal: 20,
+            alignItems: "center",
             opacity: opacityText,
-            transform: [{ translateX: translateXText }] 
+            transform: [{ translateX: translateXText }],
           }}
         >
-          <View className="flex-1 mr-4">
-            {/* Tăng độ đậm bóng chữ bằng Tailwind để nhìn rõ trên mọi ảnh nền */}
-            <Text className="text-white text-2xl font-bold tracking-wide shadow-black shadow-xl" style={{ textShadowColor: 'rgba(0, 0, 0, 0.8)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }}>{item.title}</Text>
-            <Text className="text-zinc-100 text-xs mt-1.5 font-medium shadow-black shadow-lg" style={{ textShadowColor: 'rgba(0, 0, 0, 0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }}>{item.subtitle}</Text>
-          </View>
-          
-          <TouchableOpacity className="w-12 h-12 bg-[#D4AF37] rounded-full items-center justify-center shadow-lg">
-            <View className="ml-0.5"><FontAwesome5 name="play" size={16} color="#141210" /></View>
-          </TouchableOpacity>
-        </Animated.View>
+          {/* Tiêu đề & Phụ đề chính */}
+          <Text
+            className="text-white text-2xl font-black tracking-wide text-center"
+            style={{
+              textShadowColor: "rgba(0, 0, 0, 0.9)",
+              textShadowOffset: { width: 0, height: 2 },
+              textShadowRadius: 8,
+            }}
+            numberOfLines={1}
+          >
+            {item.title}
+          </Text>
+          <Text
+            className="text-stone-300 text-xs font-semibold mt-1 mb-4 text-center"
+            style={{
+              textShadowColor: "rgba(0, 0, 0, 0.9)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 4,
+            }}
+            numberOfLines={1}
+          >
+            {item.subtitle}
+          </Text>
 
+          {/* BỘ 3 NÚT BẤM BIỂU TƯỢNG NETFLIX (+ DANH SÁCH | ► PHÁT / ĐỌC | ⓘ THÔNG TIN) */}
+          <View className="flex-row items-center justify-around w-full max-w-[340px]">
+            {/* 1. Nút bên trái: + Danh sách (Thêm vào tủ sách/yêu thích) */}
+            <TouchableOpacity
+              onPress={() => toggleBookmark(item.id)}
+              className="items-center justify-center w-20 active:opacity-75"
+              activeOpacity={0.75}
+            >
+              <Feather
+                name={isBookmarked ? "check" : "plus"}
+                size={22}
+                color={isBookmarked ? "#D4AF37" : "#FFFFFF"}
+              />
+              <Text className="text-white text-[11px] font-bold mt-1">
+                {isBookmarked ? "Đã lưu" : "Danh sách"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* 2. Nút ở giữa: ► Phát / Đọc (Nút hình chữ nhật bo góc màu Vàng Gold nổi bật) */}
+            <TouchableOpacity
+              onPress={() => handleNavigate(item)}
+              activeOpacity={0.85}
+              className="bg-[#D4AF37] px-7 py-2.5 rounded-xl flex-row items-center shadow-lg shadow-amber-500/40"
+            >
+              <FontAwesome5
+                name={item.screenType === "movie" ? "play" : "book-open"}
+                size={14}
+                color="#141210"
+                style={{ marginRight: 8 }}
+              />
+              <Text className="text-[#141210] font-black text-sm tracking-wide">
+                {item.screenType === "movie" ? "Phát" : "Đọc"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* 3. Nút bên phải: ⓘ Thông tin (Mở màn hình chi tiết) */}
+            <TouchableOpacity
+              onPress={() => handleNavigate(item)}
+              className="items-center justify-center w-20 active:opacity-75"
+              activeOpacity={0.75}
+            >
+              <Feather name="info" size={22} color="#FFFFFF" />
+              <Text className="text-white text-[11px] font-bold mt-1">
+                Thông tin
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
       </View>
     );
   };
 
   return (
-    <View className="relative h-[400px]">
+    <View className="relative h-[430px] bg-[#141619]">
       <Animated.FlatList
         ref={flatListRef}
         data={parallaxData}
@@ -183,17 +307,17 @@ export default function BannerCarousel() {
         keyExtractor={(item) => item.id}
         horizontal
         showsHorizontalScrollIndicator={false}
-        
-        pagingEnabled={false} 
-        snapToInterval={screenWidth} 
+        pagingEnabled={false}
+        snapToInterval={screenWidth}
         snapToAlignment="center"
-        
-        // ĐIỀU CHỈNH ĐỘ GHÌ TRÔI: Đổi từ 0.985 sang 0.992 để hãm phanh chậm hơn hẳn, tạo độ lướt trôi "lười biếng" cực đã mắt
-        decelerationRate={0.992} 
-        
+        decelerationRate={0.992}
         scrollEventThrottle={16}
-        onMomentumScrollEnd={handleMomentumScrollEnd} 
-        getItemLayout={(_, index) => ({ length: screenWidth, offset: screenWidth * index, index })}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
+        getItemLayout={(_, index) => ({
+          length: screenWidth,
+          offset: screenWidth * index,
+          index,
+        })}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: true }

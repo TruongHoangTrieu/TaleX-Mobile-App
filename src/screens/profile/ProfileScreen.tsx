@@ -21,7 +21,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useReward } from "@/context/RewardContext";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootNavigator";
-import { useNavigation, useFocusEffect } from "@react-navigation/native"; // Thêm điều hướng sang trang Đăng nhập khi cần
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { getOwnCreator } from "@/services/creator";
 
 export default function ProfileScreen() {
   const navigation =
@@ -30,15 +31,32 @@ export default function ProfileScreen() {
   const { user, isAuthenticated, loading, refreshProfile, logout } = useAuth();
   const { balance, isLoading: isWalletLoading } = useReward();
 
-  const [activeShelfTab, setActiveShelfTab] = useState<"history" | "follow">(
-    "history",
-  );
+
+
+  const [isCreator, setIsCreator] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
       // refresh profile when screen focused
       refreshProfile();
-    }, [refreshProfile]),
+
+      if (isAuthenticated) {
+        getOwnCreator()
+          .then((res) => {
+            if (res && (res.id || res.creatorId)) {
+              setIsCreator(true);
+            } else {
+              setIsCreator(false);
+            }
+          })
+          .catch(() => {
+            // User has not registered creator info
+            setIsCreator(false);
+          });
+      } else {
+        setIsCreator(false);
+      }
+    }, [refreshProfile, isAuthenticated]),
   );
 
   const renderMenuItem = (
@@ -128,23 +146,27 @@ export default function ProfileScreen() {
                 >
                   {user?.email || "Email không xác định"}
                 </Text>
-                <Text className="text-zinc-500 text-xs mx-1.5">•</Text>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => navigation.navigate("CreatorChannel")}
-                  className="flex-row items-center"
-                  style={{ flexShrink: 0 }}
-                >
-                  <Text className="text-[#D4AF37] text-xs font-bold">
-                    Xem kênh
-                  </Text>
-                  <Feather
-                    name="chevron-right"
-                    size={12}
-                    color="#D4AF37"
-                    style={{ marginLeft: 1 }}
-                  />
-                </TouchableOpacity>
+                {isCreator && (
+                  <>
+                    <Text className="text-zinc-500 text-xs mx-1.5">•</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => navigation.navigate("CreatorChannel")}
+                      className="flex-row items-center"
+                      style={{ flexShrink: 0 }}
+                    >
+                      <Text className="text-[#D4AF37] text-xs font-bold">
+                        Xem kênh
+                      </Text>
+                      <Feather
+                        name="chevron-right"
+                        size={12}
+                        color="#D4AF37"
+                        style={{ marginLeft: 1 }}
+                      />
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             </View>
           </View>
@@ -251,52 +273,7 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* ================= CARD 1: NỘI DUNG CỦA TÔI (GUEST & USER ĐỀU ĐƯỢC XEM KHUNG TRỐNG) ================= */}
-        <View className="w-full bg-[#161618] rounded-[16px] p-4 mb-4 border border-white/5 shadow-sm">
-          <View className="flex-row justify-between items-center">
-            <Text className="text-white font-black text-[14px] tracking-wider">
-              NỘI DUNG CỦA TÔI
-            </Text>
-            <Feather name="chevron-right" size={16} color="#666666" />
-          </View>
 
-          <View className="flex-row items-center mt-3.5">
-            <TouchableOpacity
-              onPress={() => setActiveShelfTab("history")}
-              className={`px-5 py-2 rounded-full mr-2.5 ${activeShelfTab === "history" ? "bg-[#D4AF37]/10 border border-[#D4AF37]/20" : "bg-transparent"}`}
-            >
-              <Text
-                className={`text-xs font-bold ${activeShelfTab === "history" ? "text-[#D4AF37]" : "text-zinc-500"}`}
-              >
-                Lịch sử xem
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setActiveShelfTab("follow")}
-              className={`px-5 py-2 rounded-full ${activeShelfTab === "follow" ? "bg-[#D4AF37]/10 border border-[#D4AF37]/20" : "bg-transparent"}`}
-            >
-              <Text
-                className={`text-xs font-bold ${activeShelfTab === "follow" ? "text-[#D4AF37]" : "text-zinc-500"}`}
-              >
-                Đang theo dõi
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View className="w-full h-[120px] items-center justify-center mt-2">
-            <MaterialCommunityIcons
-              name="movie-roll"
-              size={32}
-              color="#3f3f46"
-            />
-            <Text className="text-zinc-600 text-xs mt-2 italic">
-              {isAuthenticated
-                ? "Không có phim hoặc truyện nào"
-                : "Đăng nhập để xem lại nội dung của bạn"}
-            </Text>
-          </View>
-        </View>
 
         {/* ================= CARD 2.5: CREATOR STUDIO (LUÔN HIỆN KHI ĐÃ ĐĂNG NHẬP) ================= */}
         {isAuthenticated && (

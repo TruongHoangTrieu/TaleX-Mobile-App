@@ -10,11 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  FontAwesome5,
-  Ionicons,
-  Feather,
-} from "@expo/vector-icons";
+import { FontAwesome5, Ionicons, Feather } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { navigate as safeNavigateRef } from "@/navigation/navigationRef";
 
@@ -69,7 +65,7 @@ export default function MoviesScreen() {
   useFocusEffect(
     useCallback(() => {
       loadMovies(false);
-    }, [])
+    }, []),
   );
 
   const filterContent = (list: MovieItem[]) => {
@@ -96,7 +92,7 @@ export default function MoviesScreen() {
             size={11}
             color="#FFFFFF"
             style={{ marginRight: 2 }}
-          />
+          />,
         );
       } else {
         stars.push(
@@ -106,7 +102,7 @@ export default function MoviesScreen() {
             size={11}
             color="#52525B"
             style={{ marginRight: 2 }}
-          />
+          />,
         );
       }
     }
@@ -136,11 +132,10 @@ export default function MoviesScreen() {
         {item.title}
       </Text>
 
-      <Text
-        className="text-[#A1A1AA] text-[11px] mt-0.5"
-        numberOfLines={1}
-      >
-        {item.regionAndGenre?.split("·")[0]?.trim() || item.category || "TaleX Studio"}
+      <Text className="text-[#A1A1AA] text-[11px] mt-0.5" numberOfLines={1}>
+        {item.regionAndGenre?.split("·")[0]?.trim() ||
+          item.category ||
+          "TaleX Studio"}
       </Text>
 
       {render5Stars(item.rating)}
@@ -159,7 +154,7 @@ export default function MoviesScreen() {
         className="mr-4 w-[135px]"
         activeOpacity={0.85}
         onPress={() =>
-          openMovieDetail(item.seriesId || item.id, { seriesItem: item })
+          openMovieDetail(item.seriesId || item.id || "", { seriesItem: item })
         }
       >
         <View className="w-full h-[180px] rounded-2xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
@@ -312,4 +307,3 @@ function MovieSection({
     </View>
   );
 }
-

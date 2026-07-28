@@ -2,21 +2,29 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StatusBar,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  Feather,
+  Ionicons,
+  MaterialCommunityIcons,
+  FontAwesome5,
+} from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
 import {
   getSubscriptions,
   type SubscriptionDurationUnit,
   type SubscriptionPlan,
 } from "@/services/subscription";
 
-// Chỉnh sửa 9: Định dạng tiền tệ kết thúc bằng 'đ' Thay vì 'VNĐ'
 const formatCurrency = (price: number) =>
   `${price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}đ`;
 
@@ -31,24 +39,12 @@ const formatDurationUnit = (unit: SubscriptionDurationUnit) => {
   }
 };
 
-const getBenefits = (plan: SubscriptionPlan) => [
-  ...(plan.isAdBlocked ? ["Trải nghiệm xem không quảng cáo"] : []),
-  ...(plan.isStoryUnlocked
-    ? ["Đọc truyện tranh kỹ thuật số không giới hạn"]
-    : []),
-  ...(plan.isMovieUnlocked ? ["Mở khóa toàn bộ kho phim & series"] : []),
-  "Hỗ trợ chất lượng 4K HDR & Âm thanh vòm",
-];
-
 export default function SubscriptionPlansScreen() {
+  const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-
-  const maxPrice = useMemo(
-    () => plans.reduce((max, plan) => Math.max(max, plan.price), 0),
-    [plans],
-  );
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const loadSubscriptions = useCallback(async () => {
     setLoading(true);
@@ -56,8 +52,9 @@ export default function SubscriptionPlansScreen() {
 
     const result = await getSubscriptions();
 
-    if (result.success) {
-      setPlans(result.data ?? []);
+    if (result.success && result.data && result.data.length > 0) {
+      setPlans(result.data);
+      setSelectedPlanId(result.data[0].subscriptionId);
     } else {
       setPlans([]);
       setError(result.message || "Không thể tải danh sách gói Premium.");
@@ -70,201 +67,214 @@ export default function SubscriptionPlansScreen() {
     loadSubscriptions();
   }, [loadSubscriptions]);
 
-  const renderPlanCard = (plan: SubscriptionPlan) => {
-    const isPopular =
-      plan.tier.toLowerCase().includes("premium") || plan.price === maxPrice;
-    const benefits = getBenefits(plan);
-
-    return (
-      <View
-        key={plan.subscriptionId}
-        className={`relative mr-4 rounded-2xl bg-[#1C1A18] px-5 pb-5 pt-6 ${
-          isPopular ? "border border-[#D4AF37]" : "border border-white/5"
-        }`}
-        // Chỉnh sửa 3: Card có chiều cao cố định 390 và rộng 300
-        style={{
-          width: 300,
-          height: 390,
-          overflow: "visible",
-        }}
-      >
-        {isPopular && (
-          <View className="absolute -top-3 self-center rounded-full bg-[#D4AF37] px-4 py-1">
-            <Text className="text-[10px] font-black tracking-wider text-[#141210]">
-              PHỔ BIẾN NHẤT
-            </Text>
-          </View>
-        )}
-
-        {/* Chỉnh sửa 8: Thêm icon vương miện lớn phía trên tên gói */}
-        <View className="mb-5 h-14 w-14 items-center justify-center rounded-2xl bg-[#D4AF37]/10">
-          <MaterialCommunityIcons name="crown" size={30} color="#D4AF37" />
-        </View>
-
-        <View className="flex-row items-start justify-between">
-          <View className="mr-4 flex-1">
-            <Text className="text-xl font-black text-white">{plan.tier}</Text>
-            {/* Chỉnh sửa 4: Bỏ hoàn toàn phần plan.description cũ ở đây */}
-          </View>
-        </View>
-
-        {/* Chỉnh sửa 9: Cấu trúc hiển thị Giá mới kèm Đơn vị thời hạn bên dưới */}
-        <View className="mt-3">
-          <Text className="text-4xl font-black text-[#D4AF37]">
-            {formatCurrency(plan.price)}
-          </Text>
-          <Text className="mt-1 text-sm font-semibold text-[#B7B2AA]">
-            / {plan.duration} {formatDurationUnit(plan.durationUnit)}
-          </Text>
-        </View>
-
-        <View className="my-5 h-[1px] bg-white/10" />
-
-        {/* Chỉnh sửa 6: Thêm flex-1 vào View bọc danh sách để chiếm khoảng trống đẩy nút xuống đáy */}
-        <View className="flex-1">
-          {/* Chỉnh sửa 5: Giới hạn chỉ lấy tối đa 3 quyền lợi hiển thị trên Card */}
-          {benefits.slice(0, 3).map((benefit) => (
-            <View key={benefit} className="mb-3 flex-row items-start">
-              <MaterialCommunityIcons
-                name="check-circle"
-                size={18}
-                color="#D4AF37"
-              />
-              <Text className="ml-3 flex-1 text-sm leading-5 text-[#E5E0D8]">
-                {benefit}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Chỉnh sửa 7: Thay mt-3 thành mt-auto giúp Button luôn dính sát dưới đáy Card */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() =>
-            Alert.alert("Thông báo", `Tiến hành thanh toán gói ${plan.tier}`)
-          }
-          className="mt-auto h-12 items-center justify-center rounded-xl bg-[#D4AF37]"
-        >
-          <Text className="text-sm font-black uppercase tracking-wide text-[#141210]">
-            Chọn Gói Này
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const selectedPlan = useMemo(
+    () => plans.find((p) => p.subscriptionId === selectedPlanId) || plans[0],
+    [plans, selectedPlanId],
+  );
 
   return (
-    <SafeAreaView edges={["top", "bottom"]} className="flex-1 bg-[#141210]">
-      <StatusBar barStyle="light-content" backgroundColor="#141210" />
+    <View className="flex-1 bg-[#141210]">
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: 16,
-          paddingTop: 28,
-          paddingBottom: 40, // Đã giảm bớt bottom padding để cân đối với section thanh toán mới
-        }}
-      >
-        {/* Chỉnh sửa 1: Thay đổi toàn bộ phần Header trung tâm */}
-        <View className="items-center mb-8">
-          <View className="h-20 w-20 items-center justify-center rounded-full bg-[#D4AF37]/10">
-            <MaterialCommunityIcons name="crown" size={42} color="#D4AF37" />
-          </View>
-          <Text className="mt-5 text-[32px] font-black text-white">
-            TaleX Premium
-          </Text>
-          <Text className="mt-3 text-center text-base leading-6 text-[#A19E95]">
-            Mở khóa toàn bộ trải nghiệm phim và truyện, thưởng thức nội dung
-            chất lượng cao không quảng cáo.
-          </Text>
-        </View>
+      {/* ================= PREMIUM BACKGROUND IMAGE FROM ASSETS (CRISP, NO BLUR) ================= */}
+      <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 420 }} pointerEvents="none">
+        <Image
+          source={require("@assets/premium.jpg")}
+          style={{ width: "100%", height: "100%" }}
+          resizeMode="cover"
+        />
+      </View>
 
-        {/* Chỉnh sửa 2: Bổ sung Section "Premium bao gồm" tổng quát ngay dưới Header */}
-        <View className="mb-8 rounded-3xl bg-[#1C1A18] p-5">
-          <Text className="mb-4 text-lg font-black text-white">
-            Premium bao gồm
-          </Text>
-          {[
-            "Không quảng cáo",
-            "Mở khóa toàn bộ phim & series",
-            "Đọc truyện không giới hạn",
-            "4K HDR & Âm thanh vòm",
-            "Ưu tiên nội dung mới",
-          ].map((item) => (
-            <View key={item} className="mb-4 flex-row items-center">
-              <MaterialCommunityIcons
-                name="check-circle"
-                size={20}
-                color="#D4AF37"
-              />
-              <Text className="ml-3 text-base text-[#E5E0D8]">{item}</Text>
-            </View>
-          ))}
-        </View>
-
-        {loading ? (
-          <View className="flex-1 items-center justify-center py-24">
-            <ActivityIndicator size="large" color="#D4AF37" />
-            <Text className="mt-4 text-sm font-semibold text-[#A19E95]">
-              Đang tải gói Premium...
-            </Text>
-          </View>
-        ) : error ? (
-          <View className="items-center justify-center rounded-2xl border border-red-500/20 bg-red-950/10 px-5 py-8">
-            <MaterialCommunityIcons
-              name="alert-circle-outline"
-              size={38}
-              color="#EF4444"
-            />
-            <Text className="mt-3 text-center text-sm font-semibold leading-5 text-red-400">
-              {error}
-            </Text>
+      <SafeAreaView edges={[]} className="flex-1">
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: 20,
+            paddingTop: 48,
+            paddingBottom: 30,
+          }}
+        >
+          {/* Top Bar with Back Button - Direct clean icon without any dark blur box */}
+          <View className="flex-row items-center justify-between w-full h-12 mb-2">
             <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={loadSubscriptions}
-              className="mt-5 h-11 items-center justify-center rounded-xl bg-[#D4AF37] px-6"
+              activeOpacity={0.7}
+              onPress={() => navigation.goBack()}
+              className="p-1 active:opacity-70"
             >
-              <Text className="text-sm font-black text-[#141210]">Thử lại</Text>
+              <Feather name="chevron-left" size={28} color="#FFFFFF" />
             </TouchableOpacity>
+            <View className="w-10" />
           </View>
-        ) : plans.length === 0 ? (
-          <View className="items-center justify-center rounded-2xl border border-white/5 bg-[#1C1A18] px-5 py-10">
-            <MaterialCommunityIcons
-              name="crown-outline"
-              size={42}
-              color="#7C766B"
-            />
-            <Text className="mt-3 text-center text-sm font-semibold text-[#A19E95]">
-              Chưa có gói Premium nào.
+
+          {/* Centered Crown Halo Badge (Gold Theme) */}
+          <View className="items-center justify-center my-4">
+            <View className="w-24 h-24 rounded-full bg-[#D4AF37]/20 items-center justify-center border border-[#D4AF37]/40 shadow-2xl shadow-[#D4AF37]">
+              <MaterialCommunityIcons name="crown" size={48} color="#D4AF37" />
+            </View>
+          </View>
+
+          {/* Subscribe Title (Gold Theme) */}
+          <Text className="text-center text-[30px] font-black text-[#D4AF37] tracking-wide mb-6">
+            Đăng Ký Gói Premium
+          </Text>
+
+          {/* Feature Checkmarks (Gold Theme, Pure Vietnamese, No 4K) */}
+          <View className="mb-8 px-2">
+            {[
+              "Xem mượt mà trên tất cả thiết bị",
+              "Trải nghiệm xem không quảng cáo",
+              "Mở khóa toàn bộ phim & truyện tranh",
+            ].map((feature, idx) => (
+              <View key={idx} className="flex-row items-center mb-3.5">
+                <View className="w-6 h-6 rounded-full bg-[#D4AF37]/20 items-center justify-center mr-3 border border-[#D4AF37]/40">
+                  <Feather name="check" size={14} color="#D4AF37" />
+                </View>
+                <Text className="text-white text-[15px] font-semibold flex-1">
+                  {feature}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Plans Loading / Error / Radio Selection Cards */}
+          {loading ? (
+            <View className="py-12 items-center justify-center">
+              <ActivityIndicator size="large" color="#D4AF37" />
+              <Text className="mt-3 text-sm font-semibold text-[#A19E95]">
+                Đang tải danh sách gói Premium...
+              </Text>
+            </View>
+          ) : error ? (
+            <View className="items-center justify-center rounded-2xl border border-red-500/20 bg-red-950/10 px-5 py-8 mb-6">
+              <MaterialCommunityIcons
+                name="alert-circle-outline"
+                size={38}
+                color="#EF4444"
+              />
+              <Text className="mt-3 text-center text-sm font-semibold text-red-400">
+                {error}
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={loadSubscriptions}
+                className="mt-5 h-11 items-center justify-center rounded-xl bg-[#D4AF37] px-6"
+              >
+                <Text className="text-sm font-black text-[#141210]">Thử lại</Text>
+              </TouchableOpacity>
+            </View>
+          ) : plans.length === 0 ? (
+            <View className="items-center justify-center rounded-2xl border border-white/5 bg-[#1C1A18] px-5 py-10 mb-6">
+              <MaterialCommunityIcons
+                name="crown-outline"
+                size={42}
+                color="#7C766B"
+              />
+              <Text className="mt-3 text-center text-sm font-semibold text-[#A19E95]">
+                Chưa có gói Premium nào.
+              </Text>
+            </View>
+          ) : (
+            /* Selectable Plan Cards with Radio Buttons (Gold Theme) */
+            <View className="mb-6">
+              {plans.map((plan) => {
+                const isSelected = selectedPlanId === plan.subscriptionId;
+
+                return (
+                  <TouchableOpacity
+                    key={plan.subscriptionId}
+                    activeOpacity={0.85}
+                    onPress={() => setSelectedPlanId(plan.subscriptionId)}
+                    className={`w-full p-4 rounded-2xl flex-row items-center justify-between border mb-3 ${
+                      isSelected
+                        ? "bg-[#D4AF37]/15 border-2 border-[#D4AF37]"
+                        : "bg-[#1C1A18] border-white/10"
+                    }`}
+                  >
+                    {/* Radio Button & Plan Details */}
+                    <View className="flex-row items-center flex-1 mr-3">
+                      <View
+                        className={`w-6 h-6 rounded-full items-center justify-center mr-3.5 border ${
+                          isSelected
+                            ? "border-[#D4AF37] bg-[#D4AF37]"
+                            : "border-[#7C766B] bg-transparent"
+                        }`}
+                      >
+                        {isSelected && (
+                          <View className="w-2.5 h-2.5 rounded-full bg-[#141210]" />
+                        )}
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-white text-lg font-bold">
+                          {plan.tier}
+                        </Text>
+                        <Text className="text-[#A19E95] text-xs font-medium mt-0.5">
+                          {plan.duration} {formatDurationUnit(plan.durationUnit)} - Trải nghiệm Premium
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Price Right Aligned */}
+                    <View className="items-end">
+                      <Text
+                        className={`text-xl font-black ${
+                          isSelected ? "text-[#D4AF37]" : "text-white"
+                        }`}
+                      >
+                        {formatCurrency(plan.price)}
+                      </Text>
+                      <Text className="text-[#A19E95] text-[11px] font-medium">
+                        / {formatDurationUnit(plan.durationUnit)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Action Button: Continue For Payment (Gold Gradient) */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            disabled={!selectedPlan || loading}
+            onPress={() => {
+              if (selectedPlan) {
+                Alert.alert(
+                  "Xác nhận thanh toán",
+                  `Tiến hành thanh toán gói ${selectedPlan.tier} với giá ${formatCurrency(
+                    selectedPlan.price,
+                  )}`,
+                );
+              }
+            }}
+            className="mt-2 mb-6"
+          >
+            <LinearGradient
+              colors={["#D4AF37", "#E6B800"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{
+                width: "100%",
+                height: 54,
+                borderRadius: 9999,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text className="text-[#141210] font-black text-lg tracking-wide">
+                Tiếp Tục Thanh Toán
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* Footer Terms & Policy Links */}
+          <View className="items-center pb-2">
+            <Text className="text-[#7C766B] text-xs font-medium">
+              Điều khoản sử dụng | Chính sách bảo mật | Khôi phục
             </Text>
           </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingRight: 16,
-              paddingTop: 12,
-              paddingBottom: 12,
-            }}
-          >
-            {plans.map(renderPlanCard)}
-          </ScrollView>
-        )}
-
-        {/* Chỉnh sửa 10: Thêm phần chân trang "Thanh toán an toàn" bảo mật cuối màn hình */}
-        <View className="mt-8 items-center">
-          <MaterialCommunityIcons
-            name="shield-check"
-            size={26}
-            color="#D4AF37"
-          />
-          <Text className="mt-2 text-center text-[#A19E95]">
-            Thanh toán an toàn • Hủy bất cứ lúc nào
-          </Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }

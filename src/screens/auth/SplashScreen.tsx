@@ -15,12 +15,12 @@ export default function SplashScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  // Hoạt họa chuyển động
+  // Animation values
   const scaleAnim = useRef(new Animated.Value(0.75)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // 1. Phóng to & Hiện Logo mượt mà
+    // 1. Smooth Logo appearance & scale animation
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: 1,
@@ -30,21 +30,25 @@ export default function SplashScreen() {
       }),
       Animated.timing(opacityAnim, {
         toValue: 1,
-        duration: 700,
+        duration: 500,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // 2. Tự động chuyển thẳng sang HomeScreen sau 2.2 giây
+    // 2. Fast transition in development mode (__DEV__) to prevent reload delays/black screens,
+    // and smooth transition in Production.
+    const delayDuration = __DEV__ ? 400 : 1500;
+
     const timer = setTimeout(() => {
       handleNext();
-    }, 2200);
+    }, delayDuration);
 
     return () => clearTimeout(timer);
   }, []);
 
   const handleNext = () => {
-    navigation.navigate("MainTabs");
+    // Replace Splash with MainTabs so Splash is cleanly unmounted from memory
+    navigation.replace("MainTabs");
   };
 
   return (
@@ -60,7 +64,6 @@ export default function SplashScreen() {
         onPress={handleNext}
         className="flex-1 w-full items-center justify-center"
       >
-        {/* LOGO TALEX CHÍNH GIỮA TUYỆT ĐỐI KHÔNG CÓ KHUNG BAO VÀ KHÔNG CÓ THANH TIẾN TRÌNH */}
         <Animated.View
           style={{
             transform: [{ scale: scaleAnim }],
@@ -78,3 +81,4 @@ export default function SplashScreen() {
     </SafeAreaView>
   );
 }
+

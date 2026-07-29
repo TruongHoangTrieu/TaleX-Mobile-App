@@ -68,7 +68,10 @@ export default function GoogleCompleteProfileScreen() {
 
       Toast.show({ type: "success", text1: "Đăng nhập thành công" });
       await refreshProfile();
-      navigation.reset({ index: 0, routes: [{ name: "MainTabs" }] });
+      navigation.reset({
+        index: 1,
+        routes: [{ name: "MainTabs" }, { name: "OnboardingScreen" }],
+      });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Hoàn tất hồ sơ thất bại!";
       setError(message);

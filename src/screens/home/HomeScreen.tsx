@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
+  Modal,
+  StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -15,9 +17,12 @@ import {
   MaterialCommunityIcons,
   Ionicons,
 } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootNavigator";
+import { useAuth } from "@/context/AuthContext";
+import { useUserFeature } from "@/hooks/useUserFeature";
 
 import Header from "@components/Header";
 import BannerCarousel from "@components/BannerCarousel";
@@ -47,6 +52,27 @@ export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [activeTab, setActiveTab] = useState("all");
+
+  const { isAuthenticated } = useAuth();
+  const { isMissingProfile, refetch: refetchUserFeature } = useUserFeature();
+  const [dismissedModal, setDismissedModal] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      setDismissedModal(false);
+      refetchUserFeature();
+    }
+  }, [isAuthenticated]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isAuthenticated) {
+        refetchUserFeature();
+      }
+    }, [isAuthenticated, refetchUserFeature])
+  );
+
+  const showOnboardingModal = isAuthenticated && isMissingProfile && !dismissedModal;
 
   // RENDER MỤC 1: TIẾP TỤC XEM / ĐỌC DỞ (KÈM THANH TIẾN TRÌNH % PROGRESS BAR)
   const renderContinueItem = ({ item }: { item: ContinueItem }) => (
@@ -507,6 +533,55 @@ export default function HomeScreen() {
           />
         </View>
       </ScrollView>
+
+      {/* Onboarding Prompt Dialog Overlay for New & Existing Users */}
+      {showOnboardingModal && (
+        <View
+          style={[StyleSheet.absoluteFillObject, { zIndex: 99999, elevation: 99999 }]}
+          className="bg-black/80 items-center justify-center p-5"
+        >
+          <View className="w-full max-w-sm bg-[#161618] rounded-3xl p-6 border border-[#D4AF37]/30 shadow-2xl items-center">
+            {/* Sparkles Icon Header */}
+            <View className="w-14 h-14 rounded-2xl bg-[#D4AF37]/15 items-center justify-center mb-4 border border-[#D4AF37]/30">
+              <Ionicons name="sparkles" size={28} color="#D4AF37" />
+            </View>
+
+            <Text className="text-white text-xl font-black text-center mb-2">
+              Cá nhân hóa gu của bạn!
+            </Text>
+
+            <Text className="text-zinc-400 text-sm text-center leading-5 mb-6">
+              Hãy cho TaleX biết sở thích của bạn để chúng tôi tự động đề xuất những bộ phim và câu chuyện phù hợp nhất.
+            </Text>
+
+            {/* Action Button */}
+            <TouchableOpacity
+              onPress={() => {
+                setDismissedModal(true);
+                navigation.navigate("OnboardingScreen");
+              }}
+              activeOpacity={0.85}
+              className="w-full"
+            >
+              <LinearGradient
+                colors={["#E5A93C", "#D4AF37"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{
+                  paddingVertical: 14,
+                  borderRadius: 16,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text className="text-black font-black text-base">
+                  Cài đặt ngay
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

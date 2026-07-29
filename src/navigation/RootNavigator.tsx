@@ -6,6 +6,7 @@ import LoginScreen from "@screens/auth/LoginScreen";
 import RegisterScreen from "@screens/auth/RegisterScreen";
 import OtpVerifyScreen from "@/screens/auth/OtpVerifyScreen";
 import GoogleCompleteProfileScreen from "@/screens/auth/GoogleCompleteProfileScreen";
+import OnboardingScreen from "@/screens/auth/OnboardingScreen";
 import SplashScreen from "@/screens/auth/SplashScreen";
 import EditProfileScreen from "@/screens/profile/EditProfileScreen";
 import ComicDetailScreen from "@/screens/comics/ComicDetailScreen";
@@ -42,6 +43,7 @@ export type RootStackParamList = {
   GoogleCompleteProfile: {
     verificationToken: string;
   };
+  OnboardingScreen: undefined;
   EditProfileScreen: undefined;
   LikedScreen: undefined;
   SubscriptionsScreen: undefined;
@@ -101,6 +103,7 @@ export default function RootNavigator() {
           name="GoogleCompleteProfile"
           component={GoogleCompleteProfileScreen}
         />
+        <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} />
         <Stack.Screen name="EditProfileScreen" component={EditProfileScreen} />
         <Stack.Screen name="LikedScreen" component={LikedScreen} />
         <Stack.Screen

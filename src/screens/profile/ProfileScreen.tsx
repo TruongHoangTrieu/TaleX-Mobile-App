@@ -24,21 +24,29 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootNavigator";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { getOwnCreator } from "@/services/creator";
+import { useUserFeature } from "@/hooks/useUserFeature";
 
 export default function ProfileScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
+  const scrollViewRef = React.useRef<ScrollView>(null);
+
   const { user, isAuthenticated, loading, refreshProfile, logout } = useAuth();
   const { balance, isLoading: isWalletLoading } = useReward();
+  const { profile: userFeatureProfile, isMissingProfile, refetch: refetchUserFeature } = useUserFeature();
 
   const [isCreator, setIsCreator] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
-      refreshProfile();
+      // Auto reset scroll position to top whenever screen is focused
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
 
       if (isAuthenticated) {
+        refreshProfile();
+        refetchUserFeature();
+
         getOwnCreator()
           .then((res) => {
             if (res && (res.id || res.creatorId)) {
@@ -53,7 +61,7 @@ export default function ProfileScreen() {
       } else {
         setIsCreator(false);
       }
-    }, [refreshProfile, isAuthenticated]),
+    }, [refreshProfile, refetchUserFeature, isAuthenticated]),
   );
 
   const renderMenuItem = (
@@ -98,6 +106,7 @@ export default function ProfileScreen() {
       />
 
       <ScrollView
+        ref={scrollViewRef}
         className="flex-1"
         alwaysBounceVertical={true}
         showsVerticalScrollIndicator={false}
@@ -215,7 +224,7 @@ export default function ProfileScreen() {
         {/* ================= GIỮ NGUYÊN TOÀN BỘ CÁC KHỐI MENU TALEX Ở PHẦN DƯỚI ================= */}
         <View className="px-4">
           {/* ================= BIẾN ĐỔI KHỐI VÍ XU / REWARD ================= */}
-          {isAuthenticated ? (
+          {isAuthenticated && (
             /* CÓ VÍ XU KHI ĐÃ LOGGED IN */
             <View className="w-full mb-6 p-4 bg-[#161618] rounded-2xl border border-white/5 flex-row items-center justify-between shadow-sm">
               <View className="flex-row items-center">
@@ -264,21 +273,9 @@ export default function ProfileScreen() {
                 </LinearGradient>
               </TouchableOpacity>
             </View>
-          ) : (
-            /* GUEST BANNER */
-            <View className="w-full mb-6 px-4 py-3.5 bg-gradient-to-r from-amber-500/5 to-zinc-900/40 rounded-2xl border border-[#D4AF37]/15 flex-row items-center justify-between">
-              <View className="flex-row items-center flex-1 mr-2">
-                <FontAwesome5 name="crown" size={14} color="#D4AF37" />
-                <Text
-                  className="text-amber-200/90 text-xs font-bold ml-2.5"
-                  numberOfLines={1}
-                >
-                  Đăng nhập nhận ngay 100 xu tân thủ miễn phí!
-                </Text>
-              </View>
-              <Feather name="arrow-right" size={14} color="#D4AF37" />
-            </View>
           )}
+
+
 
           {/* ================= CARD 2.5: CREATOR STUDIO ================= */}
           {isAuthenticated && (

@@ -56,12 +56,11 @@ export default function LoginScreen({ onLogin }: Props) {
     try {
       await auth.login(email, password);
 
-      // 👉 QUAN TRỌNG: quay lại Profile (không reset)
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate("MainTabs");
-      }
+      // 👉 Chuyển trực tiếp về màn hình Home
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "MainTabs", params: { screen: "Home" } }],
+      });
     } catch (e) {
       const message =
         e instanceof Error
@@ -96,11 +95,10 @@ export default function LoginScreen({ onLogin }: Props) {
         return;
       }
 
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate("MainTabs");
-      }
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "MainTabs", params: { screen: "Home" } }],
+      });
     } catch (e) {
       if (!isGoogleSignInCancelled(e)) {
         const message =

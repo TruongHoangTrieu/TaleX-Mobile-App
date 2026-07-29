@@ -18,6 +18,7 @@ import Toast from "react-native-toast-message";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useAuth } from "@/context/AuthContext";
 import { resendOtp, verifyEmail } from "@/services/auth";
 
 type OtpVerifyRouteParams = {
@@ -28,6 +29,7 @@ type OtpVerifyRouteParams = {
 export default function OtpVerifyScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const { refreshProfile } = useAuth();
 
   const { email, verificationToken } = route.params as OtpVerifyRouteParams;
   const targetEmail = email || "email của bạn";
@@ -135,7 +137,11 @@ export default function OtpVerifyScreen() {
 
       if (res && res.success) {
         Toast.show({ type: "success", text1: "Xác thực thành công" });
-        navigation.navigate("MainTabs", { screen: "Home" });
+        await refreshProfile();
+        navigation.reset({
+          index: 1,
+          routes: [{ name: "MainTabs" }, { name: "OnboardingScreen" }],
+        });
       } else {
         setErrorMessage(res.message || "OTP không đúng hoặc hết hạn");
       }

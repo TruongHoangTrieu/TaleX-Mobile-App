@@ -133,7 +133,7 @@ export default function EpisodeDetailsStep({
         {/* Pricing release options */}
         <View>
           <Text className="text-zinc-400 text-xs font-bold mb-2.5">Hình thức phát hành</Text>
-          <View className="flex-row space-x-2">
+          <View className="flex-row" style={{ gap: 8 }}>
             {(["free", "coin"] as const).map((type) => {
               let label = "";
               let iconName: any = "";
@@ -152,17 +152,22 @@ export default function EpisodeDetailsStep({
                 <TouchableOpacity
                   key={type}
                   onPress={() => setReleaseType(type)}
-                  className={`flex-1 py-3 rounded-xl border items-center justify-center flex-row ${
+                  style={{ minWidth: 100 }}
+                  className={`flex-1 py-3 px-3 rounded-xl border items-center justify-center flex-row ${
                     isSelected ? "bg-[#D4AF37]/15 border-[#D4AF37]" : "bg-[#1E1E22] border-zinc-800"
                   }`}
                 >
                   <MaterialCommunityIcons
                     name={iconName}
-                    size={14}
+                    size={16}
                     color={isSelected ? "#D4AF37" : "#7C766B"}
-                    style={{ marginRight: 4 }}
+                    style={{ marginRight: 6 }}
                   />
-                  <Text className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-500"}`}>
+                  <Text
+                    numberOfLines={1}
+                    style={{ flexShrink: 0 }}
+                    className={`text-xs font-bold ${isSelected ? "text-[#D4AF37]" : "text-zinc-500"}`}
+                  >
                     {label}
                   </Text>
                 </TouchableOpacity>

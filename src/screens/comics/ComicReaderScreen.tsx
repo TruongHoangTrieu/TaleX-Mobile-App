@@ -10,13 +10,14 @@ import {
   FlatList,
   Modal,
   StyleSheet,
-  ActivityIndicator,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getComicById } from "./comicMockData";
 import { getPublicEpisodeMedia, getSeriesSeasons, getSeasonEpisodes, getPublicSeriesDetail } from "@/services/series";
+import { BASE_URL } from "@/config";
 import { useEpisodeLikes } from "@/hooks/useEpisodeLikes";
 import { LikeButton } from "@/components/LikeButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
@@ -25,27 +26,131 @@ import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSec
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
-// Mock trang truyện tranh lấy từ assets
-const comicPagesMock = [
-  require("@assets/comic1.webp"),
-  require("@assets/comic2.webp"),
-  require("@assets/comic3.webp"),
-  require("@assets/comic4.webp"),
-  require("@assets/comic5.webp"),
-  require("@assets/comic6.webp"),
-  require("@assets/comic7.webp"),
-  require("@assets/comic2.webp"),
-  require("@assets/comic3.webp"),
-  require("@assets/comic5.webp"),
-  require("@assets/comic1.webp"),
-  require("@assets/comic6.webp"),
-  require("@assets/comic4.webp"),
-  require("@assets/comic7.webp"),
-  require("@assets/comic3.webp"),
-  require("@assets/comic2.webp"),
-  require("@assets/comic5.webp"),
-  require("@assets/comic1.webp"),
-];
+
+
+function SkeletonPage({ height = screenWidth * 1.3, style }: { height?: number; style?: any }) {
+  const opacity = useRef(new Animated.Value(0.2)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.55,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.2,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width: screenWidth - 24,
+          height: height,
+          backgroundColor: "#18181B",
+          borderRadius: 16,
+          marginVertical: 8,
+          opacity: opacity,
+          alignSelf: "center",
+          justifyContent: "center",
+          alignItems: "center",
+          borderWidth: 1,
+          borderColor: "rgba(255, 255, 255, 0.05)",
+        },
+        style,
+      ]}
+    >
+      <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "#27272A", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+        <MaterialCommunityIcons name="file-image-outline" size={26} color="#71717A" />
+      </View>
+      <View style={{ width: "35%", height: 8, borderRadius: 4, backgroundColor: "#27272A" }} />
+    </Animated.View>
+  );
+}
+
+function ComicReaderSkeleton({ insetsTop }: { insetsTop: number }) {
+  return (
+    <ScrollView
+      className="w-full flex-1"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingTop: 60 + insetsTop, paddingBottom: 40 }}
+    >
+      <SkeletonPage />
+      <SkeletonPage />
+      <SkeletonPage />
+    </ScrollView>
+  );
+}
+
+function ComicImagePage({ page, getPageSource, width, height, readingMode = "vertical", onPress }: any) {
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+
+  const source = getPageSource(page);
+
+  useEffect(() => {
+    if (source && source.uri && typeof source.uri === "string") {
+      Image.getSize(
+        source.uri,
+        (w, h) => {
+          if (w > 0 && h > 0) {
+            setAspectRatio(h / w);
+          }
+        },
+        () => {}
+      );
+    } else if (typeof source === "number") {
+      const resolved = Image.resolveAssetSource(source);
+      if (resolved && resolved.width && resolved.height) {
+        setAspectRatio(resolved.height / resolved.width);
+      }
+    }
+  }, [source?.uri]);
+
+  const computedHeight = readingMode === "vertical"
+    ? (aspectRatio ? width * aspectRatio : height || width * 1.4)
+    : (height || screenHeight);
+
+  return (
+    <View style={{ width, height: computedHeight, backgroundColor: "#000", padding: 0, margin: 0 }}>
+      {imageLoading && !imageError && (
+        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 2, justifyContent: "center", alignItems: "center" }}>
+          <SkeletonPage height={computedHeight} style={{ width: width, borderRadius: 0, marginVertical: 0 }} />
+        </View>
+      )}
+      {imageError ? (
+        <View style={{ width: width - 32, height: 200, backgroundColor: "#18181B", borderRadius: 16, alignItems: "center", justifyContent: "center", alignSelf: "center", marginVertical: 20, padding: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.05)" }}>
+          <MaterialCommunityIcons name="image-off-outline" size={40} color="#71717A" />
+          <Text className="text-zinc-400 text-xs mt-2 text-center">Không thể tải trang hình ảnh này</Text>
+        </View>
+      ) : (
+        <TouchableOpacity activeOpacity={1} onPress={onPress} style={{ width, height: computedHeight }}>
+          <Image
+            source={source}
+            style={{ width, height: computedHeight }}
+            resizeMode={readingMode === "vertical" ? "cover" : "contain"}
+            onLoadStart={() => setImageLoading(true)}
+            onLoadEnd={() => setImageLoading(false)}
+            onError={() => {
+              setImageLoading(false);
+              setImageError(true);
+            }}
+          />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
 
 import { useAuth } from "@/context/AuthContext";
 
@@ -79,7 +184,7 @@ export default function ComicReaderScreen() {
   );
   const [currentPage, setCurrentPage] = useState(0);
   const [showMenuModal, setShowMenuModal] = useState(false);
-  const [pages, setPages] = useState<any[]>(comicPagesMock);
+  const [pages, setPages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [dbEpisodes, setDbEpisodes] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -88,19 +193,53 @@ export default function ComicReaderScreen() {
   const flatListRef = useRef<FlatList>(null);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Fetch real media pages if episodeId is passed
+  // Lấy tất cả tập con (episodes) phẳng của toàn bộ truyện để chuyển tập nhanh
+  const allEpisodes: { chapterTitle: string; title: string; index: number; episodeId?: string }[] = isMock
+    ? (() => {
+        const list: any[] = [];
+        if (comic && comic.chapters) {
+          comic.chapters.forEach((chap) => {
+            if (chap.episodes) {
+              chap.episodes.forEach((ep, idx) => {
+                list.push({
+                  chapterTitle: chap.title,
+                  title: ep,
+                  index: idx,
+                });
+              });
+            }
+          });
+        }
+        return list;
+      })()
+    : dbEpisodes;
+
+  const currentEpisodeIdx =
+    allEpisodes.findIndex((e) => e.episodeId === episodeId || (episodeTitle && e.title === episodeTitle)) !== -1
+      ? allEpisodes.findIndex((e) => e.episodeId === episodeId || (episodeTitle && e.title === episodeTitle))
+      : 0;
+
+  const currentEp = allEpisodes[currentEpisodeIdx] || allEpisodes[0] || {};
+  const activeEpId = episodeId || currentEp?.episodeId;
+
+  // Fetch real media pages whenever activeEpId is set/changed
   useEffect(() => {
-    if (episodeId) {
+    if (activeEpId) {
       setLoading(true);
       setErrorMsg(null);
-      getPublicEpisodeMedia(episodeId, user?.accountId)
+      getPublicEpisodeMedia(activeEpId, user?.accountId)
         .then((res) => {
-          const data = res.data || res;
+          const data = Array.isArray(res) ? res : (res?.data || res?.result || []);
           if (data && data.length > 0) {
             const sorted = [...data].sort(
               (a: any, b: any) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
             );
-            setPages(sorted.map((m) => m.fileUrl || ""));
+            const urls = sorted
+              .map((m: any) => m.fileUrl || m.mediaUrl || m.url || "")
+              .filter((u: string) => Boolean(u));
+            setPages(urls);
+          } else {
+            setPages([]);
           }
         })
         .catch((err: any) => {
@@ -112,8 +251,10 @@ export default function ComicReaderScreen() {
           }
         })
         .finally(() => setLoading(false));
+    } else {
+      setPages([]);
     }
-  }, [episodeId, user?.accountId]);
+  }, [activeEpId, user?.accountId]);
 
   // Load real episodes structure if it is a database comic (id length >= 10)
   useEffect(() => {
@@ -171,46 +312,40 @@ export default function ComicReaderScreen() {
     };
 
     loadRealEpisodes();
-  }, [comicId]);
+  }, [comicId, isMock]);
 
   const getPageSource = (page: any) => {
+    if (!page) return null;
     if (typeof page === "string") {
-      return { uri: page };
+      if (
+        page.startsWith("http://") ||
+        page.startsWith("https://") ||
+        page.startsWith("file://") ||
+        page.startsWith("data:")
+      ) {
+        return { uri: page };
+      }
+      const cleanBase = BASE_URL.replace(/\/$/, "");
+      const cleanPath = page.startsWith("/") ? page : `/${page}`;
+      return { uri: `${cleanBase}${cleanPath}` };
     }
     if (page && page.uri) {
-      return { uri: page.uri };
+      if (
+        typeof page.uri === "string" &&
+        !page.uri.startsWith("http://") &&
+        !page.uri.startsWith("https://") &&
+        !page.uri.startsWith("file://") &&
+        !page.uri.startsWith("data:")
+      ) {
+        const cleanBase = BASE_URL.replace(/\/$/, "");
+        const cleanPath = page.uri.startsWith("/") ? page.uri : `/${page.uri}`;
+        return { uri: `${cleanBase}${cleanPath}` };
+      }
+      return page;
     }
     return page;
   };
 
-  // Lấy tất cả tập con (episodes) phẳng của toàn bộ truyện để chuyển tập nhanh
-  const allEpisodes: { chapterTitle: string; title: string; index: number; episodeId?: string }[] = isMock
-    ? (() => {
-        const list: any[] = [];
-        if (comic && comic.chapters) {
-          comic.chapters.forEach((chap) => {
-            if (chap.episodes) {
-              chap.episodes.forEach((ep, idx) => {
-                list.push({
-                  chapterTitle: chap.title,
-                  title: ep,
-                  index: idx,
-                });
-              });
-            }
-          });
-        }
-        return list;
-      })()
-    : dbEpisodes;
-
-  const currentEpisodeIdx =
-    allEpisodes.findIndex((e) => e.title === episodeTitle || e.episodeId === episodeId) !== -1
-      ? allEpisodes.findIndex((e) => e.title === episodeTitle || e.episodeId === episodeId)
-      : 0;
-
-  const currentEp = allEpisodes[currentEpisodeIdx] || allEpisodes[0] || {};
-  const activeEpId = currentEp?.episodeId || episodeId;
   const { isLiked, likeCount, toggleLike, isMutating: isLikeMutating } = useEpisodeLikes(activeEpId);
 
   // Chuyển tập tiếp theo hoặc tập trước
@@ -318,10 +453,7 @@ export default function ComicReaderScreen() {
       {/* VIEW TRANG ĐỌC TRUYỆN */}
       <View className="flex-1 justify-center items-center w-full bg-black">
         {loading ? (
-          <View className="items-center justify-center py-20">
-            <ActivityIndicator size="large" color="#D4AF37" />
-            <Text className="text-zinc-500 text-xs mt-3">Đang tải các trang truyện...</Text>
-          </View>
+          <ComicReaderSkeleton insetsTop={insets.top} />
         ) : errorMsg ? (
           <View className="items-center justify-center px-6 py-20 max-w-sm text-center">
             <MaterialCommunityIcons name="lock-alert-outline" size={56} color="#D4AF37" />
@@ -330,6 +462,24 @@ export default function ComicReaderScreen() {
             </Text>
             <Text className="text-zinc-400 text-xs text-center mt-2 leading-5">
               {errorMsg}
+            </Text>
+            <View className="flex-row gap-3 mt-6">
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                className="bg-zinc-800 px-5 py-2.5 rounded-full border border-white/10"
+              >
+                <Text className="text-stone-300 font-bold text-xs">Quay lại</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : pages.length === 0 ? (
+          <View className="items-center justify-center px-6 py-20 max-w-sm text-center">
+            <MaterialCommunityIcons name="book-remove-outline" size={56} color="#D4AF37" />
+            <Text className="text-white font-bold text-base mt-4 text-center">
+              Chưa có trang nội dung
+            </Text>
+            <Text className="text-zinc-400 text-xs text-center mt-2 leading-5">
+              Tập truyện này hiện chưa được tải lên hình ảnh nội dung. Vui lòng quay lại sau.
             </Text>
             <View className="flex-row gap-3 mt-6">
               <TouchableOpacity
@@ -352,18 +502,14 @@ export default function ComicReaderScreen() {
             }}
           >
             {pages.map((page, idx) => (
-              <TouchableOpacity
+              <ComicImagePage
                 key={`vertical-${idx}`}
-                activeOpacity={1}
+                page={page}
+                getPageSource={getPageSource}
+                width={screenWidth}
+                readingMode="vertical"
                 onPress={toggleControls}
-              >
-                <Image
-                  source={getPageSource(page)}
-                  style={{ width: screenWidth, height: screenWidth * 1.5 }}
-                  resizeMode="contain"
-                  className="bg-black"
-                />
-              </TouchableOpacity>
+              />
             ))}
 
             {activeEpId ? (
@@ -383,18 +529,14 @@ export default function ComicReaderScreen() {
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={handleHorizontalScroll}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                activeOpacity={1}
+              <ComicImagePage
+                page={item}
+                getPageSource={getPageSource}
+                width={screenWidth}
+                height={screenHeight}
+                readingMode="horizontal"
                 onPress={toggleControls}
-                style={{ width: screenWidth, height: screenHeight }}
-                className="justify-center bg-black"
-              >
-                <Image
-                  source={getPageSource(item)}
-                  style={{ width: screenWidth, height: screenHeight - 120 }}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
+              />
             )}
           />
         )}

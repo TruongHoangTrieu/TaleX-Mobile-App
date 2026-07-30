@@ -45,7 +45,19 @@ export default function PublishStep({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agreedToOrder, setAgreedToOrder] = useState(false);
+
+  const canPublish = agreedToTerms && agreedToOrder;
+
   const handlePublishPress = () => {
+    if (!canPublish) {
+      Alert.alert(
+        "Vui lòng xác nhận",
+        "Vui lòng tích chọn xác nhận quyền sở hữu tác phẩm và đã kiểm tra thứ tự nội dung.",
+      );
+      return;
+    }
     if (isScheduled) {
       if (scheduleDate.getTime() <= Date.now()) {
         Alert.alert("Lỗi thời gian", "Thời gian lên lịch phải ở trong tương lai.");
@@ -123,19 +135,27 @@ export default function PublishStep({
       <View className="flex-row bg-[#1E1E22] rounded-xl p-1 mb-5 border border-zinc-800" style={{ gap: 4 }}>
         <TouchableOpacity
           onPress={() => setIsScheduled(false)}
-          className={`flex-1 py-3 rounded-lg flex-row items-center justify-center ${!isScheduled ? "bg-[#D4AF37]" : ""}`}
+          className={`flex-1 py-3 px-1 rounded-lg flex-row items-center justify-center ${!isScheduled ? "bg-[#D4AF37]" : ""}`}
         >
-          <Feather name="zap" size={14} color={!isScheduled ? "#141210" : "#7C766B"} style={{ marginRight: 6 }} />
-          <Text className={`text-xs font-bold ${!isScheduled ? "text-[#141210]" : "text-zinc-400"}`}>
+          <Feather name="zap" size={14} color={!isScheduled ? "#141210" : "#7C766B"} style={{ marginRight: 4 }} />
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            className={`text-xs font-bold ${!isScheduled ? "text-[#141210]" : "text-zinc-400"}`}
+          >
             Xuất bản ngay
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setIsScheduled(true)}
-          className={`flex-1 py-3 rounded-lg flex-row items-center justify-center ${isScheduled ? "bg-[#D4AF37]" : ""}`}
+          className={`flex-1 py-3 px-1 rounded-lg flex-row items-center justify-center ${isScheduled ? "bg-[#D4AF37]" : ""}`}
         >
-          <Feather name="calendar" size={14} color={isScheduled ? "#141210" : "#7C766B"} style={{ marginRight: 6 }} />
-          <Text className={`text-xs font-bold ${isScheduled ? "text-[#141210]" : "text-zinc-400"}`}>
+          <Feather name="calendar" size={14} color={isScheduled ? "#141210" : "#7C766B"} style={{ marginRight: 4 }} />
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            className={`text-xs font-bold ${isScheduled ? "text-[#141210]" : "text-zinc-400"}`}
+          >
             Lên lịch phát hành
           </Text>
         </TouchableOpacity>
@@ -227,10 +247,55 @@ export default function PublishStep({
       )}
 
       <Text className="text-white text-base font-black mb-1">Bước 5: Xác nhận & Xuất bản</Text>
-      <Text className="text-zinc-500 text-xs mb-5">{confirmText}</Text>
+      <Text className="text-zinc-500 text-xs mb-4">{confirmText}</Text>
+
+      {/* Manual Checklist Items */}
+      <View className="space-y-3 mb-6">
+        <TouchableOpacity
+          onPress={() => setAgreedToTerms(!agreedToTerms)}
+          className={`flex-row items-start p-3.5 rounded-2xl border ${
+            agreedToTerms ? "bg-[#D4AF37]/10 border-[#D4AF37]" : "bg-[#1E1E22] border-zinc-800"
+          }`}
+        >
+          <View
+            className={`w-5 h-5 rounded-md border items-center justify-center mr-3 mt-0.5 ${
+              agreedToTerms ? "bg-[#D4AF37] border-[#D4AF37]" : "border-zinc-600"
+            }`}
+          >
+            {agreedToTerms && <Feather name="check" size={12} color="#141210" />}
+          </View>
+          <View className="flex-1">
+            <Text className="text-white text-xs font-bold">Xác nhận bản quyền tác phẩm *</Text>
+            <Text className="text-zinc-500 text-[10px] mt-0.5">
+              Tôi nắm giữ toàn bộ quyền sở hữu và sự cho phép để xuất bản nội dung này trên TaleX.
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setAgreedToOrder(!agreedToOrder)}
+          className={`flex-row items-start p-3.5 rounded-2xl border ${
+            agreedToOrder ? "bg-[#D4AF37]/10 border-[#D4AF37]" : "bg-[#1E1E22] border-zinc-800"
+          }`}
+        >
+          <View
+            className={`w-5 h-5 rounded-md border items-center justify-center mr-3 mt-0.5 ${
+              agreedToOrder ? "bg-[#D4AF37] border-[#D4AF37]" : "border-zinc-600"
+            }`}
+          >
+            {agreedToOrder && <Feather name="check" size={12} color="#141210" />}
+          </View>
+          <View className="flex-1">
+            <Text className="text-white text-xs font-bold">Xác minh thứ tự & nội dung *</Text>
+            <Text className="text-zinc-500 text-[10px] mt-0.5">
+              Các trang truyện / video tập phim đã được sắp xếp đúng thứ tự hiển thị chuẩn.
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
 
       {/* Nav Buttons */}
-      <View className="flex-row mt-8" style={{ gap: 12 }}>
+      <View className="flex-row mt-4" style={{ gap: 12 }}>
         <TouchableOpacity
           onPress={onBack}
           className="flex-1 h-12 bg-[#252830] border border-zinc-800 rounded-xl items-center justify-center flex-row"
@@ -241,17 +306,24 @@ export default function PublishStep({
 
         <TouchableOpacity
           onPress={handlePublishPress}
-          disabled={publishing}
-          className="flex-1 h-12 bg-[#D4AF37] rounded-xl items-center justify-center flex-row"
+          disabled={publishing || !canPublish}
+          className={`flex-1 h-12 rounded-xl items-center justify-center flex-row ${
+            canPublish ? "bg-[#D4AF37]" : "bg-zinc-800 opacity-50"
+          }`}
         >
           {publishing ? (
             <ActivityIndicator size="small" color="#141210" />
           ) : (
             <>
-              <Text className="text-[#141210] text-sm font-black uppercase tracking-wider">
+              <Text className={`text-sm font-black uppercase tracking-wider ${canPublish ? "text-[#141210]" : "text-zinc-500"}`}>
                 {isScheduled ? "Đặt lịch" : publishButtonLabel}
               </Text>
-              <Feather name={isScheduled ? "clock" : "check-circle"} size={16} color="#141210" style={{ marginLeft: 6 }} />
+              <Feather
+                name={isScheduled ? "clock" : "check-circle"}
+                size={16}
+                color={canPublish ? "#141210" : "#71717A"}
+                style={{ marginLeft: 6 }}
+              />
             </>
           )}
         </TouchableOpacity>

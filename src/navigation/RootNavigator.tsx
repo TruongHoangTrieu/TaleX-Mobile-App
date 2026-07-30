@@ -4,6 +4,7 @@ import TabNavigator from "./TabNavigator";
 import SearchScreen from "@screens/SearchScreen";
 import LoginScreen from "@screens/auth/LoginScreen";
 import RegisterScreen from "@screens/auth/RegisterScreen";
+import ForgotPasswordScreen from "@/screens/auth/ForgotPasswordScreen";
 import OtpVerifyScreen from "@/screens/auth/OtpVerifyScreen";
 import GoogleCompleteProfileScreen from "@/screens/auth/GoogleCompleteProfileScreen";
 import OnboardingScreen from "@/screens/auth/OnboardingScreen";
@@ -17,6 +18,7 @@ import Top10MoviesScreen from "@/screens/movies/Top10MoviesScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
 import CreatorChannelScreen from "@/screens/creator/CreatorChannelScreen";
+import PublicChannelScreen from "@/screens/channel/PublicChannelScreen";
 import CreatorMonetizationScreen from "@/screens/creator/CreatorMonetizationScreen";
 import SubscriptionPlansScreen from "@/screens/subscription/SubscriptionPlansScreen";
 import UploadMovieScreen from "@/screens/creator/UploadMovieScreen";
@@ -34,6 +36,7 @@ export type RootStackParamList = {
   Search: undefined;
   LoginScreen: undefined;
   RegisterScreen: undefined;
+  ForgotPasswordScreen: undefined;
   OtpVerify:
     | {
         email?: string;
@@ -79,7 +82,8 @@ export type RootStackParamList = {
   Top10Movies: undefined;
   CreatorGuard: undefined;
   CreatorDashboard: undefined;
-  CreatorChannel: undefined;
+  CreatorChannel: { creatorId?: string } | undefined;
+  PublicChannel: { creatorId?: string } | undefined;
   CreatorMonetization: undefined;
   SubscriptionPlans: undefined;
   CoinCenter: undefined;
@@ -92,12 +96,19 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function RootNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        initialRouteName="Splash"
+        screenOptions={{ headerShown: false }}
+      >
         <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="MainTabs" component={TabNavigator} />
         <Stack.Screen name="Search" component={SearchScreen} />
         <Stack.Screen name="LoginScreen" component={LoginScreen} />
         <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
+        <Stack.Screen
+          name="ForgotPasswordScreen"
+          component={ForgotPasswordScreen}
+        />
         <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
         <Stack.Screen
           name="GoogleCompleteProfile"
@@ -147,6 +158,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="CreatorChannel"
           component={CreatorChannelScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="PublicChannel"
+          component={PublicChannelScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

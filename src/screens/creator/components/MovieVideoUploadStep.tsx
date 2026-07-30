@@ -1,11 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  Image,
 } from "react-native";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useVideoPlayer, VideoView } from "expo-video";
 
 type MovieVideoUploadStepProps = {
   seriesTitle: string;
@@ -31,10 +34,31 @@ type MovieVideoUploadStepProps = {
   mediaStatus: string | null;
   copyrightStatus: string | null;
   moderationStatus: string | null;
+
+  episodeThumbnail?: { uri: string; name: string; size: number; type: string } | null;
+  handleSelectThumbnail?: () => void;
+  onViewViolationDetails?: () => void;
   
   onBack: () => void;
   onNext: () => void;
 };
+
+function VideoPreviewPlayer({ videoUri }: { videoUri: string }) {
+  const player = useVideoPlayer(videoUri, (p) => {
+    p.loop = false;
+  });
+
+  return (
+    <View className="w-full aspect-video rounded-2xl overflow-hidden bg-black mb-3 border border-zinc-800">
+      <VideoView
+        player={player}
+        style={{ width: "100%", height: "100%" }}
+        allowsFullscreen
+        allowsPictureInPicture
+      />
+    </View>
+  );
+}
 
 export default function MovieVideoUploadStep({
   seriesTitle,
@@ -53,6 +77,9 @@ export default function MovieVideoUploadStep({
   mediaStatus,
   copyrightStatus,
   moderationStatus,
+  episodeThumbnail,
+  handleSelectThumbnail,
+  onViewViolationDetails,
   onBack,
   onNext,
 }: MovieVideoUploadStepProps) {
@@ -84,6 +111,43 @@ export default function MovieVideoUploadStep({
       <Text className="text-white text-base font-black mb-1">Bước 4: Tải lên video tập phim</Text>
       <Text className="text-zinc-500 text-xs mb-5">Chọn tệp tin video từ điện thoại của bạn.</Text>
 
+      {/* Episode Thumbnail Section */}
+      {handleSelectThumbnail && (
+        <View className="bg-[#1E1E22] border border-zinc-800 rounded-3xl p-4 mb-5">
+          <Text className="text-zinc-400 text-xs font-bold mb-2">
+            Ảnh đại diện tập phim (Thumbnail)
+          </Text>
+          {episodeThumbnail ? (
+            <View className="flex-row items-center">
+              <Image
+                source={{ uri: episodeThumbnail.uri }}
+                className="w-20 aspect-[16/9] rounded-xl bg-zinc-900 mr-3"
+                resizeMode="cover"
+              />
+              <View className="flex-1">
+                <Text className="text-white text-xs font-bold" numberOfLines={1}>
+                  {episodeThumbnail.name}
+                </Text>
+                <TouchableOpacity
+                  onPress={handleSelectThumbnail}
+                  className="mt-2 bg-zinc-800 px-3 py-1.5 rounded-lg self-start active:opacity-60"
+                >
+                  <Text className="text-white text-[10px] font-bold">Thay ảnh đại diện</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={handleSelectThumbnail}
+              className="border border-dashed border-zinc-700 rounded-2xl p-3 flex-row items-center justify-center active:opacity-60"
+            >
+              <Feather name="image" size={18} color="#D4AF37" style={{ marginRight: 8 }} />
+              <Text className="text-white text-xs font-bold">Tải ảnh đại diện tập phim lên</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {/* Video File Area */}
       {!videoFile ? (
         <TouchableOpacity
@@ -98,6 +162,9 @@ export default function MovieVideoUploadStep({
         </TouchableOpacity>
       ) : (
         <View className="bg-[#1E1E22] border border-zinc-800 rounded-3xl p-5 space-y-4">
+          {/* Video Preview Player */}
+          <VideoPreviewPlayer videoUri={videoFile.uri} />
+
           <View className="flex-row items-center">
             <View className="w-10 h-10 rounded-xl bg-zinc-800 items-center justify-center mr-3">
               <MaterialCommunityIcons name="movie-play" size={22} color="#FF4E4E" />

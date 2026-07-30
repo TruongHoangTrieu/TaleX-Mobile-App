@@ -25,6 +25,7 @@ import {
 } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
+import { useUserFeature } from "@/hooks/useUserFeature";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { getOwnCreator, type OwnCreatorResponse } from "@/services/creator";
 import { getFollowers, type AccountFollowInfoDto } from "@/services/follow";
@@ -69,6 +70,7 @@ export default function CreatorChannelScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { profile: userFeatureProfile } = useUserFeature();
 
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<OwnCreatorResponse | null>(null);
@@ -884,17 +886,38 @@ export default function CreatorChannelScreen() {
           const isComic = item.contentType?.toUpperCase() === "COMIC";
           const isPublic = item.status === "PUBLISHED";
 
-          // Tạo dữ liệu mock ổn định dựa trên mã seriesId để không bị thay đổi ngẫu nhiên mỗi lần render
+          // Ưu tiên dữ liệu thực từ API nếu có, ngược lại sử dụng fallback ngẫu nhiên ổn định
+          const anyItem = item as any;
           const seed = item.seriesId
-            .split("")
-            .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            ? item.seriesId
+                .split("")
+                .reduce((acc, char) => acc + char.charCodeAt(0), 0)
+            : 100;
           const mockViewsVal = ((seed * 17) % 89000) + 120;
-          const mockViews =
-            mockViewsVal >= 1000
-              ? `${(mockViewsVal / 1000).toFixed(1)}K`
-              : `${mockViewsVal}`;
-          const mockLikes = Math.floor(mockViewsVal * 0.08) + 5;
-          const mockComments = Math.floor(mockViewsVal * 0.02) + 1;
+          const realViews =
+            anyItem.totalViews ?? anyItem.viewCount ?? anyItem.views;
+          const finalViewsVal =
+            realViews !== undefined && realViews !== null
+              ? realViews
+              : mockViewsVal;
+          const displayViews =
+            finalViewsVal >= 1000
+              ? `${(finalViewsVal / 1000).toFixed(1)}K`
+              : `${finalViewsVal}`;
+
+          const realLikes =
+            anyItem.totalLikes ?? anyItem.likeCount ?? anyItem.likes;
+          const displayLikes =
+            realLikes !== undefined && realLikes !== null
+              ? realLikes
+              : Math.floor(mockViewsVal * 0.08) + 5;
+
+          const realComments =
+            anyItem.totalComments ?? anyItem.commentCount ?? anyItem.comments;
+          const displayComments =
+            realComments !== undefined && realComments !== null
+              ? realComments
+              : Math.floor(mockViewsVal * 0.02) + 1;
 
           const timeOptions = [
             "2 ngày trước",
@@ -990,8 +1013,8 @@ export default function CreatorChannelScreen() {
 
                 {/* Loại tác phẩm • Lượt xem • Thời gian xuất bản */}
                 <Text className="text-stone-400 text-[10px] font-bold mt-1.5">
-                  {isComic ? "Truyện tranh" : "Phim bộ"} • {mockViews} lượt xem
-                  • {mockTime}
+                  {isComic ? "Truyện tranh" : "Phim bộ"} • {displayViews} lượt
+                  xem • {mockTime}
                 </Text>
 
                 {/* Hàng tương tác & Bảo mật (Cùng một hàng) */}
@@ -1000,7 +1023,7 @@ export default function CreatorChannelScreen() {
                   <View className="flex-row items-center mr-3">
                     <Feather name="thumbs-up" size={11} color="#A19E95" />
                     <Text className="text-[#A19E95] text-[10px] font-bold ml-1">
-                      {mockLikes}
+                      {displayLikes}
                     </Text>
                   </View>
 
@@ -1008,7 +1031,7 @@ export default function CreatorChannelScreen() {
                   <View className="flex-row items-center mr-3">
                     <Feather name="message-square" size={11} color="#A19E95" />
                     <Text className="text-[#A19E95] text-[10px] font-bold ml-1">
-                      {mockComments}
+                      {displayComments}
                     </Text>
                   </View>
 
@@ -1073,71 +1096,100 @@ export default function CreatorChannelScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* BANNER KÊNH */}
-        <View className="w-full h-[120px] bg-zinc-800 relative">
-          {creator?.bannerUrl ? (
-            <Image
-              source={{ uri: creator.bannerUrl }}
-              className="w-full h-full"
-              resizeMode="cover"
-            />
-          ) : (
-            <Image
-              source={require("@assets/background.webp")}
-              className="w-full h-full"
-              resizeMode="cover"
-            />
-          )}
-        </View>
+        {(() => {
+          const anyCreator = creator as any;
+          const anyProfile = userFeatureProfile as any;
+          const effectiveAvatarUrl =
+            anyCreator?.avatarUrl ||
+            user?.avatarUrl ||
+            anyProfile?.avatarUrl ||
+            anyProfile?.avatar ||
+            (series.length > 0 ? (series[0] as any).creatorAvatar : null);
+          // Background phía sau luôn luôn lấy trực tiếp ảnh của Avatar:
+          const effectiveBannerUrl = effectiveAvatarUrl;
+          const effectiveDisplayName =
+            anyCreator?.displayName ||
+            anyCreator?.channelName ||
+            user?.fullName ||
+            user?.username ||
+            anyProfile?.fullName ||
+            "Kênh sáng tạo";
+          const effectiveBio =
+            anyCreator?.bio ||
+            anyCreator?.description ||
+            anyProfile?.bio ||
+            "Chưa có tiểu sử giới thiệu. Hãy thêm tiểu sử trong Studio sáng tạo.";
 
-        {/* THÔNG TIN KÊNH */}
-        <View className="px-4 -mt-10 mb-6">
-          <View className="flex-row items-end justify-between">
-            {/* Avatar */}
-            <View className="w-20 h-20 rounded-full overflow-hidden border-4 border-[#0F0F0F] bg-zinc-900">
-              {creator?.avatarUrl ? (
-                <Image
-                  source={{ uri: creator.avatarUrl }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-              ) : (
-                <Image
-                  source={require("@assets/icon.png")}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-              )}
-            </View>
+          return (
+            <>
+              <View className="w-full h-[120px] bg-zinc-800 relative">
+                {effectiveBannerUrl ? (
+                  <Image
+                    source={{ uri: effectiveBannerUrl }}
+                    className="w-full h-full"
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Image
+                    source={require("@assets/background.webp")}
+                    className="w-full h-full"
+                    resizeMode="cover"
+                  />
+                )}
+              </View>
 
-            {/* Nút chỉnh sửa / studio */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate("CreatorDashboard")}
-              className="bg-[#262628] border border-white/5 px-4 py-1.5 rounded-full flex-row items-center mb-1"
-            >
-              <MaterialCommunityIcons
-                name="view-dashboard-outline"
-                size={14}
-                color="#D4AF37"
-              />
-              <Text className="text-stone-300 text-xs font-bold ml-1.5">
-                Quản lý kênh
-              </Text>
-            </TouchableOpacity>
-          </View>
+              {/* THÔNG TIN KÊNH */}
+              <View className="px-4 -mt-10 mb-6">
+                <View className="flex-row items-end justify-between">
+                  {/* Avatar */}
+                  <View className="w-20 h-20 rounded-full overflow-hidden border-4 border-[#0F0F0F] bg-zinc-900">
+                    {effectiveAvatarUrl ? (
+                      <Image
+                        source={{ uri: effectiveAvatarUrl }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Image
+                        source={require("@assets/icon.png")}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    )}
+                  </View>
 
-          {/* Name & Bio */}
-          <Text className="text-white text-2xl font-black tracking-wide mt-3">
-            {creator?.displayName || user?.fullName || "Kênh sáng tạo"}
-          </Text>
-          <Text className="text-zinc-400 text-xs font-bold mt-1.5">
-            {user?.email || "Email không xác định"} • {series.length} Tác phẩm
-          </Text>
-          <Text className="text-stone-200 text-[13px] font-semibold mt-3 leading-5">
-            {creator?.bio ||
-              "Chưa có tiểu sử giới thiệu. Hãy thêm tiểu sử trong Studio sáng tạo."}
-          </Text>
-        </View>
+                  {/* Nút chỉnh sửa / studio */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => navigation.navigate("CreatorDashboard")}
+                    className="bg-[#262628] border border-white/5 px-4 py-1.5 rounded-full flex-row items-center mb-1"
+                  >
+                    <MaterialCommunityIcons
+                      name="view-dashboard-outline"
+                      size={14}
+                      color="#D4AF37"
+                    />
+                    <Text className="text-stone-300 text-xs font-bold ml-1.5">
+                      Quản lý kênh
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Name & Bio */}
+                <Text className="text-white text-2xl font-black tracking-wide mt-3">
+                  {effectiveDisplayName}
+                </Text>
+                <Text className="text-zinc-400 text-xs font-bold mt-1.5">
+                  {user?.email || "Email không xác định"} • {series.length} Tác
+                  phẩm
+                </Text>
+                <Text className="text-stone-200 text-[13px] font-semibold mt-3 leading-5">
+                  {effectiveBio}
+                </Text>
+              </View>
+            </>
+          );
+        })()}
 
         {/* TAB BAR STYLE YOUTUBE (SCROLLABLE HORIZONTALLY) */}
         <ScrollView

@@ -203,7 +203,10 @@ export default function LoginScreen({ onLogin }: Props) {
           </TouchableOpacity>
 
           {/* FORGOT PASSWORD */}
-          <TouchableOpacity className="mt-5 items-center">
+          <TouchableOpacity
+            className="mt-5 items-center"
+            onPress={() => navigation.navigate("ForgotPasswordScreen")}
+          >
             <Text className="text-red-400 font-bold text-[14px]">
               Quên mật khẩu
             </Text>

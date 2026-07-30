@@ -21,8 +21,13 @@ import {
   FontAwesome,
   FontAwesome5,
 } from "@expo/vector-icons";
-import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "@/context/AuthContext";
 import { getMovieById, allMovies } from "./movieMockData";
 import {
   getPublicSeriesDetail,
@@ -44,6 +49,23 @@ import { getCategories, getTags } from "@/services/creatorContent";
 
 const { width: screenWidth } = Dimensions.get("window");
 
+const formatAgeRating = (rating?: string) => {
+  if (!rating) return "16+";
+  const str = String(rating).toUpperCase();
+  if (str.includes("18")) return "18+";
+  if (str.includes("16")) return "16+";
+  if (str.includes("13")) return "13+";
+  if (str === "P" || str.includes("ALL")) return "P";
+  return rating;
+};
+
+const getAgeRatingStyle = (rating?: string) => {
+  const formatted = formatAgeRating(rating);
+  if (formatted === "18+") return { bg: "bg-red-500/25", border: "border-red-500/50", text: "text-red-400" };
+  if (formatted === "16+") return { bg: "bg-amber-500/25", border: "border-amber-500/50", text: "text-amber-400" };
+  return { bg: "bg-emerald-500/25", border: "border-emerald-500/50", text: "text-emerald-400" };
+};
+
 interface CommentItem {
   id: string;
   userName: string;
@@ -57,7 +79,8 @@ const mockCommentsData: CommentItem[] = [
   {
     id: "c1",
     userName: "Minh Tuấn",
-    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop",
+    avatar:
+      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop",
     rating: 5,
     time: "2 giờ trước",
     text: "Phim quá hay, cốt truyện hấp dẫn và kỹ xảo đỉnh cao! Rất đáng xem.",
@@ -65,7 +88,8 @@ const mockCommentsData: CommentItem[] = [
   {
     id: "c2",
     userName: "Hoàng Yến",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop",
+    avatar:
+      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop",
     rating: 5,
     time: "5 giờ trước",
     text: "Tập mới nhất kịch tính quá, mong chờ các tập tiếp theo của tác giả!",
@@ -75,6 +99,7 @@ const mockCommentsData: CommentItem[] = [
 export default function MovieDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const { user } = useAuth();
   const { movieId, seriesItem } = (route.params || {}) as any;
 
   const [movie, setMovie] = useState<any>(() => {
@@ -100,8 +125,11 @@ export default function MovieDetailScreen() {
         ageRating: seriesItem.ageRating || "T16",
         translation: seriesItem.translation || "Vietsub",
         regionAndGenre: seriesItem.regionAndGenre || "Việt Nam · Hành Động",
-        description: seriesItem.description || "Tác phẩm điện ảnh đặc sắc mang lại những trải nghiệm hình ảnh và âm thanh sống động.",
-        creatorName: seriesItem.author || seriesItem.creatorName || "Tác giả TaleX",
+        description:
+          seriesItem.description ||
+          "Tác phẩm điện ảnh đặc sắc mang lại những trải nghiệm hình ảnh và âm thanh sống động.",
+        creatorName:
+          seriesItem.author || seriesItem.creatorName || "Tác giả TaleX",
         creatorAvatar: seriesItem.creatorAvatar,
       };
     }
@@ -112,17 +140,22 @@ export default function MovieDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
 
-  // Tabs: "episodes" | "trailers"
-  const [bottomTab, setBottomTab] = useState<"recommend" | "about" | "comments">("recommend");
+  // Tabs: "about" | "comments"
+  const [bottomTab, setBottomTab] = useState<"about" | "comments">("about");
+  const [isAscending, setIsAscending] = useState(true);
 
   // Seasons and episodes
   const [seasons, setSeasons] = useState<SeasonItem[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
-  const [episodesMap, setEpisodesMap] = useState<Record<string, EpisodeItem[]>>({});
+  const [episodesMap, setEpisodesMap] = useState<Record<string, EpisodeItem[]>>(
+    {},
+  );
   const [combos, setCombos] = useState<ComboItem[]>([]);
 
   // Category & Tag API Lookups
-  const [allCategoriesMap, setAllCategoriesMap] = useState<Record<string, string>>({});
+  const [allCategoriesMap, setAllCategoriesMap] = useState<
+    Record<string, string>
+  >({});
   const [allTagsMap, setAllTagsMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -151,19 +184,25 @@ export default function MovieDetailScreen() {
       .catch(() => {});
   }, []);
 
-  const displayCategoryNames = useMemo(() => {
+  const categoriesArray = useMemo(() => {
     if (Array.isArray(movie?.categories) && movie.categories.length > 0) {
-      const names = movie.categories
+      return movie.categories
         .map((c: any) => {
           if (typeof c === "string") return allCategoriesMap[c] || c;
           return c.categoryName || c.name || allCategoriesMap[c.categoryId];
         })
         .filter(Boolean);
-      if (names.length > 0) return names.join(" · ");
     }
-    if (movie?.category) return movie.category;
-    return movie?.regionAndGenre || "Việt Nam · Hành Động";
+    if (movie?.category) return [movie.category];
+    return [];
   }, [movie, allCategoriesMap]);
+
+  const displayCategoryNames = useMemo(() => {
+    if (categoriesArray.length > 0) {
+      return categoriesArray.join(" · ");
+    }
+    return null;
+  }, [categoriesArray]);
 
   const displayTagNames = useMemo<string[]>(() => {
     if (Array.isArray(movie?.tags) && movie.tags.length > 0) {
@@ -178,10 +217,28 @@ export default function MovieDetailScreen() {
   }, [movie, allTagsMap]);
 
   const [baseFollowerCount, setBaseFollowerCount] = useState(0);
-  const [initialIsFollowing, setInitialIsFollowing] = useState<boolean | null>(null);
+  const [initialIsFollowing, setInitialIsFollowing] = useState<boolean | null>(
+    null,
+  );
   const [showFollowersModal, setShowFollowersModal] = useState(false);
 
   const creatorAccountId = movie?.creatorAccountId || movie?.authorAccountId;
+
+  const handleCreatorPress = () => {
+    if (!creatorAccountId) {
+      Alert.alert("Thông báo", "Tác phẩm này chưa liên kết kênh tác giả.");
+      return;
+    }
+    const isMyChannel =
+      user?.accountId &&
+      String(user.accountId).toLowerCase() === String(creatorAccountId).toLowerCase();
+
+    if (isMyChannel) {
+      navigation.navigate("CreatorChannel");
+    } else {
+      navigation.navigate("PublicChannel", { creatorId: creatorAccountId });
+    }
+  };
 
   const {
     isFollowing,
@@ -209,24 +266,41 @@ export default function MovieDetailScreen() {
 
   const sortedSeasons = useMemo(
     () => [...seasons].sort((a, b) => a.seasonNumber - b.seasonNumber),
-    [seasons]
+    [seasons],
   );
   const activeSeasonId =
-    selectedSeasonId || (sortedSeasons.length > 0 ? sortedSeasons[0].seasonId : null);
+    selectedSeasonId ||
+    (sortedSeasons.length > 0 ? sortedSeasons[0].seasonId : null);
   const currentEpisodes: EpisodeItem[] = activeSeasonId
-    ? (episodesMap[activeSeasonId] || []).slice().sort(
-        (a, b) => a.episodeNumber - b.episodeNumber
-      )
+    ? (episodesMap[activeSeasonId] || [])
+        .slice()
+        .sort((a, b) => a.episodeNumber - b.episodeNumber)
     : [];
 
   const firstEpisode = currentEpisodes.length > 0 ? currentEpisodes[0] : null;
 
+  const displayEpisodes = useMemo(() => {
+    const list = Array.isArray(currentEpisodes) ? [...currentEpisodes] : [];
+    if (!isAscending) {
+      list.reverse();
+    }
+    return list;
+  }, [currentEpisodes, isAscending]);
+
   const totalViews = useMemo(() => {
     if (movie?.views != null && movie.views > 0) return movie.views;
     let total = 0;
-    Object.values(episodesMap).forEach((eps) => {
-      eps.forEach((ep) => { total += ep.views || 0; });
-    });
+    if (episodesMap && typeof episodesMap === "object") {
+      Object.values(episodesMap).forEach((eps) => {
+        if (Array.isArray(eps)) {
+          eps.forEach((ep) => {
+            if (ep && typeof ep.views === "number") {
+              total += ep.views;
+            }
+          });
+        }
+      });
+    }
     return total || 12500;
   }, [movie, episodesMap]);
 
@@ -260,9 +334,13 @@ export default function MovieDetailScreen() {
                   detail.authorAccountId ||
                   detail.creator?.accountId,
                 creatorName:
-                  detail.creatorName || detail.creator?.username || detail.author || "Tác giả TaleX",
+                  detail.creatorName ||
+                  detail.creator?.username ||
+                  detail.author ||
+                  "Tác giả TaleX",
                 creatorAvatar: detail.creatorAvatar || detail.creator?.avatarUrl,
-                totalCreatorFollowers: detail.totalCreatorFollowers,
+                totalCreatorFollowers: detail.totalCreatorFollowers ?? (detail as any).creator?.totalFollowers ?? null,
+                totalSubscriptions: (detail as any).totalSubscriptions ?? null,
                 image:
                   detail.coverUrl || detail.bannerUrl || detail.thumbnailUrl
                     ? {
@@ -271,33 +349,40 @@ export default function MovieDetailScreen() {
                           detail.bannerUrl ||
                           detail.thumbnailUrl,
                       }
-                    : require("@assets/movie2.jpg"),
+                    : null,
                 coverUrl: detail.coverUrl,
                 bannerUrl: detail.bannerUrl,
-                subtitle: detail.subtitle || "Trọn bộ",
-                category: detail.category || "Phim Bộ",
                 categories: detail.categories || [],
                 tags: detail.tags || [],
-                rating: detail.rating || "9.8",
-                year: detail.year || "2026",
-                ageRating: detail.ageRating || "T16",
-                language: detail.language || "Việt Nam",
-                translation: detail.translation || detail.language || "Vietsub",
-                regionAndGenre: detail.regionAndGenre || "Việt Nam · Hành Động",
-                description: detail.description || "Nội dung đang được cập nhật bởi tác giả.",
-                views: detail.views ?? detail.totalViews ?? 0,
+                rating: detail.rating || null,
+                year: detail.year || null,
+                ageRating: detail.ageRating || null,
+                language: detail.language || null,
+                status: detail.status || null,
+                createdAt: (detail as any).createdAt || null,
+                updatedAt: (detail as any).updatedAt || null,
+                description: detail.description || null,
+                views: detail.views ?? (detail as any).totalViews ?? null,
               });
               setBaseFollowerCount(detail.totalCreatorFollowers ?? 0);
             }
           } catch (e) {
-            console.log("Real API fetch skipped or returned fallback for ID:", movieId);
+            console.log(
+              "Real API fetch skipped or returned fallback for ID:",
+              movieId,
+            );
           }
         }
 
         const seasonsRes = await getSeriesSeasons(movieId);
-        if (seasonsRes && seasonsRes.code === 200 && seasonsRes.data && seasonsRes.data.length > 0) {
+        if (
+          seasonsRes &&
+          seasonsRes.code === 200 &&
+          seasonsRes.data &&
+          seasonsRes.data.length > 0
+        ) {
           const sorted = [...seasonsRes.data].sort(
-            (a, b) => a.seasonNumber - b.seasonNumber
+            (a, b) => a.seasonNumber - b.seasonNumber,
           );
           setSeasons(sorted);
           const firstSeasonId = sorted[0].seasonId;
@@ -318,7 +403,7 @@ export default function MovieDetailScreen() {
               } catch (err) {
                 console.error("Error fetching season episodes:", err);
               }
-            })
+            }),
           );
 
           setEpisodesMap(newEpisodesMap);
@@ -351,7 +436,7 @@ export default function MovieDetailScreen() {
         setRefreshing(false);
       }
     },
-    [movieId, navigation]
+    [movieId, navigation],
   );
 
   useEffect(() => {
@@ -361,7 +446,7 @@ export default function MovieDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData(true);
-    }, [loadData])
+    }, [loadData]),
   );
 
   const onRefresh = useCallback(() => {
@@ -370,7 +455,8 @@ export default function MovieDetailScreen() {
   }, [loadData]);
 
   const handlePlayEpisode = (ep?: EpisodeItem | null, index: number = 0) => {
-    const targetEp = ep || firstEpisode || (movie.episodes ? movie.episodes[0] : null);
+    const targetEp =
+      ep || firstEpisode || (movie.episodes ? movie.episodes[0] : null);
     navigation.navigate("MoviePlayer", {
       movieId: movie.id,
       movieTitle: movie.title,
@@ -378,15 +464,14 @@ export default function MovieDetailScreen() {
       episodeId: targetEp?.episodeId || "ep1",
       episodeTitle: targetEp?.title || "Tập 1",
       episodeIndex: index,
-      episodesList: currentEpisodes.length > 0 ? currentEpisodes : movie.episodes || [],
+      episodesList:
+        currentEpisodes.length > 0 ? currentEpisodes : movie.episodes || [],
     });
   };
 
-
-
   const recommendations = allMovies
     .filter((m) => m.id !== movie?.id)
-    .slice(0, 4);
+    .slice(0, 6);
 
   const [isWatched, setIsWatched] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);
@@ -395,7 +480,7 @@ export default function MovieDetailScreen() {
     return (
       <SafeAreaView className="flex-1 bg-[#141619] items-center justify-center">
         <ActivityIndicator size="large" color="#D4AF37" />
-        <Text className="text-zinc-400 text-xs mt-3">
+        <Text className="text-zinc-400 text-xs mt-3 font-bold">
           Đang tải chi tiết phim...
         </Text>
       </SafeAreaView>
@@ -406,17 +491,17 @@ export default function MovieDetailScreen() {
     movie.coverUrl || movie.bannerUrl
       ? { uri: movie.coverUrl || movie.bannerUrl }
       : typeof movie.image === "object"
-      ? movie.image
-      : require("@assets/movie2.jpg");
+        ? movie.image
+        : require("@assets/movie2.jpg");
 
   return (
-    <SafeAreaView edges={[]} className="flex-1 bg-[#141619]">
-      <StatusBar barStyle="light-content" translucent />
+    <View className="flex-1 bg-[#121214]">
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 130 }}
+        contentContainerStyle={{ paddingBottom: 110 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -426,476 +511,302 @@ export default function MovieDetailScreen() {
           />
         }
       >
-        {/* ================= 1. HERO BACKDROP AREA (Chuẩn 100% hình mẫu mới) ================= */}
-        <View className="w-full h-[370px] relative bg-zinc-900">
+        {/* ================= 1. HERO 16:9 BANNER BACKDROP ================= */}
+        <View style={{ width: screenWidth, height: screenWidth * (9 / 16) + 40 }} className="relative bg-zinc-900">
           <ImageBackground
             source={bgImageSource}
-            className="w-full h-full"
+            style={{ width: "100%", height: "100%" }}
             resizeMode="cover"
           >
             <LinearGradient
               colors={[
-                "rgba(20, 22, 25, 0.35)",
-                "rgba(20, 22, 25, 0.65)",
-                "#141619",
+                "rgba(18, 18, 20, 0.4)",
+                "rgba(18, 18, 20, 0.75)",
+                "#121214",
               ]}
-              className="absolute inset-0 p-4 justify-between"
+              className="absolute inset-0 justify-between p-4"
             >
-              {/* Top Navigation Bar: Back Left, Share & Ellipsis Right */}
-              <SafeAreaView edges={["top"]} className="flex-row justify-between items-center w-full">
+              {/* Top Navigation Bar */}
+              <SafeAreaView edges={["top"]} className="flex-row justify-between items-center w-full z-20">
                 <TouchableOpacity
                   onPress={() => navigation.goBack()}
-                  className="w-10 h-10 rounded-full bg-black/40 items-center justify-center border border-white/10"
+                  className="w-9 h-9 rounded-full bg-black/50 items-center justify-center border border-white/10"
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+                  <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
 
-                <View className="flex-row items-center space-x-3">
-                  <TouchableOpacity
-                    onPress={() => Alert.alert("Chia sẻ", movie.title)}
-                    className="w-10 h-10 rounded-full bg-black/40 items-center justify-center border border-white/10"
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="share-outline" size={20} color="#FFFFFF" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => Alert.alert("Tùy chọn", movie.title)}
-                    className="w-10 h-10 rounded-full bg-black/40 items-center justify-center border border-white/10 ml-2"
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="ellipsis-vertical" size={20} color="#FFFFFF" />
-                  </TouchableOpacity>
+                <View className="flex-row items-center gap-2">
+                  <ShareButton
+                    episodeId={firstEpisode?.episodeId || movieId}
+                    title={movie.title}
+                    size="sm"
+                  />
+                  <BookmarkButton
+                    episodeId={firstEpisode?.episodeId || movieId}
+                    contentType="VIDEO"
+                    size="sm"
+                  />
                 </View>
               </SafeAreaView>
-
-              {/* Backdrop Bottom Info */}
-              <View className="mb-1">
-                {/* Title */}
-                <Text
-                  className="text-white text-3xl font-black tracking-tight"
-                  numberOfLines={2}
-                >
-                  {movie.title} {movie.year ? `(${movie.year})` : "(2026)"}
-                </Text>
-
-                {/* Metadata Row 1: IMDb Badge + Score + Duration + Age Rating */}
-                <View className="flex-row items-center flex-wrap gap-2 mt-2">
-                  <View className="bg-[#F5C518] px-1.5 py-0.5 rounded">
-                    <Text className="text-black font-black text-[10px]">IMDb</Text>
-                  </View>
-                  <Text className="text-white text-xs font-bold">
-                    {movie.rating || "8.6"} / 10
-                  </Text>
-                  <Text className="text-zinc-500 text-xs">·</Text>
-                  <Text className="text-zinc-300 text-xs font-semibold">1h 48m</Text>
-                  <Text className="text-zinc-500 text-xs">·</Text>
-                  <Text className="text-zinc-300 text-xs font-semibold">{movie.ageRating || "TV-MA"}</Text>
-                  <Text className="text-zinc-500 text-xs">·</Text>
-                  <Text className="text-zinc-300 text-xs font-semibold">{movie.year || "2026"}</Text>
-                </View>
-
-                {/* Metadata Row 2: Category Bullet list & Tags */}
-                <View className="flex-row items-center flex-wrap gap-1.5 mt-2">
-                  <View className="px-2 py-0.5 rounded bg-white/15 border border-white/10">
-                    <Text className="text-zinc-200 text-[10px] font-bold">
-                      {movie.ageRating || "14+"}
-                    </Text>
-                  </View>
-                  <Text className="text-zinc-300 text-xs font-medium ml-1">
-                    {displayCategoryNames}
-                  </Text>
-                </View>
-
-                {displayTagNames.length > 0 && (
-                  <View className="flex-row items-center flex-wrap gap-1.5 mt-1.5">
-                    {displayTagNames.map((tag, idx) => (
-                      <View key={idx} className="px-2 py-0.5 rounded bg-[#D4AF37]/15 border border-[#D4AF37]/30">
-                        <Text className="text-[#D4AF37] text-[10px] font-bold">#{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Available On Badges */}
-                <View className="flex-row items-center space-x-2 mt-2.5">
-                  <Text className="text-zinc-400 text-xs font-medium mr-1">Phát trên:</Text>
-                  <View className="bg-[#D4AF37] px-2 py-0.5 rounded-md">
-                    <Text className="text-[#141210] font-extrabold text-[10px]">TaleX HD</Text>
-                  </View>
-                  <View className="bg-white/15 px-2 py-0.5 rounded-md border border-white/10">
-                    <Text className="text-white font-bold text-[10px]">Full HD</Text>
-                  </View>
-                  <View className="bg-white/15 px-2 py-0.5 rounded-md border border-white/10">
-                    <Text className="text-white font-bold text-[10px]">Vietsub</Text>
-                  </View>
-                </View>
-              </View>
             </LinearGradient>
           </ImageBackground>
         </View>
 
-        <View className="px-4">
-          {/* ================= 2. PRIMARY ACTION BUTTONS (Chuẩn 100% hình mẫu: Nút Trailer Màu Đỏ) ================= */}
-          {/* Nút chính lớn: Trailer màu Đỏ */}
-          <TouchableOpacity
-            onPress={() => handlePlayEpisode(firstEpisode, 0)}
-            activeOpacity={0.85}
-            className="w-full h-12 bg-[#E50914] rounded-2xl flex-row items-center justify-center space-x-2 mt-4 shadow-lg shadow-red-600/40"
-          >
-            <Ionicons name="film-outline" size={20} color="#FFFFFF" />
-            <Text className="text-white font-black text-sm uppercase tracking-wide ml-1">
-              Trailer
+        {/* ================= 2. OVERLAPPING HERO CARD (POSTER & META INFO) ================= */}
+        <View className="px-4 flex-row items-end mt-[-70px] z-10 mb-4">
+          {/* Poster Thumbnail */}
+          <View className="w-[105px] h-[148px] rounded-2xl border border-white/15 bg-zinc-800 shadow-2xl overflow-hidden">
+            <Image
+              source={bgImageSource}
+              className="w-full h-full"
+              resizeMode="cover"
+            />
+          </View>
+
+          {/* Meta info right column */}
+          <View className="flex-1 ml-3.5 justify-end pb-1">
+            <Text className="text-white text-lg font-bold leading-6" numberOfLines={2}>
+              {movie.title}
             </Text>
-          </TouchableOpacity>
 
-          {/* Hàng 3 Nút Chữ Nhật Bo Góc Nền Tối (+ Danh sách | ✓ Đã xem | 👍 Đánh giá) */}
-          <View className="flex-row items-center justify-between gap-x-2.5 mt-3">
-            {/* Nút 1: + Danh sách */}
+            {/* Clickable Director Name */}
             <TouchableOpacity
-              onPress={() => Alert.alert("Thông báo", "Đã thêm vào Danh sách của tôi.")}
-              activeOpacity={0.8}
-              className="flex-1 h-11 bg-[#1E2024] border border-white/10 rounded-2xl flex-row items-center justify-center space-x-1.5 shadow-sm"
+              onPress={handleCreatorPress}
+              activeOpacity={0.7}
+              className="flex-row items-center mt-1.5"
             >
-              <Ionicons name="add" size={18} color="#FFFFFF" />
-              <Text className="text-white text-xs font-bold ml-1">
-                Danh sách
+              <Text className="text-zinc-300 text-xs font-semibold">Tác giả: </Text>
+              <Text className="text-[#D4AF37] text-xs font-bold" numberOfLines={1}>
+                {movie.creatorName || movie.author || "Ushiro Shinji"}
               </Text>
+
             </TouchableOpacity>
 
-            {/* Nút 2: ✓ Đã xem */}
-            <TouchableOpacity
-              onPress={() => setIsWatched(!isWatched)}
-              activeOpacity={0.8}
-              className={`flex-1 h-11 ${
-                isWatched ? "bg-[#D4AF37]/20 border-[#D4AF37]" : "bg-[#1E2024] border-white/10"
-              } border rounded-2xl flex-row items-center justify-center space-x-1.5 shadow-sm`}
-            >
-              <Ionicons
-                name={isWatched ? "checkmark-circle" : "checkmark-circle-outline"}
-                size={17}
-                color={isWatched ? "#D4AF37" : "#FFFFFF"}
-              />
-              <Text
-                className={`text-xs font-bold ml-1 ${
-                  isWatched ? "text-[#D4AF37]" : "text-white"
-                }`}
-              >
-                {isWatched ? "Đã xem" : "Đã xem"}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Nút 3: 👍 Đánh giá */}
-            <TouchableOpacity
-              onPress={() => {
-                const newScore = userRating === 5 ? null : 5;
-                setUserRating(newScore);
-                Alert.alert("Đánh giá", newScore ? "Cảm ơn bạn đã đánh giá 5 sao!" : "Đã hủy đánh giá.");
-              }}
-              activeOpacity={0.8}
-              className={`flex-1 h-11 ${
-                userRating ? "bg-[#D4AF37]/20 border-[#D4AF37]" : "bg-[#1E2024] border-white/10"
-              } border rounded-2xl flex-row items-center justify-center space-x-1.5 shadow-sm`}
-            >
-              <Ionicons
-                name={userRating ? "thumbs-up" : "thumbs-up-outline"}
-                size={16}
-                color={userRating ? "#D4AF37" : "#FFFFFF"}
-              />
-              <Text
-                className={`text-xs font-bold ml-1 ${
-                  userRating ? "text-[#D4AF37]" : "text-white"
-                }`}
-              >
-                Đánh giá
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* ================= 3. DESCRIPTION ================= */}
-          <View className="mt-4">
-            <Text
-              className="text-zinc-300 text-xs leading-relaxed font-normal"
-              numberOfLines={showFullDesc ? undefined : 3}
-            >
-              {movie.description}
-            </Text>
-            {movie.description && movie.description.length > 120 && (
-              <TouchableOpacity
-                onPress={() => setShowFullDesc(!showFullDesc)}
-                activeOpacity={0.7}
-                className="mt-1 flex-row justify-end"
-              >
-                <Text className="text-[#D4AF37] text-xs font-bold">
-                  {showFullDesc ? "Thu gọn ▲" : "Xem thêm ▼"}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-
-
-          {/* ================= 6. SEASONS & EPISODES SECTION ================= */}
-          <View className="mt-7">
-            {/* Season Tabs */}
-            <View className="flex-row items-center border-b border-white/10 pb-2 mb-4 space-x-6">
-              {(sortedSeasons.length > 0 ? sortedSeasons : [{ seasonId: "s1", seasonNumber: 1, title: "Season 1" }]).map((se: any) => {
-                const isActive = activeSeasonId === se.seasonId || (!activeSeasonId && se.seasonNumber === 1);
-                return (
-                  <TouchableOpacity
-                    key={se.seasonId}
-                    onPress={() => setSelectedSeasonId(se.seasonId)}
-                    activeOpacity={0.8}
-                    className="relative pb-2"
-                  >
-                    <Text
-                      className={`text-sm font-bold ${
-                        isActive ? "text-[#D4AF37]" : "text-zinc-400"
-                      }`}
-                    >
-                      {se.title || `Season ${se.seasonNumber}`}
-                    </Text>
-                    {isActive && (
-                      <View className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D4AF37] rounded-full" />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Episodes List */}
-            <View className="space-y-3">
-              {(currentEpisodes.length > 0 ? currentEpisodes : (movie.episodes || [
-                { episodeId: "ep1", episodeNumber: 1, title: "Tập 1: Khởi Đầu", publishedAt: "2026-06-22", duration: "45 min" },
-                { episodeId: "ep2", episodeNumber: 2, title: "Tập 2: Vương Quốc Mới", publishedAt: "2026-06-29", duration: "45 min" }
-              ])).map((ep: any, index: number) => (
-                <TouchableOpacity
-                  key={ep.episodeId || index}
-                  onPress={() => handlePlayEpisode(ep, index)}
-                  className="flex-row items-center bg-[#1E2024] p-2.5 rounded-2xl border border-white/10 shadow-md"
-                  activeOpacity={0.85}
-                >
-                  {/* Thumbnail 16:9 */}
-                  <View className="w-[115px] h-[72px] rounded-xl overflow-hidden bg-zinc-800 relative border border-white/10">
-                    <Image
-                      source={bgImageSource}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                    <View className="absolute inset-0 bg-black/35 items-center justify-center">
-                      <View className="w-8 h-8 rounded-full bg-[#D4AF37] items-center justify-center shadow-md">
-                        <Ionicons name="play" size={13} color="#141210" style={{ marginLeft: 1 }} />
-                      </View>
-                    </View>
+            {/* Category Pill Badges (Teal Theme) */}
+            {categoriesArray.length > 0 && (
+              <View className="flex-row items-center flex-wrap gap-1.5 mt-2">
+                {categoriesArray.map((cat: string, idx: number) => (
+                  <View key={`cat-${idx}`} className="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/40">
+                    <Text className="text-teal-300 text-[10px] font-bold">{cat}</Text>
                   </View>
-
-                  {/* Episode details */}
-                  <View className="flex-1 ml-3 justify-between">
-                    <View>
-                      <Text className="text-white font-bold text-xs" numberOfLines={1}>
-                        E{ep.episodeNumber || index + 1}: {ep.title}
-                      </Text>
-                      <Text className="text-zinc-400 text-[11px] mt-0.5">
-                        22 Tháng 6, 2026 · {ep.duration || "45 phút"}
-                      </Text>
-                    </View>
-
-                    <View className="flex-row items-center justify-between mt-2">
-                      <View className="flex-row items-center space-x-1">
-                        <Ionicons name="download-outline" size={12} color="#D4AF37" />
-                        <Text className="text-[#D4AF37] text-[11px] font-semibold ml-0.5">
-                          Tải về
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* ================= 7. BOTTOM TABS (Tương Tự | Thông Tin | Bình Luận) ================= */}
-          <View className="mt-8">
-            <View className="flex-row items-center justify-between border-b border-white/10 pb-2 mb-4">
-              <TouchableOpacity
-                onPress={() => setBottomTab("recommend")}
-                activeOpacity={0.8}
-                className="flex-1 items-center justify-center relative pb-2 px-1"
-              >
-                <Text
-                  className={`text-xs font-bold ${
-                    bottomTab === "recommend" ? "text-[#D4AF37]" : "text-zinc-400"
-                  }`}
-                  numberOfLines={1}
-                >
-                  Tương Tự
-                </Text>
-                {bottomTab === "recommend" && (
-                  <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#D4AF37] rounded-full" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setBottomTab("about")}
-                activeOpacity={0.8}
-                className="flex-1 items-center justify-center relative pb-2 px-1"
-              >
-                <Text
-                  className={`text-xs font-bold ${
-                    bottomTab === "about" ? "text-[#D4AF37]" : "text-zinc-400"
-                  }`}
-                  numberOfLines={1}
-                >
-                  Thông Tin
-                </Text>
-                {bottomTab === "about" && (
-                  <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#D4AF37] rounded-full" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setBottomTab("comments")}
-                activeOpacity={0.8}
-                className="flex-1 items-center justify-center relative pb-2 px-1"
-              >
-                <Text
-                  className={`text-xs font-bold ${
-                    bottomTab === "comments" ? "text-[#D4AF37]" : "text-zinc-400"
-                  }`}
-                  numberOfLines={1}
-                >
-                  Bình Luận
-                </Text>
-                {bottomTab === "comments" && (
-                  <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#D4AF37] rounded-full" />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* TAB 1: TƯƠNG TỰ (MORE LIKE THIS) */}
-            {bottomTab === "recommend" && (
-              <View className="flex-row flex-wrap justify-between gap-y-4">
-                {recommendations.map((rec) => (
-                  <TouchableOpacity
-                    key={rec.id}
-                    onPress={() => {
-                      navigation.replace("MovieDetailScreen", { movieId: rec.id });
-                    }}
-                    className="w-[48%]"
-                    activeOpacity={0.85}
-                  >
-                    <View className="w-full h-[190px] rounded-2xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
-                      <Image source={rec.image} className="w-full h-full" resizeMode="cover" />
-                    </View>
-                    <Text className="text-white text-xs font-bold mt-2" numberOfLines={1}>
-                      {rec.title}
-                    </Text>
-                    <Text className="text-zinc-400 text-[11px] mt-0.5">
-                      ⭐ {rec.rating} · {rec.category}
-                    </Text>
-                  </TouchableOpacity>
                 ))}
               </View>
             )}
 
-            {/* TAB 2: THÔNG TIN & TÁC GIẢ (ABOUT & CREATOR) */}
-            {bottomTab === "about" && (
-              <View className="bg-[#1E2024] p-4 rounded-2xl border border-white/10 space-y-4 shadow-md">
-                {/* Khối Tác Giả (Creator Profile Card) */}
-                <View className="flex-row items-center justify-between pb-3 border-b border-white/10">
-                  <TouchableOpacity
-                    onPress={() => creatorAccountId && setShowFollowersModal(true)}
-                    className="flex-row items-center space-x-3 flex-1"
-                    activeOpacity={0.8}
-                  >
-                    <View className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800 border border-[#D4AF37]/40">
-                      {movie.creatorAvatar ? (
-                        <Image
-                          source={{ uri: movie.creatorAvatar }}
-                          className="w-full h-full"
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View className="w-full h-full items-center justify-center bg-zinc-800">
-                          <FontAwesome5 name="user-ninja" size={18} color="#D4AF37" />
-                        </View>
-                      )}
-                    </View>
-                    <View className="flex-1 ml-3">
-                      <Text className="text-xs text-zinc-400 font-bold uppercase tracking-wider">
-                        Tác Giả / Sản Xuất
-                      </Text>
-                      <Text className="text-white text-sm font-black mt-0.5" numberOfLines={1}>
-                        {movie.creatorName || "Tác giả TaleX"}
-                      </Text>
-                      <Text className="text-zinc-500 text-[11px]">
-                        {displayFollowerCount.toLocaleString("vi-VN")} người theo dõi
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {creatorAccountId && (
-                    <FollowButton
-                      isFollowing={isFollowing}
-                      onFollowToggle={toggleFollow}
-                      isMutating={isFollowMutating}
-                      size="small"
-                    />
-                  )}
-                </View>
-
-                {/* Chi tiết sản xuất */}
-                <View className="space-y-2 pt-2">
-                  <View className="flex-row">
-                    <Text className="text-zinc-400 text-xs w-28">Đạo diễn:</Text>
-                    <Text className="text-white text-xs font-semibold flex-1">
-                      {movie.director || movie.creatorName || "TaleX Studio"}
-                    </Text>
+            {/* Tag Pill Badges (Amber/Gold Theme with # prefix) */}
+            {displayTagNames.length > 0 && (
+              <View className="flex-row items-center flex-wrap gap-1.5 mt-1.5">
+                {displayTagNames.map((tag: string, idx: number) => (
+                  <View key={`tag-${idx}`} className="px-2.5 py-0.5 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/40">
+                    <Text className="text-[#D4AF37] text-[10px] font-bold">#{tag}</Text>
                   </View>
-
-                  <View className="flex-row">
-                    <Text className="text-zinc-400 text-xs w-28">Thể loại:</Text>
-                    <Text className="text-white text-xs font-semibold flex-1">
-                      {movie.regionAndGenre || movie.category || "Phim Bộ, Hành Động"}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row">
-                    <Text className="text-zinc-400 text-xs w-28">Năm phát hành:</Text>
-                    <Text className="text-white text-xs font-semibold flex-1">
-                      {movie.year || "2026"}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row">
-                    <Text className="text-zinc-400 text-xs w-28">Độ tuổi:</Text>
-                    <Text className="text-white text-xs font-semibold flex-1">
-                      {movie.ageRating || "T16"}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* TAB 3: BÌNH LUẬN (COMMENTS - KẾT NỐI API THẬT) */}
-            {bottomTab === "comments" && (
-              <View className="space-y-4">
-                {firstEpisode?.episodeId ? (
-                  <EpisodeCommentsSection episodeId={firstEpisode.episodeId} />
-                ) : (
-                  <View className="bg-[#1E2024] p-4 rounded-2xl border border-white/10 items-center justify-center py-8">
-                    <Ionicons name="chatbubbles-outline" size={32} color="#D4AF37" />
-                    <Text className="text-zinc-300 text-xs font-semibold mt-2 text-center">
-                      Bộ phim chưa có danh sách tập để hiển thị bình luận.
-                    </Text>
-                  </View>
-                )}
+                ))}
               </View>
             )}
           </View>
         </View>
+
+        {/* ================= 3. TAB NAVIGATION BAR (Chỉ còn 2 Tab: Chi tiết & Bình luận) ================= */}
+        <View className="flex-row border-b border-white/10 px-4 mt-2 mb-4">
+          {[
+            { key: "about", label: "Chi tiết" },
+            { key: "comments", label: "Bình luận" },
+          ].map((tab) => {
+            const active = bottomTab === (tab.key as any);
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setBottomTab(tab.key as any)}
+                className={`py-3 mr-8 relative ${active ? "" : "opacity-60"}`}
+              >
+                <Text className={`text-sm font-bold ${active ? "text-[#D4AF37]" : "text-zinc-400"}`}>
+                  {tab.label}
+                </Text>
+                {active && (
+                  <View className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D4AF37] rounded-full" />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ================= 4. TAB CONTENT ================= */}
+        {bottomTab === "about" && (
+          <View className="px-4">
+            {/* Badge Summary Row with Age Rating */}
+            <View className="flex-row items-center gap-2 mb-3 flex-wrap">
+              <Text className="text-white text-xs font-bold">Phim bộ</Text>
+              <Text className="text-zinc-500 text-xs">|</Text>
+              <Text className="text-white text-xs font-bold">{movie.year || "2026"}</Text>
+              <Text className="text-zinc-500 text-xs">|</Text>
+              
+              {/* Age Rating Pill */}
+              <View className={`px-2 py-0.5 rounded-md border ${getAgeRatingStyle(movie.ageRating).bg} ${getAgeRatingStyle(movie.ageRating).border}`}>
+                <Text className={`text-[11px] font-black ${getAgeRatingStyle(movie.ageRating).text}`}>
+                  {formatAgeRating(movie.ageRating)}
+                </Text>
+              </View>
+
+              <Text className="text-zinc-500 text-xs">|</Text>
+              <Text className="text-[#D4AF37] text-xs font-bold">{movie.status || "Hoàn thành"}</Text>
+            </View>
+
+            {/* Description */}
+            {movie.description && (
+              <View className="mb-5">
+                <Text className="text-zinc-300 text-xs leading-5 font-normal">
+                  <Text className="text-white font-bold">Nội dung: </Text>
+                  {showFullDesc ? movie.description : `${movie.description.slice(0, 150)}${movie.description.length > 150 ? "..." : ""}`}
+                </Text>
+                {movie.description.length > 150 && (
+                  <TouchableOpacity onPress={() => setShowFullDesc(!showFullDesc)} className="mt-1">
+                    <Text className="text-[#D4AF37] text-xs font-bold">
+                      {showFullDesc ? "Thu gọn" : "Xem thêm"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* ================= 5. DANH SÁCH TẬP (GRID 3 CỘT CHUẨN MẪU) ================= */}
+            <View className="mt-2 mb-6">
+              {/* Header: Danh sách tập (Trái) | Sắp xếp (Phải) */}
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-white text-base font-bold">Danh sách tập</Text>
+                <TouchableOpacity
+                  onPress={() => setIsAscending(!isAscending)}
+                  className="flex-row items-center"
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="swap-vertical" size={15} color="#D4AF37" />
+                  <Text className="text-[#D4AF37] text-xs font-bold ml-1">Sắp xếp</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Season Subheader: ≡ Phần 1 */}
+              <View className="flex-row items-center mb-3">
+                <Ionicons name="menu-outline" size={18} color="#D4AF37" />
+                <Text className="text-white text-sm font-bold ml-1.5">
+                  {sortedSeasons.find((s) => s.seasonId === activeSeasonId)?.title || "Phần 1"}
+                </Text>
+              </View>
+
+              {/* Multi-Season Select Pills */}
+              {sortedSeasons.length > 1 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
+                  {sortedSeasons.map((se) => {
+                    const active = activeSeasonId === se.seasonId;
+                    return (
+                      <TouchableOpacity
+                        key={se.seasonId}
+                        onPress={() => setSelectedSeasonId(se.seasonId)}
+                        className={`mr-2 px-3.5 py-1.5 rounded-full border ${
+                          active
+                            ? "bg-[#D4AF37] border-[#D4AF37]"
+                            : "bg-[#25272B] border-white/10"
+                        }`}
+                      >
+                        <Text className={`text-xs font-bold ${active ? "text-black" : "text-white"}`}>
+                          {se.title || `Season ${se.seasonNumber}`}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+
+              {/* 3-Column Grid Buttons */}
+              {displayEpisodes.length === 0 ? (
+                <View className="py-8 items-center justify-center bg-[#1E2024] rounded-2xl border border-white/5">
+                  <Text className="text-zinc-400 text-xs font-bold">Chưa có tập phim nào</Text>
+                </View>
+              ) : (
+                <View className="flex-row flex-wrap gap-2.5">
+                  {displayEpisodes.map((ep, idx) => (
+                    <TouchableOpacity
+                      key={ep.episodeId || idx}
+                      onPress={() => handlePlayEpisode(ep, idx)}
+                      activeOpacity={0.8}
+                      className="w-[31%] h-11 bg-[#282A2F] border border-white/15 rounded-xl items-center justify-center shadow-md"
+                    >
+                      <Text className="text-white text-xs font-bold" numberOfLines={1}>
+                        Tập {ep.episodeNumber || idx + 1}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* ================= 6. ĐỀ XUẤT (GRID 3 CỘT CHUẨN MẪU) ================= */}
+            <View className="mt-2 mb-4">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-white text-base font-bold">Đề xuất</Text>
+                <TouchableOpacity
+                  onPress={() => onRefresh()}
+                  className="flex-row items-center"
+                  activeOpacity={0.7}
+                >
+                  <Text className="text-zinc-300 text-xs font-semibold mr-1">Làm mới</Text>
+                  <Ionicons name="refresh-outline" size={14} color="#D4AF37" />
+                </TouchableOpacity>
+              </View>
+
+              {/* 3-Column Recommendations Grid */}
+              {recommendations && recommendations.length > 0 && (
+                <View className="flex-row flex-wrap justify-between gap-y-3">
+                  {recommendations.map((rec) => (
+                    <TouchableOpacity
+                      key={rec.id}
+                      onPress={() => {
+                        navigation.replace("MovieDetailScreen", { movieId: rec.id });
+                      }}
+                      className="w-[31.5%]"
+                      activeOpacity={0.85}
+                    >
+                      <View className="w-full h-[140px] rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
+                        <Image source={rec.image} className="w-full h-full" resizeMode="cover" />
+                      </View>
+                      <Text className="text-white text-xs font-bold mt-1.5 leading-4" numberOfLines={2}>
+                        {rec.title}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {bottomTab === "comments" && (
+          <View className="px-4">
+            {firstEpisode?.episodeId ? (
+              <EpisodeCommentsSection episodeId={firstEpisode.episodeId} />
+            ) : (
+              <View className="bg-[#1E2024] p-4 rounded-2xl border border-white/10 items-center justify-center py-8">
+                <Ionicons name="chatbubbles-outline" size={32} color="#D4AF37" />
+                <Text className="text-zinc-300 text-xs font-semibold mt-2 text-center">
+                  Bộ phim chưa có bình luận.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
+
+      {/* ================= 5. STICKY BOTTOM ACTION BUTTON ================= */}
+      <View className="absolute bottom-0 left-0 right-0 p-4 bg-[#121214]/95 border-t border-white/5 shadow-2xl">
+        <TouchableOpacity
+          onPress={() => handlePlayEpisode(firstEpisode, 0)}
+          activeOpacity={0.85}
+          className="w-full h-12 bg-[#D4AF37] rounded-2xl flex-row items-center justify-center space-x-2 shadow-lg shadow-amber-500/20"
+        >
+          <Text className="text-[#141210] font-black text-sm uppercase tracking-wide">
+            Xem ngay
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Followers Modal */}
       {creatorAccountId && (
@@ -905,7 +816,6 @@ export default function MovieDetailScreen() {
           onClose={() => setShowFollowersModal(false)}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
-

@@ -86,6 +86,16 @@ export default function UploadMovieScreen() {
     type: string;
     isUrl?: boolean;
   } | null>(null);
+  const [seriesBanner, setSeriesBanner] = useState<{
+    uri: string;
+    name: string;
+    size: number;
+    type: string;
+    isUrl?: boolean;
+  } | null>(null);
+  const [ageRating, setAgeRating] = useState<string>("EVERYONE");
+  const [language, setLanguage] = useState<string>("vi");
+  const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [editingSeriesId, setEditingSeriesId] = useState<string | null>(null);
 
   // --- STEP 2: SEASON STATE ---
@@ -107,6 +117,12 @@ export default function UploadMovieScreen() {
   );
   const [coinPrice, setCoinPrice] = useState("5");
   const [createdEpisodeId, setCreatedEpisodeId] = useState<string | null>(null);
+  const [episodeThumbnail, setEpisodeThumbnail] = useState<{
+    uri: string;
+    name: string;
+    size: number;
+    type: string;
+  } | null>(null);
 
   // --- STEP 4: VIDEO & POLL STATE ---
   const [videoFile, setVideoFile] = useState<{
@@ -305,6 +321,74 @@ export default function UploadMovieScreen() {
       }
     } catch (err: any) {
       Alert.alert("Lỗi", "Không thể mở trình chọn ảnh: " + err.message);
+    }
+  };
+
+  // Image Picker for Banner
+  const handleSelectBanner = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert(
+          "Cấp quyền",
+          "Vui lòng cấp quyền thư viện ảnh để chọn banner.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        setSeriesBanner({
+          uri: asset.uri,
+          name: asset.fileName || `banner_${Date.now()}.jpg`,
+          size: asset.fileSize || 1024 * 200,
+          type: asset.mimeType || "image/jpeg",
+        });
+      }
+    } catch (err: any) {
+      Alert.alert("Lỗi", "Không thể mở trình chọn ảnh: " + err.message);
+    }
+  };
+
+  // Image Picker for Episode Thumbnail
+  const handleSelectThumbnail = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert(
+          "Cấp quyền",
+          "Vui lòng cấp quyền thư viện ảnh để chọn thumbnail tập.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        setEpisodeThumbnail({
+          uri: asset.uri,
+          name: asset.fileName || `thumb_${Date.now()}.jpg`,
+          size: asset.fileSize || 1024 * 150,
+          type: asset.mimeType || "image/jpeg",
+        });
+      }
+    } catch (err: any) {
+      Alert.alert("Lỗi", "Không thể chọn thumbnail: " + err.message);
     }
   };
 
@@ -558,8 +642,8 @@ export default function UploadMovieScreen() {
         console.error("Lỗi khởi tạo SSE:", err);
       });
 
-    // 2. Initial manual check after 2s (in case processing finished before SSE listener attached)
-    setTimeout(async () => {
+    // 2. Continuous Polling Fallback (Every 3s, matching Web)
+    const checkStatus = async () => {
       try {
         const violationsRes = await fetchMediaViolations(mediaId);
         if (createdEpisodeId) {
@@ -589,19 +673,30 @@ export default function UploadMovieScreen() {
               setModerationStatus(
                 `Từ chối: Phát hiện nhãn vi phạm [${labels.join(", ")}].`,
               );
+              if (pollTimerRef.current) {
+                clearInterval(pollTimerRef.current);
+                pollTimerRef.current = null;
+              }
             } else if (
               currentMedia.status === "ACTIVE" ||
               currentMedia.status === "HLS_READY" ||
               currentMedia.approvalStatus === "APPROVED"
             ) {
               setModerationStatus("Đạt: Nội dung sạch và an toàn.");
+              if (pollTimerRef.current) {
+                clearInterval(pollTimerRef.current);
+                pollTimerRef.current = null;
+              }
             }
           }
         }
       } catch (err) {
         // Ignore fallback errors
       }
-    }, 2000);
+    };
+
+    checkStatus();
+    pollTimerRef.current = setInterval(checkStatus, 3000);
   };
 
   const handleStartEditSeason = (se: SeasonItem) => {
@@ -789,12 +884,32 @@ export default function UploadMovieScreen() {
               }
             }
 
+            let bannerUrl = "";
+            if (seriesBanner) {
+              if (seriesBanner.isUrl) {
+                bannerUrl = seriesBanner.uri;
+              } else {
+                const uploadBannerRes = await uploadImageToS3(
+                  seriesBanner.uri,
+                  seriesBanner.name,
+                  seriesBanner.size,
+                  seriesBanner.type,
+                  "banner",
+                );
+                bannerUrl = uploadBannerRes.publicUrl;
+              }
+            }
+
             await updateSeries(editingSeriesId, {
               title: newSeriesTitle,
               description: newSeriesDesc,
               coverUrl,
+              bannerUrl: bannerUrl || undefined,
               contentType: "VIDEO",
               status: "PUBLISHED",
+              visibility,
+              ageRating,
+              language,
               categoryIds: selectedCategoryIds,
               tagIds: selectedTagIds,
             });
@@ -811,6 +926,7 @@ export default function UploadMovieScreen() {
             setNewSeriesTitle("");
             setNewSeriesDesc("");
             setSeriesCover(null);
+            setSeriesBanner(null);
             setSelectedCategoryIds([]);
             setSelectedTagIds([]);
             setSeriesMode("select");
@@ -831,7 +947,7 @@ export default function UploadMovieScreen() {
         } else {
           // Creating a new Series immediately in Step 1
           setSubmitting(true);
-          setSubmitMsg("Đang tải ảnh bìa lên S3...");
+          setSubmitMsg("Đang tải ảnh bìa lên hệ thống...");
           try {
             let coverUrl = "";
             if (seriesCover) {
@@ -844,13 +960,29 @@ export default function UploadMovieScreen() {
               );
               coverUrl = uploadRes.publicUrl;
             }
+
+            let bannerUrl = "";
+            if (seriesBanner) {
+              const uploadBannerRes = await uploadImageToS3(
+                seriesBanner.uri,
+                seriesBanner.name,
+                seriesBanner.size,
+                seriesBanner.type,
+                "banner",
+              );
+              bannerUrl = uploadBannerRes.publicUrl;
+            }
+
             setSubmitMsg("Đang tạo Series mới...");
             const newSeries = await createSeries({
               title: newSeriesTitle,
               description: newSeriesDesc,
               coverUrl,
+              bannerUrl: bannerUrl || undefined,
               contentType: "VIDEO",
-              visibility: "PUBLIC",
+              visibility,
+              ageRating,
+              language,
               categoryIds: selectedCategoryIds,
               tagIds: selectedTagIds,
             });
@@ -1108,13 +1240,30 @@ export default function UploadMovieScreen() {
   const getSeasonTitle = () => {
     if (seasonMode === "select") {
       const se = seasonList.find((s) => s.seasonId === selectedSeasonId);
-      return se
-        ? `Season ${se.seasonNumber}: ${se.title || "Không có tiêu đề"}`
-        : "Chưa chọn";
+      if (!se) return "Chưa chọn";
+      const sNumStr = `Season ${se.seasonNumber}`;
+      let title = (se.title || "").trim();
+      const regex = new RegExp(`^(Season|Mùa)\\s*${se.seasonNumber}\\s*[:\\-]?\\s*`, "gi");
+      while (regex.test(title)) {
+        title = title.replace(regex, "").trim();
+      }
+      if (!title) {
+        return sNumStr;
+      }
+      return `${sNumStr}: ${title}`;
     }
-    return newSeasonNumber
-      ? `Season ${newSeasonNumber}: ${newSeasonTitle || "Không tiêu đề"}`
-      : "Season mới";
+    const sNumStr = newSeasonNumber ? `Season ${newSeasonNumber}` : "Season mới";
+    let title = (newSeasonTitle || "").trim();
+    if (newSeasonNumber) {
+      const regex = new RegExp(`^(Season|Mùa)\\s*${newSeasonNumber}\\s*[:\\-]?\\s*`, "gi");
+      while (regex.test(title)) {
+        title = title.replace(regex, "").trim();
+      }
+    }
+    if (!title) {
+      return sNumStr;
+    }
+    return `${sNumStr}: ${title}`;
   };
 
   const wizardSteps = [
@@ -1137,7 +1286,11 @@ export default function UploadMovieScreen() {
         >
           <Feather name="arrow-left" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text className="text-white text-lg font-black tracking-tight">
+        <Text
+          className="flex-1 text-center text-white text-base font-black tracking-tight"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
           Đăng Phim Lên TaleX
         </Text>
         <View className="w-10" />
@@ -1181,6 +1334,14 @@ export default function UploadMovieScreen() {
             toggleTag={toggleTag}
             seriesCover={seriesCover}
             handleSelectCover={handleSelectCover}
+            seriesBanner={seriesBanner}
+            handleSelectBanner={handleSelectBanner}
+            ageRating={ageRating}
+            setAgeRating={setAgeRating}
+            language={language}
+            setLanguage={setLanguage}
+            visibility={visibility}
+            setVisibility={setVisibility}
             subheading="Mỗi tập phim phải thuộc về một Series (Bộ phim)."
             listPlaceholder="Bạn chưa tạo Series nào. Vui lòng chọn 'Tạo Series Mới' ở trên."
             coverLabel="Cover Art - Tỉ lệ 16:9"
@@ -1293,6 +1454,8 @@ export default function UploadMovieScreen() {
             mediaStatus={mediaStatus}
             copyrightStatus={copyrightStatus}
             moderationStatus={moderationStatus}
+            episodeThumbnail={episodeThumbnail}
+            handleSelectThumbnail={handleSelectThumbnail}
             onBack={() => {
               if (uploading && activeUploadSessionIdRef.current) {
                 xhrRef.current?.abort();

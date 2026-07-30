@@ -34,7 +34,11 @@ export default function ProfileScreen() {
 
   const { user, isAuthenticated, loading, refreshProfile, logout } = useAuth();
   const { balance, isLoading: isWalletLoading } = useReward();
-  const { profile: userFeatureProfile, isMissingProfile, refetch: refetchUserFeature } = useUserFeature();
+  const {
+    profile: userFeatureProfile,
+    isMissingProfile,
+    refetch: refetchUserFeature,
+  } = useUserFeature();
 
   const [isCreator, setIsCreator] = useState(false);
 
@@ -146,7 +150,11 @@ export default function ProfileScreen() {
             {/* Right Action Icons */}
             <View className="flex-row items-center z-10">
               <TouchableOpacity className="p-1 mr-2 active:opacity-70">
-                <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+                <Ionicons
+                  name="notifications-outline"
+                  size={22}
+                  color="#FFFFFF"
+                />
               </TouchableOpacity>
               <TouchableOpacity className="p-1 active:opacity-70">
                 <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
@@ -197,7 +205,7 @@ export default function ProfileScreen() {
               className="flex-row items-center mt-2.5 bg-[#D4AF37]/10 px-3 py-1 rounded-full border border-[#D4AF37]/30 z-10"
             >
               <Text className="text-[#D4AF37] text-xs font-bold">
-                Xem kênh sáng tạo
+                Xem Kênh 
               </Text>
               <Feather
                 name="chevron-right"
@@ -275,8 +283,6 @@ export default function ProfileScreen() {
             </View>
           )}
 
-
-
           {/* ================= CARD 2.5: CREATOR STUDIO ================= */}
           {isAuthenticated && (
             <View className="w-full bg-[#161618] rounded-[16px] overflow-hidden mb-4 border border-[#D4AF37]/20 shadow-lg shadow-yellow-500/5">
@@ -320,7 +326,11 @@ export default function ProfileScreen() {
             )}
             <View className="h-[1px] bg-zinc-800/40 mx-4" />
             {renderMenuItem(
-              <MaterialCommunityIcons name="history" size={18} color="#A19E95" />,
+              <MaterialCommunityIcons
+                name="history"
+                size={18}
+                color="#A19E95"
+              />,
               "Lịch sử giao dịch",
             )}
           </View>

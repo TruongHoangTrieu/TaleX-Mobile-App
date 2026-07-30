@@ -40,7 +40,8 @@ export default function StepIndicator({ currentStep, steps }: StepIndicatorProps
               </View>
               <Text
                 numberOfLines={1}
-                style={{ width: 70, textAlign: "center" }}
+                adjustsFontSizeToFit
+                style={{ width: 64, textAlign: "center" }}
                 className={`text-[10px] font-bold mt-1.5 ${
                   isActive ? "text-[#FF4E4E]" : isCompleted ? "text-[#D4AF37]" : "text-zinc-500"
                 }`}

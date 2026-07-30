@@ -56,6 +56,17 @@ export type CompleteProfileRequest = {
   phone: string;
 };
 
+export type ForgotPasswordRequest = {
+  email: string;
+};
+
+export type ResetPasswordRequest = {
+  verificationToken: string;
+  otpCode: string;
+  newPassword: string;
+  confirmPassword: string;
+};
+
 type GenericResponse<T = any> = {
   success: boolean;
   message?: string;
@@ -113,6 +124,22 @@ export async function getRefreshToken(): Promise<string | null> {
   } catch (e) {
     return null;
   }
+}
+
+export async function getValidAccessToken(): Promise<string | null> {
+  const rToken = await getRefreshToken();
+  if (rToken) {
+    try {
+      if (!refreshPromise) {
+        refreshPromise = performTokenRefresh();
+      }
+      const newToken = await refreshPromise;
+      if (newToken) return newToken;
+    } catch (e) {
+      // Fallback to existing access token if refresh fails
+    }
+  }
+  return getAccessToken();
 }
 
 export async function refreshToken(refreshTokenArg?: string): Promise<LoginResponse> {
@@ -452,4 +479,64 @@ export async function logout(refreshToken?: string) {
 
   // Clear local tokens regardless of server result
   await clearTokens();
+}
+
+export async function forgotPassword(
+  req: ForgotPasswordRequest,
+): Promise<GenericResponse<{ verificationToken?: string } | string>> {
+  const url = `${BASE_URL.replace(/\/$/, "")}/api/auth/forgot-password`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "*/*",
+    },
+    body: JSON.stringify(req),
+  });
+
+  const text = await res.text();
+  let json: GenericResponse<any>;
+  try {
+    json = text ? JSON.parse(text) : ({} as GenericResponse<any>);
+  } catch (e) {
+    throw new Error(`Invalid JSON response from ${url}`);
+  }
+
+  if (!res.ok || json?.success === false) {
+    const msg = json?.message || `Yêu cầu thất bại với trạng thái ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return json;
+}
+
+export async function resetPassword(
+  req: ResetPasswordRequest,
+): Promise<GenericResponse<any>> {
+  const url = `${BASE_URL.replace(/\/$/, "")}/api/auth/reset-password`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "*/*",
+    },
+    body: JSON.stringify(req),
+  });
+
+  const text = await res.text();
+  let json: GenericResponse<any>;
+  try {
+    json = text ? JSON.parse(text) : ({} as GenericResponse<any>);
+  } catch (e) {
+    throw new Error(`Invalid JSON response from ${url}`);
+  }
+
+  if (!res.ok || json?.success === false) {
+    const msg = json?.message || `Đặt lại mật khẩu thất bại (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return json;
 }

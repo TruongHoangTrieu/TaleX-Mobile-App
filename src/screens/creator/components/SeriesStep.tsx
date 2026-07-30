@@ -35,7 +35,23 @@ type SeriesStepProps = {
     isUrl?: boolean;
   } | null;
   handleSelectCover: () => void;
-  
+
+  seriesBanner?: {
+    uri: string;
+    name: string;
+    size: number;
+    type: string;
+    isUrl?: boolean;
+  } | null;
+  handleSelectBanner?: () => void;
+
+  ageRating?: string;
+  setAgeRating?: (val: string) => void;
+  language?: string;
+  setLanguage?: (val: string) => void;
+  visibility?: "PUBLIC" | "PRIVATE";
+  setVisibility?: (val: "PUBLIC" | "PRIVATE") => void;
+
   // Customization props for differences between Movie and Comic
   subheading: string;
   listPlaceholder: string;
@@ -71,6 +87,14 @@ export default function SeriesStep({
   toggleTag,
   seriesCover,
   handleSelectCover,
+  seriesBanner,
+  handleSelectBanner,
+  ageRating = "EVERYONE",
+  setAgeRating,
+  language = "vi",
+  setLanguage,
+  visibility = "PUBLIC",
+  setVisibility,
   subheading,
   listPlaceholder,
   coverLabel,
@@ -248,6 +272,129 @@ export default function SeriesStep({
                 </View>
               </TouchableOpacity>
             )}
+          </View>
+
+          {/* Banner Picker (Widescreen 16:9) */}
+          {handleSelectBanner && (
+            <View className="mb-6">
+              <Text className="text-zinc-400 text-xs font-bold mb-2">Banner ngang Series (Khuyên dùng 16:9)</Text>
+              {seriesBanner ? (
+                <View className="flex-row bg-[#1E1E22] border border-zinc-800 rounded-2xl p-3 items-center">
+                  <Image
+                    source={{ uri: seriesBanner.uri }}
+                    className="h-20 aspect-[16/9] rounded-xl bg-zinc-900"
+                    resizeMode="cover"
+                  />
+                  <View className="flex-1 ml-4">
+                    <Text className="text-white text-sm font-bold" numberOfLines={1}>
+                      {seriesBanner.name}
+                    </Text>
+                    <Text className="text-zinc-500 text-xs mt-1">
+                      Dung lượng: {(seriesBanner.size / 1024).toFixed(0)} KB
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handleSelectBanner}
+                      className="mt-3 bg-zinc-850 px-3 py-1.5 rounded-lg self-start active:opacity-60"
+                    >
+                      <Text className="text-white text-[11px] font-bold">Thay đổi Banner</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={handleSelectBanner}
+                  className="w-full h-24 bg-[#1E1E22] border border-dashed border-zinc-700 rounded-2xl items-center justify-center flex-row px-6 overflow-hidden active:opacity-80"
+                >
+                  <View className="w-10 h-10 rounded-full bg-[#D4AF37]/10 items-center justify-center mr-4">
+                    <Feather name="image" size={20} color="#D4AF37" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-white text-xs font-bold">Tải Banner ngang 16:9 lên</Text>
+                    <Text className="text-zinc-500 text-[10px] mt-0.5">Dùng hiển thị trên đầu trang Series</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Age Rating & Language */}
+          <View className="mb-6 flex-row space-x-3">
+            {/* Age Rating */}
+            <View className="flex-1">
+              <Text className="text-zinc-400 text-xs font-bold mb-2">Độ tuổi (Rating)</Text>
+              <View className="flex-row bg-[#1E1E22] border border-zinc-800 rounded-xl p-1">
+                {[
+                  { key: "EVERYONE", label: "G (Tất cả)" },
+                  { key: "TEEN", label: "13+" },
+                  { key: "MATURE", label: "18+" },
+                ].map((item) => {
+                  const isSel = ageRating === item.key;
+                  return (
+                    <TouchableOpacity
+                      key={item.key}
+                      onPress={() => setAgeRating && setAgeRating(item.key)}
+                      className={`flex-1 py-2 items-center rounded-lg ${isSel ? "bg-[#FF4E4E]" : ""}`}
+                    >
+                      <Text className={`text-[10px] font-bold ${isSel ? "text-white" : "text-zinc-400"}`}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+
+          <View className="mb-6 flex-row space-x-3">
+            {/* Language */}
+            <View className="flex-1">
+              <Text className="text-zinc-400 text-xs font-bold mb-2">Ngôn ngữ gốc</Text>
+              <View className="flex-row bg-[#1E1E22] border border-zinc-800 rounded-xl p-1">
+                {[
+                  { key: "vi", label: "Tiếng Việt" },
+                  { key: "en", label: "Tiếng Anh" },
+                  { key: "jp", label: "Tiếng Nhật" },
+                  { key: "kr", label: "Tiếng Hàn" },
+                ].map((item) => {
+                  const isSel = language === item.key;
+                  return (
+                    <TouchableOpacity
+                      key={item.key}
+                      onPress={() => setLanguage && setLanguage(item.key)}
+                      className={`flex-1 py-2 items-center rounded-lg ${isSel ? "bg-[#D4AF37]" : ""}`}
+                    >
+                      <Text className={`text-[10px] font-bold ${isSel ? "text-black" : "text-zinc-400"}`}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+
+          {/* Visibility */}
+          <View className="mb-6">
+            <Text className="text-zinc-400 text-xs font-bold mb-2">Chế độ hiển thị</Text>
+            <View className="flex-row bg-[#1E1E22] border border-zinc-800 rounded-xl p-1">
+              {[
+                { key: "PUBLIC", label: "Công khai (Public)", desc: "Mọi người đều có thể tìm thấy tác phẩm" },
+                { key: "PRIVATE", label: "Riêng tư (Private)", desc: "Chỉ bạn mới xem được tác phẩm" },
+              ].map((item) => {
+                const isSel = visibility === item.key;
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    onPress={() => setVisibility && setVisibility(item.key as any)}
+                    className={`flex-1 py-2.5 items-center rounded-lg ${isSel ? "bg-zinc-800 border border-zinc-700" : ""}`}
+                  >
+                    <Text className={`text-xs font-bold ${isSel ? "text-white" : "text-zinc-400"}`}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Categories */}

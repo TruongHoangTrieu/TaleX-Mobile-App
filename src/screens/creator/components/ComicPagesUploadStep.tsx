@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import {
   View,
   Text,
@@ -6,8 +6,9 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  PanResponder,
 } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 type LocalComicPage = {
   id: string;
@@ -30,6 +31,12 @@ type ComicPagesUploadStepProps = {
   comicPages: LocalComicPage[];
   handleSelectPages: () => void;
   handleDeletePage: (id: string) => void;
+  handleMovePageUp?: (index: number) => void;
+  handleMovePageDown?: (index: number) => void;
+
+  episodeThumbnail?: { uri: string; name: string; size: number; type: string } | null;
+  handleSelectThumbnail?: () => void;
+
   handleStartUpload: () => void;
   uploading: boolean;
   submitMsg: string;
@@ -42,6 +49,99 @@ type ComicPagesUploadStepProps = {
   onNext: () => void;
 };
 
+// Component hàng trang truyện hỗ trợ cả Drag & Drop (kéo thả) lẫn nút mũi tên
+function DraggablePageItem({
+  page,
+  index,
+  total,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: {
+  page: LocalComicPage;
+  index: number;
+  total: number;
+  onMoveUp?: (idx: number) => void;
+  onMoveDown?: (idx: number) => void;
+  onDelete: (id: string) => void;
+}) {
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gestureState) => {
+        const { dy } = gestureState;
+        if (dy > 35 && index < total - 1 && onMoveDown) {
+          onMoveDown(index);
+          gestureState.dy = 0;
+        } else if (dy < -35 && index > 0 && onMoveUp) {
+          onMoveUp(index);
+          gestureState.dy = 0;
+        }
+      },
+    }),
+  ).current;
+
+  return (
+    <View className="flex-row items-center justify-between py-2 border-b border-zinc-900/50">
+      {/* Drag handle button */}
+      <View
+        {...panResponder.panHandlers}
+        className="w-8 h-10 items-center justify-center bg-zinc-800/80 rounded-lg mr-2 active:bg-[#D4AF37]/30"
+      >
+        <MaterialCommunityIcons name="drag-vertical" size={20} color="#D4AF37" />
+      </View>
+
+      <View className="flex-row items-center flex-1 mr-2">
+        <Image
+          source={{ uri: page.uri }}
+          className="w-12 h-16 rounded-md mr-3 bg-zinc-900"
+          resizeMode="cover"
+        />
+        <View className="flex-1">
+          <Text className="text-white text-xs font-bold" numberOfLines={1}>
+            Trang {index + 1}
+          </Text>
+          <Text className="text-zinc-500 text-[10px]" numberOfLines={1}>
+            {page.name}
+          </Text>
+          <Text className="text-zinc-500 text-[10px]">
+            {(page.size / 1024).toFixed(0)} KB
+          </Text>
+        </View>
+      </View>
+
+      <View className="flex-row items-center space-x-1">
+        {/* Up arrow */}
+        {onMoveUp && index > 0 && (
+          <TouchableOpacity
+            onPress={() => onMoveUp(index)}
+            className="w-7 h-7 bg-zinc-800 rounded-lg items-center justify-center mr-1"
+          >
+            <Feather name="arrow-up" size={14} color="white" />
+          </TouchableOpacity>
+        )}
+        {/* Down arrow */}
+        {onMoveDown && index < total - 1 && (
+          <TouchableOpacity
+            onPress={() => onMoveDown(index)}
+            className="w-7 h-7 bg-zinc-800 rounded-lg items-center justify-center mr-1"
+          >
+            <Feather name="arrow-down" size={14} color="white" />
+          </TouchableOpacity>
+        )}
+        {/* Delete button */}
+        <TouchableOpacity
+          onPress={() => onDelete(page.id)}
+          className="p-1.5 active:opacity-60"
+        >
+          <Feather name="trash-2" size={16} color="#EF4444" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 export default function ComicPagesUploadStep({
   seriesTitle,
   seasonTitle,
@@ -52,6 +152,10 @@ export default function ComicPagesUploadStep({
   comicPages,
   handleSelectPages,
   handleDeletePage,
+  handleMovePageUp,
+  handleMovePageDown,
+  episodeThumbnail,
+  handleSelectThumbnail,
   handleStartUpload,
   uploading,
   submitMsg,
@@ -88,11 +192,48 @@ export default function ComicPagesUploadStep({
         </View>
       </View>
 
+      {/* Episode Thumbnail Section */}
+      {handleSelectThumbnail && (
+        <View className="bg-[#1E1E22] border border-zinc-800 rounded-3xl p-4 mb-5">
+          <Text className="text-zinc-400 text-xs font-bold mb-2">
+            Ảnh đại diện tập truyện (Thumbnail)
+          </Text>
+          {episodeThumbnail ? (
+            <View className="flex-row items-center">
+              <Image
+                source={{ uri: episodeThumbnail.uri }}
+                className="w-16 h-20 rounded-xl bg-zinc-900 mr-3"
+                resizeMode="cover"
+              />
+              <View className="flex-1">
+                <Text className="text-white text-xs font-bold" numberOfLines={1}>
+                  {episodeThumbnail.name}
+                </Text>
+                <TouchableOpacity
+                  onPress={handleSelectThumbnail}
+                  className="mt-2 bg-zinc-800 px-3 py-1.5 rounded-lg self-start active:opacity-60"
+                >
+                  <Text className="text-white text-[10px] font-bold">Thay ảnh đại diện</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={handleSelectThumbnail}
+              className="border border-dashed border-zinc-700 rounded-2xl p-3 flex-row items-center justify-center active:opacity-60"
+            >
+              <Feather name="image" size={18} color="#D4AF37" style={{ marginRight: 8 }} />
+              <Text className="text-white text-xs font-bold">Tải ảnh đại diện tập lên</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       <Text className="text-white text-base font-black mb-1">
         Bước 4: Tải lên các trang truyện
       </Text>
       <Text className="text-zinc-500 text-xs mb-5">
-        Chọn các trang ảnh truyện từ thư viện để tải lên.
+        Chọn các trang ảnh truyện từ thư viện để tải lên và di chuyển thứ tự hiển thị.
       </Text>
 
       {comicPages.length === 0 ? (
@@ -129,43 +270,24 @@ export default function ComicPagesUploadStep({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 300 }}>
+            <View className="border-b border-zinc-900 pb-2 mb-2 flex-row items-center">
+              <MaterialCommunityIcons name="drag-vertical" size={14} color="#D4AF37" style={{ marginRight: 4 }} />
+              <Text className="text-[#D4AF37]/90 text-[10px] font-semibold">
+                Giữ biểu tượng vàng để kéo thả thứ tự hoặc dùng các nút ▲ ▼.
+              </Text>
+            </View>
+
+            <ScrollView style={{ maxHeight: 320 }}>
               {comicPages.map((page, index) => (
-                <View
+                <DraggablePageItem
                   key={page.id}
-                  className="flex-row items-center justify-between py-2 border-b border-zinc-900/50"
-                >
-                  <View className="flex-row items-center flex-1 mr-3">
-                    <Image
-                      source={{ uri: page.uri }}
-                      className="w-12 h-16 rounded-md mr-3 bg-zinc-900"
-                      resizeMode="cover"
-                    />
-                    <View className="flex-1">
-                      <Text
-                        className="text-white text-xs font-bold"
-                        numberOfLines={1}
-                      >
-                        Trang {index + 1}
-                      </Text>
-                      <Text
-                        className="text-zinc-500 text-[10px]"
-                        numberOfLines={1}
-                      >
-                        {page.name}
-                      </Text>
-                      <Text className="text-zinc-500 text-[10px]">
-                        {(page.size / 1024).toFixed(0)} KB
-                      </Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => handleDeletePage(page.id)}
-                    className="p-2 active:opacity-60"
-                  >
-                    <Feather name="trash-2" size={16} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
+                  page={page}
+                  index={index}
+                  total={comicPages.length}
+                  onMoveUp={handleMovePageUp}
+                  onMoveDown={handleMovePageDown}
+                  onDelete={handleDeletePage}
+                />
               ))}
             </ScrollView>
           </View>

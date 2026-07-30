@@ -1,6 +1,6 @@
 import EventSource from "react-native-sse";
 import { BASE_URL } from "@/config";
-import { getAccessToken } from "./auth";
+import { getValidAccessToken } from "./auth";
 
 export interface PipelineEvent {
   mediaId: string;
@@ -28,7 +28,7 @@ export interface PipelineSSEHandlers {
 export async function connectPipelineSSE(
   handlers: PipelineSSEHandlers
 ): Promise<{ close: () => void }> {
-  const token = await getAccessToken();
+  const token = await getValidAccessToken();
   const url = `${BASE_URL}/api/v1/sse/pipeline/connect`;
 
   const es = new EventSource<

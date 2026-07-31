@@ -19,6 +19,7 @@ import {
 } from "@expo/vector-icons";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Animated } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { getComicById, allComics } from "./comicMockData";
 import {
@@ -36,20 +37,52 @@ import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSec
 
 const { width } = Dimensions.get("window");
 
+function SkeletonPulse({
+  style,
+  className,
+}: {
+  style?: any;
+  className?: string;
+}) {
+  const opacity = React.useRef(new Animated.Value(0.25)).current;
+
+  React.useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.7,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.25,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
+
+  return (
+    <Animated.View
+      className={`bg-zinc-800/80 rounded-2xl ${className || ""}`}
+      style={[{ opacity }, style]}
+    />
+  );
+}
+
 const formatAgeRating = (rating?: string) => {
-  if (!rating) return "16+";
-  const str = String(rating).toUpperCase();
-  if (str.includes("18")) return "18+";
-  if (str.includes("16")) return "16+";
-  if (str.includes("13")) return "13+";
-  if (str === "P" || str.includes("ALL")) return "P";
-  return rating;
+  if (!rating || typeof rating !== "string" || !rating.trim()) return null;
+  return rating.trim();
 };
 
-const getAgeRatingStyle = (rating?: string) => {
-  const formatted = formatAgeRating(rating);
-  if (formatted === "18+") return { bg: "bg-red-500/25", border: "border-red-500/50", text: "text-red-400" };
-  if (formatted === "16+") return { bg: "bg-amber-500/25", border: "border-amber-500/50", text: "text-amber-400" };
+const getAgeRatingStyle = (ratingStr?: string | null) => {
+  if (!ratingStr) return { bg: "bg-zinc-800", border: "border-zinc-700", text: "text-white" };
+  const r = ratingStr.toUpperCase();
+  if (r.includes("18")) return { bg: "bg-red-500/25", border: "border-red-500/50", text: "text-red-400" };
+  if (r.includes("16")) return { bg: "bg-amber-500/25", border: "border-amber-500/50", text: "text-amber-400" };
   return { bg: "bg-emerald-500/25", border: "border-emerald-500/50", text: "text-emerald-400" };
 };
 
@@ -266,11 +299,35 @@ export default function ComicDetailScreen() {
 
   if (loading || !comic) {
     return (
-      <SafeAreaView className="flex-1 bg-[#141619] items-center justify-center">
-        <ActivityIndicator size="large" color="#D4AF37" />
-        <Text className="text-zinc-400 text-xs mt-3 font-bold">
-          Đang tải chi tiết truyện...
-        </Text>
+      <SafeAreaView edges={["top"]} className="flex-1 bg-[#121214]">
+        <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          {/* Skeleton Hero Banner */}
+          <View style={{ width, height: width * (9 / 16) + 40 }} className="relative bg-zinc-900 p-4 justify-between">
+            <SkeletonPulse className="w-full h-full rounded-2xl" />
+          </View>
+          {/* Skeleton Meta Info */}
+          <View className="px-4 mt-4">
+            <SkeletonPulse className="w-3/4 h-7 rounded-xl mb-3" />
+            <SkeletonPulse className="w-1/2 h-4 rounded-lg mb-4" />
+            <View className="flex-row gap-2 mb-4">
+              <SkeletonPulse className="w-20 h-6 rounded-md" />
+              <SkeletonPulse className="w-16 h-6 rounded-md" />
+              <SkeletonPulse className="w-24 h-6 rounded-md" />
+            </View>
+            <SkeletonPulse className="w-full h-24 rounded-2xl mb-6" />
+            {/* Skeleton Episodes */}
+            <View className="flex-row justify-between mb-3">
+              <SkeletonPulse className="w-32 h-6 rounded-lg" />
+              <SkeletonPulse className="w-16 h-6 rounded-lg" />
+            </View>
+            <View className="flex-row flex-wrap gap-2.5">
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <SkeletonPulse key={idx} className="w-[30%] h-12 rounded-xl" />
+              ))}
+            </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -362,11 +419,25 @@ export default function ComicDetailScreen() {
                 <Ionicons name="book-outline" size={32} color="#D4AF37" />
               </View>
             )}
+
+            {/* Age Rating Overlay Badge - Only if provided by API */}
+            {(() => {
+              const formatted = formatAgeRating(comic.ageRating);
+              if (!formatted) return null;
+              const style = getAgeRatingStyle(formatted);
+              return (
+                <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}>
+                  <Text className={`text-[9px] font-black ${style.text}`}>
+                    {formatted}
+                  </Text>
+                </View>
+              );
+            })()}
           </View>
 
           {/* Meta info right column */}
           <View className="flex-1 ml-3.5 justify-end pb-1">
-            <Text className="text-white text-lg font-bold leading-6" numberOfLines={2}>
+            <Text className="text-white text-lg font-bold leading-6" numberOfLines={1}>
               {comic.title}
             </Text>
 
@@ -374,13 +445,20 @@ export default function ComicDetailScreen() {
             <TouchableOpacity
               onPress={handleCreatorPress}
               activeOpacity={0.7}
-              className="flex-row items-center mt-1.5"
+              className="flex-row items-center mt-1"
             >
-              <Text className="text-zinc-300 text-xs font-semibold">Tác giả: </Text>
+              <Text className="text-zinc-400 text-xs font-semibold">Tác giả: </Text>
               <Text className="text-[#D4AF37] text-xs font-bold" numberOfLines={1}>
-                {comic.author || comic.creatorName || "TaleX Creator"}
+                {comic.author || comic.creatorName || "Tác giả TaleX"}
               </Text>
             </TouchableOpacity>
+
+            {/* Description */}
+            {comic.description ? (
+              <Text className="text-zinc-300 text-xs mt-1 leading-4" numberOfLines={2}>
+                {comic.description}
+              </Text>
+            ) : null}
 
             {/* Category Pill Badges (Teal Theme) */}
             {categoriesArray.length > 0 && (

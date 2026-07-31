@@ -22,6 +22,7 @@ import {
   Feather,
   MaterialCommunityIcons,
   FontAwesome5,
+  Ionicons,
 } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
@@ -66,6 +67,20 @@ import { LinearGradient } from "expo-linear-gradient";
 
 const { width } = Dimensions.get("window");
 
+const formatAgeRating = (rating?: string) => {
+  if (!rating || typeof rating !== "string" || !rating.trim()) return null;
+  return rating.trim();
+};
+
+const getAgeRatingStyle = (ratingStr?: string | null) => {
+  if (!ratingStr) return { bg: "bg-zinc-800", text: "text-white", border: "border-zinc-700" };
+  const r = ratingStr.toUpperCase();
+  if (r.includes("18")) return { bg: "bg-red-600", text: "text-white", border: "border-red-500" };
+  if (r.includes("16")) return { bg: "bg-amber-600", text: "text-white", border: "border-amber-500" };
+  if (r.includes("13")) return { bg: "bg-blue-600", text: "text-white", border: "border-blue-500" };
+  return { bg: "bg-amber-500/90", text: "text-black", border: "border-amber-400" };
+};
+
 export default function CreatorChannelScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -76,8 +91,8 @@ export default function CreatorChannelScreen() {
   const [creator, setCreator] = useState<OwnCreatorResponse | null>(null);
   const [series, setSeries] = useState<SeriesItem[]>([]);
   const [activeTab, setActiveTab] = useState<
-    "comics" | "movies" | "followers" | "about"
-  >("comics");
+    "home" | "comics" | "movies" | "followers" | "about"
+  >("home");
   const [followersList, setFollowersList] = useState<AccountFollowInfoDto[]>(
     [],
   );
@@ -201,7 +216,8 @@ export default function CreatorChannelScreen() {
     if (filterStatus === "PUBLIC") {
       result = result.filter((item) => item.status === "PUBLISHED");
     } else if (filterStatus === "PRIVATE") {
-      result = result.filter((item: any) => item.status === "DRAFT");
+      // Bản nháp = tất cả trạng thái không phải PUBLISHED (DRAFT, HIDDEN, SCHEDULED...)
+      result = result.filter((item) => item.status !== "PUBLISHED");
     }
 
     // 2. Sắp xếp
@@ -881,185 +897,60 @@ export default function CreatorChannelScreen() {
     }
 
     return (
-      <View className="px-4 py-3">
+      <View className="px-4 py-3 flex-row flex-wrap justify-between">
         {list.map((item) => {
           const isComic = item.contentType?.toUpperCase() === "COMIC";
           const isPublic = item.status === "PUBLISHED";
 
-          // Ưu tiên dữ liệu thực từ API nếu có, ngược lại sử dụng fallback ngẫu nhiên ổn định
-          const anyItem = item as any;
-          const seed = item.seriesId
-            ? item.seriesId
-                .split("")
-                .reduce((acc, char) => acc + char.charCodeAt(0), 0)
-            : 100;
-          const mockViewsVal = ((seed * 17) % 89000) + 120;
-          const realViews =
-            anyItem.totalViews ?? anyItem.viewCount ?? anyItem.views;
-          const finalViewsVal =
-            realViews !== undefined && realViews !== null
-              ? realViews
-              : mockViewsVal;
-          const displayViews =
-            finalViewsVal >= 1000
-              ? `${(finalViewsVal / 1000).toFixed(1)}K`
-              : `${finalViewsVal}`;
-
-          const realLikes =
-            anyItem.totalLikes ?? anyItem.likeCount ?? anyItem.likes;
-          const displayLikes =
-            realLikes !== undefined && realLikes !== null
-              ? realLikes
-              : Math.floor(mockViewsVal * 0.08) + 5;
-
-          const realComments =
-            anyItem.totalComments ?? anyItem.commentCount ?? anyItem.comments;
-          const displayComments =
-            realComments !== undefined && realComments !== null
-              ? realComments
-              : Math.floor(mockViewsVal * 0.02) + 1;
-
-          const timeOptions = [
-            "2 ngày trước",
-            "5 ngày trước",
-            "1 tuần trước",
-            "3 tuần trước",
-            "1 tháng trước",
-            "3 tháng trước",
-          ];
-          const mockTime = timeOptions[seed % timeOptions.length];
-
           return (
             <TouchableOpacity
               key={item.seriesId}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
               onPress={() => handleItemPress(item)}
-              className="flex-row mb-4 p-2 bg-[#161618] rounded-xl border border-white/5 items-center relative"
+              style={{ width: (width - 44) / 2 }}
+              className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
             >
-              {/* Cover/Thumbnail (Left) */}
-              {isComic ? (
-                <View className="w-[80px] h-[112px] bg-[#27272A] rounded-lg overflow-hidden relative">
-                  {item.coverUrl ? (
-                    <Image
-                      source={{ uri: item.coverUrl }}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View className="w-full h-full items-center justify-center">
-                      <Feather name="book-open" size={20} color="#71717A" />
-                    </View>
-                  )}
-                  {/* Badge trạng thái trên ảnh bìa */}
-                  <View className="absolute top-1.5 left-1.5 bg-[#141210]/75 px-1.5 py-0.5 rounded border border-white/5 shadow-sm">
-                    <Text
-                      className={`text-[8px] font-black uppercase ${item.status === "PUBLISHED" ? "text-green-400" : "text-zinc-400"}`}
-                    >
-                      {item.status === "PUBLISHED" ? "Công khai" : "Nháp"}
-                    </Text>
-                  </View>
-                </View>
+              {item.coverUrl ? (
+                <Image
+                  source={{ uri: item.coverUrl }}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
               ) : (
-                <View className="w-[128px] h-[72px] bg-[#27272A] rounded-lg overflow-hidden relative">
-                  {item.coverUrl ? (
-                    <Image
-                      source={{ uri: item.coverUrl }}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View className="w-full h-full items-center justify-center">
-                      <Feather name="video" size={20} color="#71717A" />
-                    </View>
-                  )}
-                  {/* Play icon overlay for movie */}
-                  <View className="absolute bottom-1.5 right-1.5 w-5 h-5 bg-[#D4AF37] rounded-full items-center justify-center shadow">
-                    <FontAwesome5
-                      name="play"
-                      size={7}
-                      color="#141210"
-                      style={{ marginLeft: 0.5 }}
-                    />
-                  </View>
-                  {/* Badge trạng thái trên ảnh bìa */}
-                  <View className="absolute top-1.5 left-1.5 bg-[#141210]/75 px-1.5 py-0.5 rounded border border-white/5 shadow-sm">
-                    <Text
-                      className={`text-[8px] font-black uppercase ${item.status === "PUBLISHED" ? "text-green-400" : "text-zinc-400"}`}
-                    >
-                      {item.status === "PUBLISHED" ? "Công khai" : "Nháp"}
-                    </Text>
-                  </View>
+                <View className="w-full h-full items-center justify-center">
+                  <Feather name={isComic ? "book-open" : "video"} size={28} color="#71717A" />
                 </View>
               )}
 
-              {/* Info Block (Right) */}
-              <View className="flex-1 ml-4 py-0.5">
-                {/* Tiêu đề (Sạch sẽ, chừa khoảng trống cho nút 3 chấm) */}
-                <Text
-                  className="text-white font-extrabold text-[14px] pr-6 tracking-wide"
-                  numberOfLines={1}
+              {/* Badge trạng thái góc trên trái */}
+              <View className="absolute top-2 left-2 z-30">
+                <View
+                  className="px-2 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor: isPublic
+                      ? "rgba(34,197,94,0.85)"
+                      : "rgba(113,113,122,0.85)",
+                  }}
                 >
-                  {item.title}
-                </Text>
-
-                {/* Mô tả chi tiết */}
-                <Text
-                  className="text-[#A19E95] text-[11px] font-semibold mt-1 pr-6"
-                  numberOfLines={1}
-                >
-                  {item.description ||
-                    "Chưa có mô tả chi tiết cho tác phẩm này."}
-                </Text>
-
-                {/* Loại tác phẩm • Lượt xem • Thời gian xuất bản */}
-                <Text className="text-stone-400 text-[10px] font-bold mt-1.5">
-                  {isComic ? "Truyện tranh" : "Phim bộ"} • {displayViews} lượt
-                  xem • {mockTime}
-                </Text>
-
-                {/* Hàng tương tác & Bảo mật (Cùng một hàng) */}
-                <View className="flex-row items-center mt-2 pr-2">
-                  {/* Thích */}
-                  <View className="flex-row items-center mr-3">
-                    <Feather name="thumbs-up" size={11} color="#A19E95" />
-                    <Text className="text-[#A19E95] text-[10px] font-bold ml-1">
-                      {displayLikes}
-                    </Text>
-                  </View>
-
-                  {/* Bình luận */}
-                  <View className="flex-row items-center mr-3">
-                    <Feather name="message-square" size={11} color="#A19E95" />
-                    <Text className="text-[#A19E95] text-[10px] font-bold ml-1">
-                      {displayComments}
-                    </Text>
-                  </View>
-
-                  {/* Trạng thái phát hành (Quả cầu / Nháp) */}
-                  <View className="flex-row items-center">
-                    <Feather
-                      name={isPublic ? "globe" : "edit-3"}
-                      size={11}
-                      color={isPublic ? "#10B981" : "#A19E95"}
-                    />
-                    <Text className="text-[#A19E95] text-[10px] font-bold ml-1">
-                      {isPublic ? "Công khai" : "Bản nháp"}
-                    </Text>
-                  </View>
+                  <Text
+                    style={{ fontSize: 10, fontWeight: "700", color: "#fff" }}
+                  >
+                    {isPublic ? "Công khai" : "Riêng tư"}
+                  </Text>
                 </View>
               </View>
 
-              {/* Nút Ba chấm dọc (Góc phải trên cùng) */}
+              {/* Nút 3 chấm quản lý ở góc trên phải */}
               <TouchableOpacity
-                activeOpacity={0.7}
+                activeOpacity={0.8}
                 onPress={() => {
                   setActiveMenuId(
                     activeMenuId === item.seriesId ? null : item.seriesId,
                   );
                 }}
-                className="absolute top-0 right-0 p-4 z-30"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/80 items-center justify-center border border-white/10 z-30"
               >
-                <Feather name="more-vertical" size={20} color="#D4AF37" />
+                <Feather name="more-vertical" size={14} color="#D4AF37" />
               </TouchableOpacity>
             </TouchableOpacity>
           );
@@ -1069,26 +960,18 @@ export default function CreatorChannelScreen() {
   };
 
   return (
-    <SafeAreaView edges={["top", "bottom"]} className="flex-1 bg-[#0F0F0F]">
+    <View className="flex-1 bg-[#0F0F0F]">
       <StatusBar barStyle="light-content" />
 
-      {/* HEADER QUAY LẠI */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-white/5">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="p-1">
-          <Feather name="arrow-left" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text className="text-white text-base font-bold">Kênh sáng tạo</Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate("CreatorDashboard")}
-          className="p-1"
-        >
-          <MaterialCommunityIcons
-            name="youtube-studio"
-            size={24}
-            color="#D4AF37"
-          />
-        </TouchableOpacity>
-      </View>
+      {/* NÚT BACK FLOATING */}
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        activeOpacity={0.8}
+        className="absolute left-4 z-50 w-9 h-9 rounded-full bg-black/40 border border-white/20 items-center justify-center shadow-lg"
+        style={{ top: Math.max(insets.top, 16) }}
+      >
+        <Feather name="arrow-left" size={20} color="#FFFFFF" />
+      </TouchableOpacity>
 
       <ScrollView
         className="flex-1"
@@ -1122,7 +1005,7 @@ export default function CreatorChannelScreen() {
 
           return (
             <>
-              <View className="w-full h-[120px] bg-zinc-800 relative">
+              <View className="w-full h-[220px] bg-zinc-800 relative">
                 {effectiveBannerUrl ? (
                   <Image
                     source={{ uri: effectiveBannerUrl }}
@@ -1191,12 +1074,23 @@ export default function CreatorChannelScreen() {
           );
         })()}
 
-        {/* TAB BAR STYLE YOUTUBE (SCROLLABLE HORIZONTALLY) */}
+        {/* TAB BAR STYLE YOUTUBE (ON TOP OF CONTENT) */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           className="border-b border-white/5 px-2"
         >
+          <TouchableOpacity
+            onPress={() => setActiveTab("home")}
+            className={`py-3 px-4 border-b-2 ${activeTab === "home" ? "border-[#D4AF37]" : "border-transparent"}`}
+          >
+            <Text
+              className={`text-xs font-bold ${activeTab === "home" ? "text-[#D4AF37]" : "text-zinc-500"}`}
+            >
+              TRANG CHỦ
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={() => setActiveTab("comics")}
             className={`py-3 px-4 border-b-2 ${activeTab === "comics" ? "border-[#D4AF37]" : "border-transparent"}`}
@@ -1241,6 +1135,55 @@ export default function CreatorChannelScreen() {
             </Text>
           </TouchableOpacity>
         </ScrollView>
+
+        {/* SPOTLIGHT HERO BANNER CARD (ONLY ON HOME TAB) */}
+        {activeTab === "home" && series.length > 0 && (
+          <View className="px-4 pt-4">
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => handleItemPress(series[0])}
+              className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900 shadow-2xl"
+            >
+              {series[0].coverUrl ? (
+                <Image
+                  source={{ uri: series[0].coverUrl }}
+                  className="w-full h-[180px]"
+                  resizeMode="cover"
+                />
+              ) : (
+                <Image
+                  source={require("@assets/background.webp")}
+                  className="w-full h-[180px]"
+                  resizeMode="cover"
+                />
+              )}
+              <LinearGradient
+                colors={["transparent", "rgba(18,18,20,0.45)", "rgba(18,18,20,0.95)"]}
+                className="absolute inset-0 p-4 justify-end"
+              >
+                <View className="bg-[#D4AF37] self-start px-2.5 py-1 rounded-lg mb-2 flex-row items-center shadow-md">
+                  <Ionicons name="flame" size={13} color="#141210" />
+                  <Text className="text-[#141210] text-[10px] font-black uppercase tracking-wider ml-1">
+                    SIÊU PHẨM NỔI BẬT
+                  </Text>
+                </View>
+                <Text className="text-white font-extrabold text-xl leading-tight" numberOfLines={1}>
+                  {series[0].title}
+                </Text>
+                <Text className="text-[#D1D5DB] text-xs mt-1 leading-snug" numberOfLines={2}>
+                  {series[0].description || "Tác phẩm xuất sắc hàng đầu của kênh sáng tạo trên hệ thống TaleX."}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* TIÊU ĐỀ DANH SÁCH TÁC PHẨM (HOME TAB) */}
+        {activeTab === "home" && (
+          <Text className="text-white text-sm font-black mb-3 px-4 pt-4">
+            Danh sách tác phẩm ({series.length})
+          </Text>
+        )}
 
         {/* BỘ LỌC VÀ SẮP XẾP */}
         {(activeTab === "comics" || activeTab === "movies") && (
@@ -1333,6 +1276,8 @@ export default function CreatorChannelScreen() {
         )}
 
         {/* TAB CONTENTS */}
+        {activeTab === "home" &&
+          renderContentGrid(getSortedAndFilteredList(series), "tác phẩm")}
         {activeTab === "comics" &&
           renderContentGrid(comicsList, "truyện tranh")}
         {activeTab === "movies" && renderContentGrid(moviesList, "phim ảnh")}
@@ -2689,6 +2634,6 @@ export default function CreatorChannelScreen() {
           )}
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }

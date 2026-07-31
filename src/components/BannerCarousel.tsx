@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,70 +6,66 @@ import {
   Dimensions,
   Animated,
 } from "react-native";
-import { FontAwesome5, Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
+import type { HomeFeedSeries } from "@/services/recommendations";
 
 const { width: screenWidth } = Dimensions.get("window");
+// 16:9 Banner height calculation
+const bannerHeight = Math.round((screenWidth * 9) / 16);
+const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1518676590629-3dcbd9c5a5c9?q=80&w=1400&auto=format&fit=crop";
 
-export interface ParallaxItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  bg: any;
-  character: any;
-  screenType: "movie" | "comic";
-  targetId: string;
+function formatViews(value?: number) {
+  if (typeof value !== "number" || value <= 0) return "0 lượt xem";
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M lượt xem`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}k lượt xem`;
+  }
+  return `${value} lượt xem`;
 }
 
-const parallaxData: ParallaxItem[] = [
-  {
-    id: "p1",
-    title: "Vân Tú Hành",
-    subtitle: "Trung Quốc đại lục · Cập nhật tập 14",
-    bg: require("@assets/movie1_bg.webp"),
-    character: require("@assets/movie1_char.webp"),
-    screenType: "movie",
-    targetId: "hm1",
-  },
-  {
-    id: "p2",
-    title: "Mùa Hè Nồng Nhiệt",
-    subtitle: "Hàn Quốc · Trọn bộ bản đẹp",
-    bg: require("@assets/movie2_bg.webp"),
-    character: require("@assets/movie2_char.webp"),
-    screenType: "movie",
-    targetId: "hm2",
-  },
-  {
-    id: "p3",
-    title: "Story Of Kunning Place",
-    subtitle: "Trung Quốc · Trọn bộ bản đẹp",
-    bg: require("@assets/movie3_bg.webp"),
-    character: require("@assets/movie3_char.webp"),
-    screenType: "movie",
-    targetId: "top-1",
-  },
-];
+function getReleaseYear(item: HomeFeedSeries) {
+  const dateStr = item.releasedUpdateTime || item.createdAt || item.updatedAt;
+  if (!dateStr) return null;
+  const year = new Date(dateStr).getFullYear();
+  return isNaN(year) ? null : String(year);
+}
 
-export default function BannerCarousel() {
-  let navigation: any = null;
-  try {
-    navigation = useNavigation<any>();
-  } catch (_e) {
-    navigation = null;
-  }
+function getImageUri(series?: HomeFeedSeries) {
+  if (!series) return FALLBACK_IMAGE;
+  return series.bannerUrl || series.coverUrl || FALLBACK_IMAGE;
+}
+
+export interface BannerCarouselProps {
+  promotedItems?: HomeFeedSeries[];
+  navigation?: any;
+}
+
+export default function BannerCarousel({
+  promotedItems,
+  navigation,
+}: BannerCarouselProps) {
   const scrollX = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<any>(null);
   const currentIndex = useRef(0);
 
-  const [bookmarkedIds, setBookmarkedIds] = useState<{ [key: string]: boolean }>({});
+  // Only use real API items if available (max 3 items)
+  const slides = React.useMemo(() => {
+    if (promotedItems && promotedItems.length > 0) {
+      return promotedItems.slice(0, 3);
+    }
+    return [];
+  }, [promotedItems]);
 
-  // Tự động lướt trang sau mỗi 4.5 giây
+  // Auto scroll timer
   useEffect(() => {
+    if (slides.length <= 1) return;
+
     const timer = setInterval(() => {
       let nextIndex = currentIndex.current + 1;
-      if (nextIndex >= parallaxData.length) {
+      if (nextIndex >= slides.length) {
         nextIndex = 0;
       }
       currentIndex.current = nextIndex;
@@ -81,41 +77,59 @@ export default function BannerCarousel() {
     }, 4500);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [slides.length]);
 
   const handleMomentumScrollEnd = (event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
     currentIndex.current = Math.round(contentOffsetX / screenWidth);
   };
 
-  const toggleBookmark = (id: string) => {
-    setBookmarkedIds((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const handleNavigate = (item: ParallaxItem) => {
-    if (item.screenType === "movie") {
-      navigation.navigate("MovieDetailScreen", {
-        movieId: item.targetId,
-        movieTitle: item.title,
-        movieImage: item.bg,
+  const handleNavigate = (item: HomeFeedSeries) => {
+    const isComic = item.contentType?.toUpperCase() === "COMIC";
+    const imageUri = getImageUri(item);
+    if (isComic) {
+      navigation?.navigate("ComicDetailScreen", {
+        comicId: item.seriesId,
+        comicTitle: item.title,
+        comicImage: imageUri,
       });
     } else {
-      navigation.navigate("ComicDetailScreen", {
-        comicId: item.targetId,
-        comicTitle: item.title,
-        comicImage: item.bg,
+      navigation?.navigate("MovieDetailScreen", {
+        movieId: item.seriesId,
+        movieTitle: item.title,
+        movieImage: imageUri,
       });
     }
   };
 
-  const renderParallaxItem = ({
+  // Skeleton loading state if no real data yet
+  if (!slides || slides.length === 0) {
+    return (
+      <View
+        style={{ width: screenWidth, height: bannerHeight + 20 }}
+        className="relative bg-[#141619] p-4 flex-col justify-end"
+      >
+        <View className="w-full h-full absolute inset-0 bg-zinc-900/90 animate-pulse" />
+        <LinearGradient
+          colors={["transparent", "rgba(20, 22, 25, 0.9)", "#141619"]}
+          className="absolute inset-0"
+        />
+        <View className="relative mb-2">
+          <View className="w-3/4 h-7 bg-zinc-800 rounded-lg mb-2 animate-pulse" />
+          <View className="flex-row gap-2">
+            <View className="w-12 h-5 bg-zinc-800 rounded-md animate-pulse" />
+            <View className="w-14 h-5 bg-zinc-800 rounded-md animate-pulse" />
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  const renderCarouselItem = ({
     item,
     index,
   }: {
-    item: ParallaxItem;
+    item: HomeFeedSeries;
     index: number;
   }) => {
     const inputRange = [
@@ -124,30 +138,15 @@ export default function BannerCarousel() {
       (index + 1) * screenWidth,
     ];
 
-    // LỚP 1: BACKGROUND NỀN ARTWORK
     const translateXBg = scrollX.interpolate({
       inputRange,
       outputRange: [-screenWidth * 0.05, 0, screenWidth * 0.05],
       extrapolate: "clamp",
     });
 
-    // LỚP 2: CHARACTER NHÂN VẬT
-    const translateXChar = scrollX.interpolate({
-      inputRange,
-      outputRange: [-screenWidth * 0.22, 0, screenWidth * 0.22],
-      extrapolate: "clamp",
-    });
-
-    const scaleChar = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.92, 1, 0.92],
-      extrapolate: "clamp",
-    });
-
-    // LỚP 3: CHỮ & BỘ 3 NÚT BẤM NETFLIX
     const translateXText = scrollX.interpolate({
       inputRange,
-      outputRange: [-screenWidth * 0.65, 0, screenWidth * 0.65],
+      outputRange: [-screenWidth * 0.4, 0, screenWidth * 0.4],
       extrapolate: "clamp",
     });
 
@@ -157,46 +156,44 @@ export default function BannerCarousel() {
       extrapolate: "clamp",
     });
 
-    const isBookmarked = !!bookmarkedIds[item.id];
+    const yearStr = getReleaseYear(item);
 
     return (
-      <View
-        style={{ width: screenWidth }}
-        className="h-[430px] relative overflow-hidden bg-[#141619]"
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => handleNavigate(item)}
+        style={{ width: screenWidth, height: bannerHeight + 20 }}
+        className="relative overflow-hidden bg-[#141619]"
       >
-        {/* LỚP 1: BACKGROUND ARTWORK */}
+        {/* 16:9 FULL BANNER IMAGE FROM API */}
         <Animated.Image
-          source={item.bg}
+          source={{ uri: getImageUri(item) }}
           style={{
-            width: screenWidth * 1.15,
-            height: "120%",
+            width: screenWidth,
+            height: bannerHeight,
             position: "absolute",
-            top: "-10%",
-            left: "-7.5%",
+            top: 0,
+            left: 0,
             transform: [{ translateX: translateXBg }],
           }}
           resizeMode="cover"
         />
 
-        {/* LỚP 2: CHARACTER ARTWORK */}
-        <Animated.Image
-          source={item.character}
-          style={{
-            width: "100%",
-            height: "100%",
-            position: "absolute",
-            transform: [{ translateX: translateXChar }, { scale: scaleChar }],
-          }}
-          resizeMode="contain"
-        />
+        {/* VIBRANT AGE RATING BADGE AT TOP-RIGHT CORNER (NO BORDER) */}
+        {item.ageRating ? (
+          <View className="absolute top-3 right-3 z-10 bg-[#D4AF37] px-2.5 py-1 rounded-md shadow-xl">
+            <Text className="text-[#141210] text-xs font-black uppercase tracking-wider">
+              {item.ageRating}
+            </Text>
+          </View>
+        ) : null}
 
-        {/* DẢI GRADIENT MỜ DỐC ĐEN CHÂN BANNER HÒA VÀO NỀN #141619 CỰC MỊN */}
+        {/* GRADIENT VIGNETTE OVERLAY */}
         <LinearGradient
           colors={[
             "transparent",
-            "rgba(20, 22, 25, 0.35)",
+            "rgba(20, 22, 25, 0.25)",
             "rgba(20, 22, 25, 0.85)",
-            "#141619",
             "#141619",
           ]}
           style={{
@@ -204,29 +201,28 @@ export default function BannerCarousel() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: 160,
+            height: 150,
           }}
           pointerEvents="none"
         />
 
-        {/* LỚP 3: BỘ 3 NÚT BẤM CỦA NETFLIX + TIÊU ĐỀ */}
+        {/* BOTTOM-LEFT OVERLAY (ONLY REAL DATA FROM API) */}
         <Animated.View
           style={{
             position: "absolute",
-            bottom: 20,
+            bottom: 16,
             left: 0,
             right: 0,
-            paddingHorizontal: 20,
-            alignItems: "center",
+            paddingHorizontal: 16,
             opacity: opacityText,
             transform: [{ translateX: translateXText }],
           }}
         >
-          {/* Tiêu đề & Phụ đề chính */}
+          {/* TITLE FROM API */}
           <Text
-            className="text-white text-2xl font-black tracking-wide text-center"
+            className="text-white text-2xl font-black tracking-wide mb-2"
             style={{
-              textShadowColor: "rgba(0, 0, 0, 0.9)",
+              textShadowColor: "rgba(0, 0, 0, 0.95)",
               textShadowOffset: { width: 0, height: 2 },
               textShadowRadius: 8,
             }}
@@ -234,77 +230,55 @@ export default function BannerCarousel() {
           >
             {item.title}
           </Text>
-          <Text
-            className="text-stone-300 text-xs font-semibold mt-1 mb-4 text-center"
-            style={{
-              textShadowColor: "rgba(0, 0, 0, 0.9)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 4,
-            }}
-            numberOfLines={1}
-          >
-            {item.subtitle}
-          </Text>
 
-          {/* BỘ 3 NÚT BẤM BIỂU TƯỢNG NETFLIX (+ DANH SÁCH | ► PHÁT / ĐỌC | ⓘ THÔNG TIN) */}
-          <View className="flex-row items-center justify-around w-full max-w-[340px]">
-            {/* 1. Nút bên trái: + Danh sách (Thêm vào tủ sách/yêu thích) */}
-            <TouchableOpacity
-              onPress={() => toggleBookmark(item.id)}
-              className="items-center justify-center w-20 active:opacity-75"
-              activeOpacity={0.75}
-            >
-              <Feather
-                name={isBookmarked ? "check" : "plus"}
-                size={22}
-                color={isBookmarked ? "#D4AF37" : "#FFFFFF"}
-              />
-              <Text className="text-white text-[11px] font-bold mt-1">
-                {isBookmarked ? "Đã lưu" : "Danh sách"}
-              </Text>
-            </TouchableOpacity>
+          {/* BADGES ROW (NO BORDERS) */}
+          <View className="flex-row items-center flex-wrap gap-1.5">
+            {/* Release Year (e.g. 2026) */}
+            {yearStr ? (
+              <View className="bg-black/50 px-2.5 py-0.5 rounded-md">
+                <Text className="text-white text-[11px] font-bold">
+                  {yearStr}
+                </Text>
+              </View>
+            ) : null}
 
-            {/* 2. Nút ở giữa: ► Phát / Đọc (Nút hình chữ nhật bo góc màu Vàng Gold nổi bật) */}
-            <TouchableOpacity
-              onPress={() => handleNavigate(item)}
-              activeOpacity={0.85}
-              className="bg-[#D4AF37] px-7 py-2.5 rounded-xl flex-row items-center shadow-lg shadow-amber-500/40"
-            >
-              <FontAwesome5
-                name={item.screenType === "movie" ? "play" : "book-open"}
-                size={14}
-                color="#141210"
-                style={{ marginRight: 8 }}
-              />
-              <Text className="text-[#141210] font-black text-sm tracking-wide">
-                {item.screenType === "movie" ? "Phát" : "Đọc"}
+            {/* Content Type (Truyện / Phim) */}
+            <View className="bg-black/50 px-2.5 py-0.5 rounded-md">
+              <Text className="text-white text-[11px] font-bold">
+                {item.contentType?.toUpperCase() === "COMIC" ? "Truyện" : "Phim"}
               </Text>
-            </TouchableOpacity>
+            </View>
 
-            {/* 3. Nút bên phải: ⓘ Thông tin (Mở màn hình chi tiết) */}
-            <TouchableOpacity
-              onPress={() => handleNavigate(item)}
-              className="items-center justify-center w-20 active:opacity-75"
-              activeOpacity={0.75}
-            >
-              <Feather name="info" size={22} color="#FFFFFF" />
-              <Text className="text-white text-[11px] font-bold mt-1">
-                Thông tin
-              </Text>
-            </TouchableOpacity>
+            {/* View Count */}
+            {item.totalViews !== undefined ? (
+              <View className="bg-black/50 px-2.5 py-0.5 rounded-md">
+                <Text className="text-white text-[11px] font-bold">
+                  {formatViews(item.totalViews)}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Average Rating Score (if > 0) */}
+            {item.averageRating && item.averageRating > 0 ? (
+              <View className="bg-black/50 px-2.5 py-0.5 rounded-md flex-row items-center">
+                <Text className="text-amber-400 text-[11px] font-black">
+                  ★ {item.averageRating.toFixed(1)}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </Animated.View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
   return (
-    <View className="relative h-[430px] bg-[#141619]">
+    <View style={{ height: bannerHeight + 20 }} className="relative bg-[#141619]">
       <Animated.FlatList
         ref={flatListRef}
-        data={parallaxData}
-        renderItem={renderParallaxItem}
-        keyExtractor={(item) => item.id}
+        data={slides}
+        renderItem={renderCarouselItem}
+        keyExtractor={(item, index) => `banner-real-${item.seriesId || index}-${index}`}
         horizontal
         showsHorizontalScrollIndicator={false}
         pagingEnabled={false}

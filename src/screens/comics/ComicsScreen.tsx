@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   FlatList,
   Image,
@@ -7,6 +7,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Animated,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -32,6 +33,42 @@ import {
 } from "./comicMockData";
 import { getPublicSeries } from "@/services/series";
 
+function SkeletonPulse({
+  style,
+  className,
+}: {
+  style?: any;
+  className?: string;
+}) {
+  const opacity = useRef(new Animated.Value(0.25)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.7,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.25,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
+
+  return (
+    <Animated.View
+      className={`bg-zinc-800/80 rounded-2xl ${className || ""}`}
+      style={[{ opacity }, style]}
+    />
+  );
+}
+
 export default function ComicsScreen() {
   let navigation: any = null;
   try {
@@ -48,9 +85,11 @@ export default function ComicsScreen() {
     }
   };
 
+  const [loading, setLoading] = useState(true);
   const [apiComics, setApiComics] = useState<any[]>([]);
 
   const loadComics = async (isRefreshing = false) => {
+    if (!isRefreshing) setLoading(true);
     try {
       const res = await getPublicSeries(1, 100);
       if (res && res.data && res.data.content) {
@@ -62,13 +101,15 @@ export default function ComicsScreen() {
       }
     } catch (err) {
       console.error("Lỗi lấy danh sách truyện từ API:", err);
+    } finally {
+      if (!isRefreshing) setLoading(false);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
       loadComics(false);
-    }, [])
+    }, []),
   );
 
   const openComicDetail = (comicId: string) => {
@@ -76,55 +117,76 @@ export default function ComicsScreen() {
   };
 
   // Modern Card Component
-  const renderComicCard = ({ item }: { item: ComicItem }) => (
-    <TouchableOpacity
-      className="mr-3.5 w-[135px]"
-      activeOpacity={0.85}
-      onPress={() => openComicDetail(item.id)}
-    >
-      <View className="relative w-full h-[185px] rounded-2xl overflow-hidden border border-white/10 bg-zinc-800 shadow-md">
-        <Image
-          source={item.image}
-          className="w-full h-full"
-          resizeMode="cover"
-        />
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.85)"]}
-          className="absolute bottom-0 left-0 right-0 h-20 justify-end p-2.5"
-        >
-          <View className="flex-row items-center justify-between">
-            {item.tag ? (
-              <View className="bg-[#D4AF37] px-1.5 py-0.5 rounded shadow-sm">
-                <Text className="text-[#141210] text-[9px] font-black tracking-tight">
-                  {item.tag}
-                </Text>
-              </View>
-            ) : (
-              <View />
-            )}
-            {item.rating && (
-              <View className="flex-row items-center bg-black/60 px-1.5 py-0.5 rounded">
-                <Ionicons name="star" size={10} color="#D4AF37" />
-                <Text className="text-white text-[10px] font-bold ml-1">
-                  {item.rating}
-                </Text>
-              </View>
-            )}
-          </View>
-        </LinearGradient>
-      </View>
+  const renderComicCard = ({ item }: { item: ComicItem }) => {
+    const rawRating = item.ageRating;
+    const ageRatingStr = rawRating && typeof rawRating === "string" && rawRating.trim() ? rawRating.trim() : null;
+
+    const isRed = ageRatingStr?.toUpperCase().includes("18");
+    const isAmber = ageRatingStr?.toUpperCase().includes("16");
+    const isBlue = ageRatingStr?.toUpperCase().includes("13");
+    const badgeBg = isRed
+      ? "bg-red-600"
+      : isAmber
+      ? "bg-amber-600"
+      : isBlue
+      ? "bg-blue-600"
+      : "bg-emerald-600";
+
+    return (
+      <TouchableOpacity
+        className="mr-3.5 w-[135px]"
+        activeOpacity={0.85}
+        onPress={() => openComicDetail(item.id)}
+      >
+        <View className="relative w-full h-[185px] rounded-2xl overflow-hidden border border-white/10 bg-zinc-800 shadow-md">
+          <Image
+            source={item.image}
+            className="w-full h-full"
+            resizeMode="cover"
+          />
+
+          {/* Age Rating Badge Top Right - Strictly if provided by API */}
+          {ageRatingStr && (
+            <View className={`absolute top-2 right-2 px-2 py-0.5 rounded-md ${badgeBg} shadow-lg z-20 border border-white/20`}>
+              <Text className="text-white text-[10px] font-black tracking-wider uppercase">
+                {ageRatingStr}
+              </Text>
+            </View>
+          )}
+
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.85)"]}
+            className="absolute bottom-0 left-0 right-0 h-20 justify-end p-2.5"
+          >
+            <View className="flex-row items-center justify-between">
+              {item.tag ? (
+                <View className="bg-[#D4AF37] px-1.5 py-0.5 rounded shadow-sm">
+                  <Text className="text-[#141210] text-[9px] font-black tracking-tight">
+                    {item.tag}
+                  </Text>
+                </View>
+              ) : (
+                <View />
+              )}
+            </View>
+          </LinearGradient>
+        </View>
 
       <Text
         className="text-white font-bold text-xs mt-2 px-0.5 leading-tight"
-        numberOfLines={2}
+        numberOfLines={1}
       >
         {item.title}
       </Text>
-      <Text className="text-[#A1A1AA] text-[11px] mt-0.5 px-0.5">
-        {item.author || "TaleX"}
+      <Text
+        className="text-[#A1A1AA] text-[11px] mt-0.5 px-0.5"
+        numberOfLines={1}
+      >
+        {item.description || item.author || ""}
       </Text>
     </TouchableOpacity>
-  );
+    );
+  };
 
   // Top Ranked Card Component (Top Webtoon)
   const renderRankedCard = ({
@@ -163,7 +225,7 @@ export default function ComicsScreen() {
           <View>
             <Text
               className="text-white font-bold text-xs leading-tight"
-              numberOfLines={2}
+              numberOfLines={1}
             >
               {item.title}
             </Text>
@@ -330,6 +392,7 @@ export default function ComicsScreen() {
         <ComicSection
           title="Truyện Tranh Mới Lên Sóng"
           icon={<Ionicons name="flash" size={16} color="#D4AF37" />}
+          loading={loading}
           data={apiComics.map((item) => ({
             id: item.seriesId || item.id,
             title: item.title,
@@ -342,6 +405,7 @@ export default function ComicsScreen() {
               item.status === "PUBLISHED" ? "Đã xuất bản" : "Đang tiến hành",
             views: item.views || "0",
             rating: item.rating || "10.0",
+            ageRating: item.ageRating || item.targetAudience || item.contentRating,
             chapters: [],
             description: item.description || "",
           }))}
@@ -393,6 +457,7 @@ function ComicSection({
   emptyText,
   highlighted,
   onSeeMore,
+  loading,
 }: {
   title: string;
   icon?: React.ReactNode;
@@ -401,6 +466,7 @@ function ComicSection({
   emptyText: string;
   highlighted?: boolean;
   onSeeMore?: () => void;
+  loading?: boolean;
 }) {
   return (
     <View
@@ -433,19 +499,36 @@ function ComicSection({
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        horizontal
-        data={data}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16 }}
-        ListEmptyComponent={
-          <Text className="text-[#A1A1AA] text-xs px-4 py-2 italic">
-            {emptyText}
-          </Text>
-        }
-      />
+      {loading ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16 }}
+        >
+          {Array.from({ length: 5 }).map((_, idx) => (
+            <View
+              key={idx}
+              className="mr-3.5 w-[135px] h-[185px] rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 p-2"
+            >
+              <SkeletonPulse className="w-full h-full rounded-xl" />
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        <FlatList
+          horizontal
+          data={data}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16 }}
+          ListEmptyComponent={
+            <Text className="text-[#A1A1AA] text-xs px-4 py-2 italic">
+              {emptyText}
+            </Text>
+          }
+        />
+      )}
     </View>
   );
 }

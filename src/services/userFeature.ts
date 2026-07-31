@@ -29,6 +29,17 @@ export async function getUserFeatureProfile(): Promise<GetUserFeatureResult> {
     return { data: null, isMissing: true };
   }
 
+  // Handle server errors (5xx) gracefully — don't crash the UI
+  if (!res.ok) {
+    const text2 = await res.text().catch(() => "");
+    let json2: any = null;
+    try { json2 = text2 ? JSON.parse(text2) : null; } catch {}
+    const msg = json2?.message || `Lỗi server khi tải profile (${res.status})`;
+    console.warn("[getUserFeatureProfile] Server error:", msg);
+    // Trả về isMissing để UI không bị crash, thay vì throw
+    return { data: null, isMissing: true };
+  }
+
   const text = await res.text();
   let json: any;
   try {

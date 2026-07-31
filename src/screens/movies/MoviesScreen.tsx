@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   ScrollView,
   StatusBar,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,6 +24,42 @@ import {
   newSeriesMovies,
 } from "./movieMockData";
 import { getPublicSeries, SeriesItem } from "@/services/series";
+
+function SkeletonPulse({
+  style,
+  className,
+}: {
+  style?: any;
+  className?: string;
+}) {
+  const opacity = useRef(new Animated.Value(0.25)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.7,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.25,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
+
+  return (
+    <Animated.View
+      className={`bg-zinc-800/80 rounded-2xl ${className || ""}`}
+      style={[{ opacity }, style]}
+    />
+  );
+}
 
 export default function MoviesScreen() {
   let navigation: any = null;
@@ -110,37 +147,56 @@ export default function MoviesScreen() {
     return <View className="flex-row items-center mt-1">{stars}</View>;
   };
 
+  const getBadgeBg = (ageRatingStr?: string) => {
+    if (!ageRatingStr) return "bg-emerald-600/95";
+    const str = ageRatingStr.toUpperCase();
+    if (str.includes("18")) return "bg-red-600/95";
+    if (str.includes("16")) return "bg-amber-600/95";
+    if (str.includes("13")) return "bg-blue-600/95";
+    return "bg-amber-500/95";
+  };
+
   // Render Movie Card theo mẫu chuẩn Disney+ / Max
-  const renderMovieCard = ({ item }: { item: MovieItem }) => (
-    <TouchableOpacity
-      className="mr-4 w-[135px]"
-      activeOpacity={0.85}
-      onPress={() => openMovieDetail(item.id)}
-    >
-      <View className="w-full h-[180px] rounded-2xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
-        <Image
-          source={item.image}
-          className="w-full h-full"
-          resizeMode="cover"
-        />
-      </View>
-
-      <Text
-        className="text-white text-xs font-bold mt-2 leading-tight"
-        numberOfLines={1}
+  const renderMovieCard = ({ item }: { item: MovieItem }) => {
+    const ageRatingStr = item.ageRating ? String(item.ageRating).trim() : null;
+    return (
+      <TouchableOpacity
+        className="mr-4 w-[135px]"
+        activeOpacity={0.85}
+        onPress={() => openMovieDetail(item.id)}
       >
-        {item.title}
-      </Text>
+        <View className="w-full h-[180px] rounded-2xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md relative">
+          <Image
+            source={item.image}
+            className="w-full h-full"
+            resizeMode="cover"
+          />
 
-      <Text className="text-[#A1A1AA] text-[11px] mt-0.5" numberOfLines={1}>
-        {item.regionAndGenre?.split("·")[0]?.trim() ||
-          item.category ||
-          "TaleX Studio"}
-      </Text>
+          {/* Age Rating Badge Top Right - Strictly if provided */}
+          {ageRatingStr && (
+            <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md ${getBadgeBg(ageRatingStr)} shadow-md z-10`}>
+              <Text className="text-white text-[9px] font-black tracking-tight">
+                {ageRatingStr}
+              </Text>
+            </View>
+          )}
+        </View>
 
-      {render5Stars(item.rating)}
-    </TouchableOpacity>
-  );
+        <Text
+          className="text-white text-xs font-bold mt-2 leading-tight"
+          numberOfLines={1}
+        >
+          {item.title}
+        </Text>
+
+        <Text className="text-[#A1A1AA] text-[11px] mt-0.5" numberOfLines={1}>
+          {item.description || item.regionAndGenre?.split("·")[0]?.trim() || item.category || ""}
+        </Text>
+
+        {render5Stars(item.rating)}
+      </TouchableOpacity>
+    );
+  };
 
   // Render API Series Card
   const renderApiSeriesCard = ({ item }: { item: SeriesItem }) => {
@@ -148,6 +204,8 @@ export default function MoviesScreen() {
       item.coverUrl || item.bannerUrl || item.thumbnailUrl
         ? { uri: item.coverUrl || item.bannerUrl || item.thumbnailUrl }
         : require("@assets/movie2.jpg");
+    const rawRating = (item as any).ageRating || (item as any).targetAudience || (item as any).contentRating;
+    const ageRatingStr = rawRating && typeof rawRating === "string" && rawRating.trim() ? rawRating.trim() : null;
 
     return (
       <TouchableOpacity
@@ -157,12 +215,21 @@ export default function MoviesScreen() {
           openMovieDetail(item.seriesId || item.id || "", { seriesItem: item })
         }
       >
-        <View className="w-full h-[180px] rounded-2xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
+        <View className="w-full h-[180px] rounded-2xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md relative">
           <Image
             source={imageSource}
             className="w-full h-full"
             resizeMode="cover"
           />
+
+          {/* Age Rating Badge Top Right - Strictly if provided */}
+          {ageRatingStr && (
+            <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md ${getBadgeBg(ageRatingStr)} shadow-md z-10`}>
+              <Text className="text-white text-[9px] font-black tracking-tight">
+                {ageRatingStr}
+              </Text>
+            </View>
+          )}
         </View>
 
         <Text
@@ -173,7 +240,7 @@ export default function MoviesScreen() {
         </Text>
 
         <Text className="text-[#7C766B] text-[10px] mt-0.5" numberOfLines={1}>
-          {item.category || "Phim bộ"}
+          {item.description || item.category || ""}
         </Text>
       </TouchableOpacity>
     );
@@ -216,11 +283,20 @@ export default function MoviesScreen() {
           </View>
 
           {loading ? (
-            <View className="px-4 py-4">
-              <Text className="text-[#A1A1AA] text-xs italic">
-                Đang tải danh sách phim...
-              </Text>
-            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
+            >
+              {Array.from({ length: 5 }).map((_, idx) => (
+                <View
+                  key={idx}
+                  className="mr-4 w-[135px] h-[180px] rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 p-2"
+                >
+                  <SkeletonPulse className="w-full h-full rounded-xl" />
+                </View>
+              ))}
+            </ScrollView>
           ) : (
             <FlatList
               horizontal

@@ -11,7 +11,6 @@ import {
   Modal,
 } from "react-native";
 import {
-  SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import {
@@ -21,6 +20,7 @@ import {
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
 import Toast from "react-native-toast-message";
 import { getCreatorDetail, getFollowers } from "@/services/follow";
 import { getPublicSeries, type SeriesItem } from "@/services/series";
@@ -31,6 +31,20 @@ import { useAuth } from "@/context/AuthContext";
 const { width } = Dimensions.get("window");
 
 type TabType = "home" | "comics" | "movies" | "about";
+
+const formatAgeRating = (rating?: string) => {
+  if (!rating || typeof rating !== "string" || !rating.trim()) return null;
+  return rating.trim();
+};
+
+const getAgeRatingStyle = (ratingStr?: string | null) => {
+  if (!ratingStr) return { bg: "bg-zinc-800", text: "text-white", border: "border-zinc-700" };
+  const r = ratingStr.toUpperCase();
+  if (r.includes("18")) return { bg: "bg-red-600", text: "text-white", border: "border-red-500" };
+  if (r.includes("16")) return { bg: "bg-amber-600", text: "text-white", border: "border-amber-500" };
+  if (r.includes("13")) return { bg: "bg-blue-600", text: "text-white", border: "border-blue-500" };
+  return { bg: "bg-amber-500/90", text: "text-black", border: "border-amber-400" };
+};
 
 export default function PublicChannelScreen() {
   const navigation = useNavigation<any>();
@@ -240,34 +254,18 @@ export default function PublicChannelScreen() {
     "Chào mừng bạn đến với kênh sáng tạo chính thức trên TaleX! Hãy nhấn Đăng ký để không bỏ lỡ nội dung mới nhất.";
 
   return (
-    <SafeAreaView edges={["top", "bottom"]} className="flex-1 bg-[#0F0F0F]">
+    <View className="flex-1 bg-[#0F0F0F]">
       <StatusBar barStyle="light-content" backgroundColor="#0F0F0F" />
 
-      {/* TOP HEADER (STYLE YOUTUBE MOBILE) */}
-      <View className="flex-row items-center justify-between px-4 py-2.5 bg-[#0F0F0F] border-b border-white/5 z-20">
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          className="w-9 h-9 items-center justify-center rounded-full active:bg-zinc-800"
-        >
-          <Feather name="arrow-left" size={22} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <Text
-          className="text-white text-base font-bold flex-1 text-center mx-2"
-          numberOfLines={1}
-        >
-          {creatorName}
-        </Text>
-
-        <View className="flex-row items-center space-x-2">
-          <TouchableOpacity className="w-9 h-9 items-center justify-center rounded-full active:bg-zinc-800">
-            <Feather name="search" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity className="w-9 h-9 items-center justify-center rounded-full active:bg-zinc-800">
-            <Feather name="more-vertical" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* NÚt BACK FLOATING */}
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        activeOpacity={0.8}
+        className="absolute left-4 z-50 w-9 h-9 rounded-full bg-black/40 border border-white/20 items-center justify-center shadow-lg"
+        style={{ top: Math.max(insets.top, 16) }}
+      >
+        <Feather name="arrow-left" size={20} color="#FFFFFF" />
+      </TouchableOpacity>
 
       <ScrollView
         className="flex-1 bg-[#0F0F0F]"
@@ -275,7 +273,7 @@ export default function PublicChannelScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* 1. CHANNEL BANNER (YOUTUBE STYLE 16:9 BANNER) */}
-        <View className="w-full h-36 bg-zinc-900 relative">
+        <View className="w-full h-[220px] bg-zinc-900 relative">
           {creatorBanner ? (
             <Image
               source={{ uri: creatorBanner }}
@@ -445,33 +443,63 @@ export default function PublicChannelScreen() {
                 </View>
               ) : (
                 <View>
-                  <Text className="text-white text-sm font-black mb-3">
-                    Tác phẩm xem nhiều nhất
-                  </Text>
-                  {seriesList.map((item: any) => {
-                    const sId = item.seriesId || item.id;
-                    const isComic = item.contentType?.toUpperCase() === "COMIC";
-                    const seed = String(sId)
-                      .split("")
-                      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                    const mockViewsVal = ((seed * 17) % 89000) + 120;
-                    const mockViews =
-                      mockViewsVal >= 1000
-                        ? `${(mockViewsVal / 1000).toFixed(1)}K`
-                        : `${mockViewsVal}`;
-
-                    return (
+                  {/* ================= SPOTLIGHT HERO BANNER CARD (MATCHING USER REFERENCE IMAGE) ================= */}
+                  {seriesList.length > 0 && (
+                    <View className="mb-6">
                       <TouchableOpacity
-                        key={sId}
-                        activeOpacity={0.8}
-                        onPress={() => handleSeriesPress(item)}
-                        className="mb-5 bg-zinc-900/60 rounded-2xl overflow-hidden border border-white/5 p-2.5 flex-row items-center"
+                        activeOpacity={0.9}
+                        onPress={() => handleSeriesPress(seriesList[0])}
+                        className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900 shadow-2xl"
                       >
-                        {/* Thumbnail */}
-                        <View
-                          className={`${
-                            isComic ? "w-20 h-28" : "w-32 h-20"
-                          } bg-zinc-800 rounded-xl overflow-hidden relative mr-3`}
+                        {seriesList[0].coverUrl || seriesList[0].bannerUrl ? (
+                          <Image
+                            source={{ uri: seriesList[0].coverUrl || seriesList[0].bannerUrl }}
+                            className="w-full h-[185px]"
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Image
+                            source={require("@assets/background.webp")}
+                            className="w-full h-[185px]"
+                            resizeMode="cover"
+                          />
+                        )}
+                        <LinearGradient
+                          colors={["transparent", "rgba(18,18,20,0.45)", "rgba(18,18,20,0.95)"]}
+                          className="absolute inset-0 p-4 justify-end"
+                        >
+                          <View className="bg-[#D4AF37] self-start px-2.5 py-1 rounded-lg mb-2 flex-row items-center shadow-md">
+                            <Ionicons name="flame" size={13} color="#141210" />
+                            <Text className="text-[#141210] text-[10px] font-black uppercase tracking-wider ml-1">
+                              SIÊU PHẨM TUẦN NÀY
+                            </Text>
+                          </View>
+                          <Text className="text-white font-extrabold text-xl leading-tight" numberOfLines={1}>
+                            {seriesList[0].title}
+                          </Text>
+                          <Text className="text-[#D1D5DB] text-xs mt-1 leading-snug" numberOfLines={2}>
+                            {seriesList[0].description || "Cuộc chiến giữa các thế lực kịch tính và hấp dẫn kéo theo những lựa chọn không thể quay đầu."}
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <Text className="text-white text-sm font-black mb-3">
+                    Danh sách tác phẩm ({seriesList.length})
+                  </Text>
+                  <View className="flex-row flex-wrap justify-between">
+                    {seriesList.map((item: any) => {
+                      const sId = item.seriesId || item.id;
+                      const isComic = item.contentType?.toUpperCase() === "COMIC";
+
+                      return (
+                        <TouchableOpacity
+                          key={sId}
+                          activeOpacity={0.85}
+                          onPress={() => handleSeriesPress(item)}
+                          style={{ width: (width - 44) / 2 }}
+                          className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
                         >
                           {item.coverUrl || item.bannerUrl ? (
                             <Image
@@ -483,48 +511,28 @@ export default function PublicChannelScreen() {
                             <View className="w-full h-full items-center justify-center">
                               <Feather
                                 name={isComic ? "book-open" : "film"}
-                                size={22}
+                                size={28}
                                 color="#71717A"
                               />
                             </View>
                           )}
-                          <View className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded">
-                            <Text className="text-[#D4AF37] text-[9px] font-black uppercase">
-                              {isComic ? "COMIC" : "HD"}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {/* Title & Info */}
-                        <View className="flex-1 justify-center pr-2">
-                          <Text
-                            className="text-white text-sm font-bold leading-5"
-                            numberOfLines={2}
-                          >
-                            {item.title}
-                          </Text>
-                          <Text
-                            className="text-zinc-400 text-xs mt-1"
-                            numberOfLines={1}
-                          >
-                            {creatorName} • {mockViews} lượt xem
-                          </Text>
-                          <Text
-                            className="text-zinc-500 text-[11px] mt-0.5"
-                            numberOfLines={1}
-                          >
-                            {item.description || "Nội dung đặc sắc trên TaleX"}
-                          </Text>
-                        </View>
-
-                        <Feather
-                          name="more-vertical"
-                          size={18}
-                          color="#71717A"
-                        />
-                      </TouchableOpacity>
-                    );
-                  })}
+                          {/* Age Rating Overlay Badge Top Right - Only if provided by API */}
+                          {(() => {
+                            const formatted = formatAgeRating(item.ageRating || item.targetAudience || item.contentRating);
+                            if (!formatted) return null;
+                            const style = getAgeRatingStyle(formatted);
+                            return (
+                              <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}>
+                                <Text className={`text-[9px] font-black ${style.text}`}>
+                                  {formatted}
+                                </Text>
+                              </View>
+                            );
+                          })()}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
               )}
             </View>
@@ -547,40 +555,39 @@ export default function PublicChannelScreen() {
                     return (
                       <TouchableOpacity
                         key={sId}
-                        activeOpacity={0.8}
+                        activeOpacity={0.85}
                         onPress={() => handleSeriesPress(item)}
                         style={{ width: (width - 44) / 2 }}
-                        className="mb-4 bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden p-2"
+                        className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
                       >
-                        <View className="w-full aspect-[2/3] rounded-xl overflow-hidden bg-zinc-800 mb-2">
-                          {item.coverUrl ? (
-                            <Image
-                              source={{ uri: item.coverUrl }}
-                              className="w-full h-full"
-                              resizeMode="cover"
+                        {item.coverUrl ? (
+                          <Image
+                            source={{ uri: item.coverUrl }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View className="w-full h-full items-center justify-center">
+                            <Feather
+                              name="book-open"
+                              size={28}
+                              color="#71717A"
                             />
-                          ) : (
-                            <View className="w-full h-full items-center justify-center">
-                              <Feather
-                                name="book-open"
-                                size={24}
-                                color="#71717A"
-                              />
+                          </View>
+                        )}
+                        {/* Age Rating Overlay Badge Top Right - Only if provided by API */}
+                        {(() => {
+                          const formatted = formatAgeRating(item.ageRating || item.targetAudience || item.contentRating);
+                          if (!formatted) return null;
+                          const style = getAgeRatingStyle(formatted);
+                          return (
+                            <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}>
+                              <Text className={`text-[9px] font-black ${style.text}`}>
+                                {formatted}
+                              </Text>
                             </View>
-                          )}
-                        </View>
-                        <Text
-                          className="text-white text-xs font-bold px-1"
-                          numberOfLines={1}
-                        >
-                          {item.title}
-                        </Text>
-                        <Text
-                          className="text-zinc-400 text-[10px] px-1 mt-0.5"
-                          numberOfLines={1}
-                        >
-                          {item.description || "Truyện tranh TaleX"}
-                        </Text>
+                          );
+                        })()}
                       </TouchableOpacity>
                     );
                   })}
@@ -600,44 +607,41 @@ export default function PublicChannelScreen() {
                   </Text>
                 </View>
               ) : (
-                <View className="space-y-4">
+                <View className="flex-row flex-wrap justify-between">
                   {movieSeries.map((item: any) => {
                     const sId = item.seriesId || item.id;
                     return (
                       <TouchableOpacity
                         key={sId}
-                        activeOpacity={0.8}
+                        activeOpacity={0.85}
                         onPress={() => handleSeriesPress(item)}
-                        className="bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden p-2.5 flex-row items-center mb-3"
+                        style={{ width: (width - 44) / 2 }}
+                        className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
                       >
-                        <View className="w-32 h-20 bg-zinc-800 rounded-xl overflow-hidden mr-3 relative">
-                          {item.coverUrl || item.bannerUrl ? (
-                            <Image
-                              source={{ uri: item.coverUrl || item.bannerUrl! }}
-                              className="w-full h-full"
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View className="w-full h-full items-center justify-center">
-                              <Feather name="film" size={22} color="#71717A" />
+                        {item.coverUrl || item.bannerUrl ? (
+                          <Image
+                            source={{ uri: item.coverUrl || item.bannerUrl! }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View className="w-full h-full items-center justify-center">
+                            <Feather name="film" size={28} color="#71717A" />
+                          </View>
+                        )}
+                        {/* Age Rating Overlay Badge Top Right - Only if provided by API */}
+                        {(() => {
+                          const formatted = formatAgeRating(item.ageRating || item.targetAudience || item.contentRating);
+                          if (!formatted) return null;
+                          const style = getAgeRatingStyle(formatted);
+                          return (
+                            <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}>
+                              <Text className={`text-[9px] font-black ${style.text}`}>
+                                {formatted}
+                              </Text>
                             </View>
-                          )}
-                        </View>
-
-                        <View className="flex-1 justify-center">
-                          <Text
-                            className="text-white text-sm font-bold"
-                            numberOfLines={1}
-                          >
-                            {item.title}
-                          </Text>
-                          <Text
-                            className="text-zinc-400 text-xs mt-1"
-                            numberOfLines={2}
-                          >
-                            {item.description || "Phim ngắn TaleX HD"}
-                          </Text>
-                        </View>
+                          );
+                        })()}
                       </TouchableOpacity>
                     );
                   })}
@@ -777,6 +781,6 @@ export default function PublicChannelScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }

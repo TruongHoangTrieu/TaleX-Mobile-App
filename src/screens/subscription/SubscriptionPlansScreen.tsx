@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -24,6 +25,9 @@ import {
   type SubscriptionDurationUnit,
   type SubscriptionPlan,
 } from "@/services/subscription";
+import { useAuth } from "@/context/AuthContext";
+import { getSsoHandoffCode } from "@/services/auth";
+import { buildPremiumWebUrl } from "@/utils/web-checkout-links";
 
 const formatCurrency = (price: number) =>
   `${price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}đ`;
@@ -40,7 +44,8 @@ const formatDurationUnit = (unit: SubscriptionDurationUnit) => {
 };
 
 export default function SubscriptionPlansScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
+  const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -238,14 +243,27 @@ export default function SubscriptionPlansScreen() {
             activeOpacity={0.85}
             disabled={!selectedPlan || loading}
             onPress={() => {
-              if (selectedPlan) {
-                Alert.alert(
-                  "Xác nhận thanh toán",
-                  `Tiến hành thanh toán gói ${selectedPlan.tier} với giá ${formatCurrency(
-                    selectedPlan.price,
-                  )}`,
-                );
+              if (!selectedPlan) return;
+              if (!isAuthenticated) {
+                navigation.navigate("LoginScreen");
+                return;
               }
+              // Premium chỉ mua được trên website — báo trước cho người dùng
+              // rồi mới chuyển sang trang Premium trên web.
+              Alert.alert(
+                "Thanh toán trên Website",
+                "Ứng dụng di động TaleX hiện chưa hỗ trợ thanh toán trực tiếp. Vui lòng hoàn tất đăng ký gói Premium trên website chính thức của chúng tôi tại talex.pro.vn.",
+                [
+                  { text: "Để sau", style: "cancel" },
+                  {
+                    text: "Đến Website",
+                    onPress: async () => {
+                      const code = await getSsoHandoffCode();
+                      Linking.openURL(buildPremiumWebUrl(code));
+                    },
+                  },
+                ],
+              );
             }}
             className="mt-2 mb-6"
           >

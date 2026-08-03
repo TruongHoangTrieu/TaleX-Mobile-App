@@ -32,6 +32,7 @@ import { useCreatorFollow } from "@/hooks/useCreatorFollow";
 import { FollowButton } from "@/components/FollowButton";
 import { FollowersModal } from "@/components/FollowersModal";
 import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
+import ContentPaywall from "@/components/purchase/ContentPaywall";
 import { allMovies } from "./movieMockData";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -153,6 +154,7 @@ export default function MoviePlayerScreen() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showEpisodesModal, setShowEpisodesModal] = useState(false);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [paywallEpisodeId, setPaywallEpisodeId] = useState<string | null>(null);
 
   // Active Tab state ("recommend" | "comments" | "episodes")
   const [activeTab, setActiveTab] = useState<"recommend" | "comments" | "episodes">("recommend");
@@ -228,26 +230,42 @@ export default function MoviePlayerScreen() {
       .catch((err) => console.error("Error fetching season episodes:", err));
   }, [seasonId, passedEpisodes]);
 
-  const fetchPlayback = useCallback((epId: string) => {
-    if (!epId) return;
-    setLoadingPlayback(true);
-    setIsFinished(false);
+  const fetchPlayback = useCallback(
+    (epId: string) => {
+      if (!epId) return;
+      setLoadingPlayback(true);
+      setIsFinished(false);
+      setPaywallEpisodeId(null);
+      setPlaybackUrl("");
 
-    getEpisodePlayback(epId)
-      .then((res) => {
-        if (res && res.code === 200 && res.data && res.data.playbackUrl) {
-          setPlaybackUrl(res.data.playbackUrl);
-        } else {
-          setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
-        }
-      })
-      .catch(() => {
-        setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
-      })
-      .finally(() => {
-        setLoadingPlayback(false);
-      });
-  }, []);
+      const episodeMeta = episodes.find((e) => e.episodeId === epId);
+      const isPaidEpisode = episodeMeta?.unlockType === "PAID";
+
+      getEpisodePlayback(epId)
+        .then((res) => {
+          if (res && res.code === 200 && res.data && res.data.playbackUrl) {
+            setPlaybackUrl(res.data.playbackUrl);
+          } else if (!isPaidEpisode) {
+            setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
+          }
+        })
+        .catch((err: any) => {
+          if (err?.status === 403) {
+            // Not entitled — show the paywall instead of a demo video.
+            setPaywallEpisodeId(epId);
+          } else if (!isPaidEpisode) {
+            // Free content hitting a transient error still gets the fallback
+            // sample so playback UI isn't empty; paid content shows nothing
+            // rather than a misleading demo video.
+            setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
+          }
+        })
+        .finally(() => {
+          setLoadingPlayback(false);
+        });
+    },
+    [episodes],
+  );
 
   useEffect(() => {
     if (activeEpisodeId) {
@@ -326,9 +344,19 @@ export default function MoviePlayerScreen() {
             playbackSpeed={playbackSpeed}
             onFinishedChange={setIsFinished}
           />
-        ) : (
+        ) : paywallEpisodeId && paywallEpisodeId === activeEpisodeId ? (
+          <View className="w-full px-6">
+            <ContentPaywall
+              episodeId={activeEpisodeId}
+              itemType="EPISODE"
+              title={currentEp?.title || movieTitle}
+              priceVnd={currentEp?.priceVnd}
+              returnScreen="MoviePlayer"
+            />
+          </View>
+        ) : !loadingPlayback ? (
           <Text className="text-zinc-400 text-xs">Không có nguồn video</Text>
-        )}
+        ) : null}
 
         {loadingPlayback && (
           <View className="absolute inset-0 bg-black/75 items-center justify-center space-y-2">

@@ -21,6 +21,7 @@ import CreatorChannelScreen from "@/screens/creator/CreatorChannelScreen";
 import PublicChannelScreen from "@/screens/channel/PublicChannelScreen";
 import CreatorMonetizationScreen from "@/screens/creator/CreatorMonetizationScreen";
 import SubscriptionPlansScreen from "@/screens/subscription/SubscriptionPlansScreen";
+import CheckoutScreen from "@/screens/checkout/CheckoutScreen";
 import UploadMovieScreen from "@/screens/creator/UploadMovieScreen";
 import UploadComicScreen from "@/screens/creator/UploadComicScreen";
 import CoinCenterScreen from "@/screens/rewards/CoinCenterScreen";
@@ -89,6 +90,13 @@ export type RootStackParamList = {
   CoinCenter: undefined;
   UploadMovie: undefined;
   UploadComic: undefined;
+  /** Coin-only checkout for Episode/Combo. Premium and fiat purchases redirect to the website instead. */
+  Checkout: {
+    itemId: string;
+    itemType: "EPISODE" | "COMBO";
+    title?: string;
+    returnScreen?: keyof RootStackParamList;
+  };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -143,6 +151,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="CoinCenter"
           component={CoinCenterScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Checkout"
+          component={CheckoutScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

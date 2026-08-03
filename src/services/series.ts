@@ -176,7 +176,9 @@ export async function getEpisodePlayback(
   if (viewerId) {
     url += `?viewerId=${viewerId}`;
   }
-  const res = await fetch(url, {
+  // authFetch (not plain fetch) so a 403 PLAYBACK_NOT_ENTITLED surfaces to the
+  // caller instead of being indistinguishable from a network error.
+  const res = await authFetch(url, {
     method: "GET",
     headers: {
       Accept: "*/*",
@@ -184,7 +186,9 @@ export async function getEpisodePlayback(
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch playback details: ${res.status}`);
+    const err: any = new Error(`Failed to fetch playback details: ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
 
   return res.json();

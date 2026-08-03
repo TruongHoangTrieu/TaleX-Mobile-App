@@ -37,6 +37,7 @@ import { useEpisodeLikes } from "@/hooks/useEpisodeLikes";
 import { LikeButton } from "@/components/LikeButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { ShareButton } from "@/components/ShareButton";
+import ContentPaywall from "@/components/purchase/ContentPaywall";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -289,6 +290,12 @@ export default function ComicReaderScreen() {
   const [loading, setLoading] = useState(false);
   const [dbEpisodes, setDbEpisodes] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isPaywallError, setIsPaywallError] = useState(false);
+  // Sentinel appended to `pages` in place of the first locked page — BE
+  // (MediaServiceImpl.listPublicByEpisode) allows a free preview (first 5
+  // pages) for COMIC content and returns 200 with `isLocked:true` items
+  // instead of an HTTP 403, so this can't be caught in the network error path.
+  const PAYWALL_SENTINEL = "__PAYWALL__";
 
   // Comment States
   const [showCommentsModal, setShowCommentsModal] = useState(false);
@@ -379,6 +386,7 @@ export default function ComicReaderScreen() {
     if (activeEpId) {
       setLoading(true);
       setErrorMsg(null);
+      setIsPaywallError(false);
       getPublicEpisodeMedia(activeEpId, user?.accountId)
         .then((res) => {
           const data = Array.isArray(res)
@@ -388,10 +396,15 @@ export default function ComicReaderScreen() {
             const sorted = [...data].sort(
               (a: any, b: any) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
             );
-            const urls = sorted
+            // BE marks pages past the free-preview limit with isLocked=true
+            // and swaps fileUrl for a (watermarked) previewUrl — stop
+            // rendering real pages there and show the paywall instead.
+            const lockedIndex = sorted.findIndex((m: any) => m.isLocked === true);
+            const visible = lockedIndex === -1 ? sorted : sorted.slice(0, lockedIndex);
+            const urls = visible
               .map((m: any) => m.fileUrl || m.mediaUrl || m.url || "")
               .filter((u: string) => Boolean(u));
-            setPages(urls);
+            setPages(lockedIndex === -1 ? urls : [...urls, PAYWALL_SENTINEL]);
           } else {
             setPages([]);
           }
@@ -402,6 +415,7 @@ export default function ComicReaderScreen() {
             err.status === 403 ||
             (err.message && err.message.includes("403"))
           ) {
+            setIsPaywallError(true);
             setErrorMsg(
               "Tập truyện này là nội dung trả phí hoặc yêu cầu quyền truy cập. Vui lòng mở khóa hoặc sở hữu gói trước khi đọc.",
             );
@@ -685,6 +699,23 @@ export default function ComicReaderScreen() {
       <View className="flex-1 justify-center items-center w-full bg-black">
         {loading ? (
           <ComicReaderSkeleton insetsTop={insets.top} />
+        ) : errorMsg && isPaywallError ? (
+          <View className="w-full px-6 py-16">
+            <ContentPaywall
+              episodeId={activeEpId}
+              itemType="EPISODE"
+              title={currentEp?.title || episodeTitle}
+              priceVnd={(currentEp as any)?.priceVnd}
+              returnScreen="ComicReader"
+              message={errorMsg}
+            />
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              className="mt-4 self-center bg-zinc-800 px-5 py-2.5 rounded-full border border-white/10"
+            >
+              <Text className="text-stone-300 font-bold text-xs">Quay lại</Text>
+            </TouchableOpacity>
+          </View>
         ) : errorMsg ? (
           <View className="items-center justify-center px-6 py-20 max-w-sm text-center">
             <MaterialCommunityIcons
@@ -745,16 +776,29 @@ export default function ComicReaderScreen() {
               paddingBottom: showControls ? 80 + insets.bottom : 0,
             }}
           >
-            {pages.map((page, idx) => (
-              <ComicImagePage
-                key={`vertical-${idx}`}
-                page={page}
-                getPageSource={getPageSource}
-                width={screenWidth}
-                readingMode="vertical"
-                onPress={toggleControls}
-              />
-            ))}
+            {pages.map((page, idx) =>
+              page === PAYWALL_SENTINEL ? (
+                <View key="vertical-paywall" className="w-full px-6 py-10">
+                  <ContentPaywall
+                    episodeId={activeEpId}
+                    itemType="EPISODE"
+                    title={currentEp?.title || episodeTitle}
+                    priceVnd={(currentEp as any)?.priceVnd}
+                    returnScreen="ComicReader"
+                    message="Bạn đã đọc hết số trang xem thử miễn phí. Mua tập này để đọc toàn bộ nội dung còn lại."
+                  />
+                </View>
+              ) : (
+                <ComicImagePage
+                  key={`vertical-${idx}`}
+                  page={page}
+                  getPageSource={getPageSource}
+                  width={screenWidth}
+                  readingMode="vertical"
+                  onPress={toggleControls}
+                />
+              ),
+            )}
           </ScrollView>
         ) : (
           // Chế độ vuốt ngang (FlatList paging)
@@ -766,16 +810,32 @@ export default function ComicReaderScreen() {
             keyExtractor={(_, index) => `horizontal-${index}`}
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={handleHorizontalScroll}
-            renderItem={({ item }) => (
-              <ComicImagePage
-                page={item}
-                getPageSource={getPageSource}
-                width={screenWidth}
-                height={screenHeight}
-                readingMode="horizontal"
-                onPress={toggleControls}
-              />
-            )}
+            renderItem={({ item }) =>
+              item === PAYWALL_SENTINEL ? (
+                <View
+                  style={{ width: screenWidth, height: screenHeight }}
+                  className="items-center justify-center px-6"
+                >
+                  <ContentPaywall
+                    episodeId={activeEpId}
+                    itemType="EPISODE"
+                    title={currentEp?.title || episodeTitle}
+                    priceVnd={(currentEp as any)?.priceVnd}
+                    returnScreen="ComicReader"
+                    message="Bạn đã đọc hết số trang xem thử miễn phí. Mua tập này để đọc toàn bộ nội dung còn lại."
+                  />
+                </View>
+              ) : (
+                <ComicImagePage
+                  page={item}
+                  getPageSource={getPageSource}
+                  width={screenWidth}
+                  height={screenHeight}
+                  readingMode="horizontal"
+                  onPress={toggleControls}
+                />
+              )
+            }
           />
         )}
       </View>

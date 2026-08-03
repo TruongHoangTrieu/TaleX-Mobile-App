@@ -47,6 +47,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { FollowersModal } from "@/components/FollowersModal";
 import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
 import { getCategories, getTags } from "@/services/creatorContent";
+import { useContentPurchase } from "@/hooks/useContentPurchase";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -311,6 +312,20 @@ export default function MovieDetailScreen() {
     : [];
 
   const firstEpisode = currentEpisodes.length > 0 ? currentEpisodes[0] : null;
+
+  const seriesCombos = useMemo(() => {
+    const seasonIds = new Set(seasons.map((s) => s.seasonId));
+    return combos.filter((combo) => {
+      if (!combo.episodes || combo.episodes.length === 0) return false;
+      return combo.episodes.some(
+        (ep) =>
+          (ep.seasonId && seasonIds.has(ep.seasonId)) ||
+          (movie?.title && ep.seriesTitle?.toLowerCase() === movie.title.toLowerCase())
+      );
+    });
+  }, [combos, seasons, movie]);
+
+  const { buy } = useContentPurchase();
 
   const displayEpisodes = useMemo(() => {
     const list = Array.isArray(currentEpisodes) ? [...currentEpisodes] : [];
@@ -746,6 +761,73 @@ export default function MovieDetailScreen() {
               </View>
             )}
 
+            {/* ================= 4B. COMBO TIẾT KIỆM ================= */}
+            {seriesCombos.length > 0 && (
+              <View className="mt-2 mb-6">
+                <View className="flex-row items-center gap-2 mb-3">
+                  <Ionicons name="pricetags" size={14} color="#D4AF37" />
+                  <Text className="text-white text-base font-bold">Combo tiết kiệm</Text>
+                </View>
+                {seriesCombos.map((combo) => {
+                  const originalPrice = combo.originalPriceVnd ?? combo.priceVnd;
+                  const discount =
+                    originalPrice > combo.priceVnd
+                      ? Math.round(((originalPrice - combo.priceVnd) / originalPrice) * 100)
+                      : 0;
+                  const epCount = combo.episodes?.length ?? 0;
+                  return (
+                    <View
+                      key={combo.comboId}
+                      className="mb-3 bg-[#1E2024] border border-white/10 rounded-2xl p-4"
+                    >
+                      <View className="flex-row items-start justify-between">
+                        <Text className="text-white font-bold text-[14px] flex-1 mr-2">
+                          {combo.title}
+                        </Text>
+                        {discount > 0 && (
+                          <View className="px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20">
+                            <Text className="text-[10px] font-black text-red-400">-{discount}%</Text>
+                          </View>
+                        )}
+                      </View>
+                      {combo.description ? (
+                        <Text className="text-gray-400 text-[12px] mt-1" numberOfLines={2}>
+                          {combo.description}
+                        </Text>
+                      ) : null}
+                      <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-white/5">
+                        <View>
+                          <Text className="text-gray-500 text-[11px]">{epCount} tập bao gồm</Text>
+                          {originalPrice > combo.priceVnd ? (
+                            <Text className="text-gray-600 text-[11px] line-through">
+                              {originalPrice.toLocaleString("vi-VN")} đ
+                            </Text>
+                          ) : null}
+                        </View>
+                        <Text className="text-[#D4AF37] text-[18px] font-black">
+                          {combo.priceVnd.toLocaleString("vi-VN")} đ
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        className="mt-3 h-[40px] bg-[#D4AF37] rounded-xl items-center justify-center"
+                        activeOpacity={0.8}
+                        onPress={() =>
+                          buy({
+                            itemId: combo.comboId,
+                            itemType: "COMBO",
+                            title: combo.title,
+                            returnScreen: "MovieDetailScreen",
+                          })
+                        }
+                      >
+                        <Text className="text-black font-bold text-[13px]">Mua Gói Ngay</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             {/* ================= 5. DANH SÁCH TẬP (GRID 3 CỘT CHUẨN MẪU) ================= */}
             <View className="mt-2 mb-6">
               {/* Header: Danh sách tập (Trái) | Sắp xếp (Phải) */}
@@ -805,11 +887,16 @@ export default function MovieDetailScreen() {
                       key={ep.episodeId || idx}
                       onPress={() => handlePlayEpisode(ep, idx)}
                       activeOpacity={0.8}
-                      className="w-[31%] h-11 bg-[#282A2F] border border-white/15 rounded-xl items-center justify-center shadow-md"
+                      className="w-[31%] h-11 bg-[#282A2F] border border-white/15 rounded-xl items-center justify-center shadow-md relative"
                     >
                       <Text className="text-white text-xs font-bold" numberOfLines={1}>
                         Tập {ep.episodeNumber || idx + 1}
                       </Text>
+                      {ep.unlockType === "PAID" && (
+                        <View className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-amber-500/25 border border-amber-500/50 items-center justify-center">
+                          <Feather name="lock" size={7} color="#fbbf24" />
+                        </View>
+                      )}
                     </TouchableOpacity>
                   ))}
                 </View>

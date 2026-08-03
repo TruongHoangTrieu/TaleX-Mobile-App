@@ -1,5 +1,10 @@
 export const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL || "https://api.talex.pro.vn/";
 
+// Premium subscription and fiat (money) purchases happen on the website, not
+// in the app — mobile only creates Coin-paid content orders. See
+// src/utils/web-checkout-links.ts for the URLs built from this.
+export const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_BASE_URL || "https://talex.pro.vn/";
+
 // Web OAuth Client ID from Google Cloud Console — used as `webClientId` so
 // GoogleSignin issues an ID token whose audience the backend can verify
 // (backend checks aud against google.client-id.web). Not a secret — this ID

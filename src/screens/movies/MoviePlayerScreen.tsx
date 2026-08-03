@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
   Ionicons,
   Feather,
   FontAwesome5,
+  MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,6 +27,7 @@ import {
   getPublicSeriesDetail,
   EpisodeItem,
 } from "@/services/series";
+import { useAuth } from "@/context/AuthContext";
 import { useEpisodeLikes } from "@/hooks/useEpisodeLikes";
 import { useEpisodeBookmarks } from "@/hooks/useEpisodeBookmarks";
 import { useCreatorFollow } from "@/hooks/useCreatorFollow";
@@ -47,17 +49,36 @@ type MoviePlayerRouteParams = {
   episodesList?: EpisodeItem[];
 };
 
+function formatTime(seconds: number): string {
+  if (isNaN(seconds) || seconds < 0) return "00:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
+}
+
 function VideoPlayerCore({
   videoUrl,
+  apiDuration,
+  isLocked,
   replayCounter,
   playbackSpeed,
+  onNavigateToPlans,
   onFinishedChange,
 }: {
   videoUrl: string;
+  apiDuration: number;
+  isLocked: boolean;
   replayCounter: number;
   playbackSpeed: number;
+  onNavigateToPlans: () => void;
   onFinishedChange: (finished: boolean) => void;
 }) {
+  const [displayTime, setDisplayTime] = useState<number>(0);
+  const [isUnlockFormVisible, setIsUnlockFormVisible] = useState<boolean>(false);
+  const [showOverlayControls, setShowOverlayControls] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [barWidth, setBarWidth] = useState<number>(1);
+
   const source = useMemo(() => {
     const headers: Record<string, string> = {};
     try {
@@ -84,6 +105,7 @@ function VideoPlayerCore({
   }, [videoUrl]);
 
   const player = useVideoPlayer(source, (playerInstance) => {
+    playerInstance.timeUpdateEventInterval = 0.25;
     playerInstance.play();
   });
 
@@ -94,39 +116,262 @@ function VideoPlayerCore({
   }, [player, playbackSpeed]);
 
   useEffect(() => {
+    setDisplayTime(0);
+    setIsUnlockFormVisible(false);
+    setIsPlaying(true);
+  }, [videoUrl]);
+
+  useEffect(() => {
     if (!player) return;
 
     const endSub = player.addListener("playToEnd", () => {
-      onFinishedChange(true);
+      if (isLocked) {
+        try {
+          player.pause();
+        } catch (e) {}
+        setIsPlaying(false);
+        setIsUnlockFormVisible(true);
+        setDisplayTime(10);
+      } else {
+        onFinishedChange(true);
+      }
     });
 
-    const playSub = player.addListener("playingChange", (isPlaying) => {
-      if (isPlaying) {
+    const playSub = player.addListener("playingChange", (payload) => {
+      setIsPlaying(payload.isPlaying);
+      if (payload.isPlaying) {
         onFinishedChange(false);
+      }
+    });
+
+    const timeSub = player.addListener("timeUpdate", ({ currentTime }) => {
+      if (isLocked) {
+        if (currentTime >= 9.8) {
+          try {
+            player.pause();
+          } catch (e) {}
+          setIsPlaying(false);
+          setIsUnlockFormVisible(true);
+          setDisplayTime(10);
+          return;
+        }
+        if (!isUnlockFormVisible) {
+          setDisplayTime(currentTime);
+        }
+      } else {
+        setDisplayTime(currentTime);
       }
     });
 
     return () => {
       endSub.remove();
       playSub.remove();
+      timeSub.remove();
     };
-  }, [player, onFinishedChange]);
+  }, [player, isLocked, isUnlockFormVisible, onFinishedChange]);
 
   useEffect(() => {
     if (replayCounter > 0 && player) {
-      player.currentTime = 0;
-      player.play();
+      try {
+        player.currentTime = 0;
+        player.play();
+      } catch (e) {}
+      setIsUnlockFormVisible(false);
+      setDisplayTime(0);
       onFinishedChange(false);
     }
   }, [onFinishedChange, player, replayCounter]);
 
+  const handleSeek = useCallback(
+    (targetSeconds: number) => {
+      const clampedTarget = Math.max(0, Math.min(targetSeconds, apiDuration));
+      if (isLocked) {
+        if (clampedTarget >= 10) {
+          // Tua vượt mốc 10s xem thử -> Kịch kim ở 10s, pause và hiện Form mở khóa
+          try {
+            player.currentTime = 9.99;
+            player.pause();
+          } catch (e) {}
+          setIsPlaying(false);
+          setDisplayTime(clampedTarget);
+          setIsUnlockFormVisible(true);
+        } else {
+          // Tua ngược lại dưới mốc 10s -> Tắt Form mở khóa, xóa làm mờ và cho xem lại
+          if (isUnlockFormVisible) {
+            setIsUnlockFormVisible(false);
+          }
+          try {
+            player.currentTime = clampedTarget;
+            player.play();
+          } catch (e) {}
+          setDisplayTime(clampedTarget);
+          setIsPlaying(true);
+        }
+      } else {
+        try {
+          player.currentTime = clampedTarget;
+        } catch (e) {}
+        setDisplayTime(clampedTarget);
+      }
+    },
+    [apiDuration, isLocked, isUnlockFormVisible, player],
+  );
+
+  const togglePlayPause = () => {
+    if (!player) return;
+    if (isPlaying) {
+      try {
+        player.pause();
+      } catch (e) {}
+    } else {
+      if (isLocked && displayTime >= 10) {
+        handleSeek(0);
+      } else {
+        try {
+          player.play();
+        } catch (e) {}
+      }
+    }
+  };
+
+  const handleProgressBarPress = (evt: any) => {
+    const touchX = evt.nativeEvent.locationX;
+    if (barWidth > 0) {
+      const seekRatio = Math.max(0, Math.min(1, touchX / barWidth));
+      const targetSeconds = seekRatio * apiDuration;
+      handleSeek(targetSeconds);
+    }
+  };
+
+  const currentProgressPercent = Math.max(
+    0,
+    Math.min(100, (displayTime / (apiDuration || 1)) * 100),
+  );
+
   return (
-    <VideoView
-      player={player}
-      style={{ width: "100%", height: "100%" }}
-      fullscreenOptions={{ enable: true }}
-      allowsPictureInPicture
-    />
+    <TouchableOpacity
+      activeOpacity={1}
+      onPress={() => setShowOverlayControls((prev) => !prev)}
+      style={{ width: "100%", height: "100%", position: "relative" }}
+    >
+      <VideoView
+        player={player}
+        style={{ width: "100%", height: "100%" }}
+        nativeControls={false}
+        allowsPictureInPicture
+      />
+
+      {/* B. BLUR FRAME & UNLOCK FORM OVERLAY (Hiển thị khi video 10s kết thúc hoặc tua > 10s) */}
+      {isUnlockFormVisible && (
+        <View className="absolute inset-0 bg-black/90 items-center justify-center p-4 z-30">
+          <View className="w-12 h-12 rounded-full bg-[#E50914]/20 items-center justify-center border border-[#E50914]/50 mb-2">
+            <Ionicons name="lock-closed" size={24} color="#E50914" />
+          </View>
+
+          <Text className="text-white text-base font-extrabold text-center tracking-wide">
+            Nội dung trả phí - Mở khóa nội dung
+          </Text>
+
+          <Text className="text-zinc-400 text-xs text-center mt-1 mb-4 leading-relaxed max-w-xs font-medium">
+            Bạn đã xem hết 10 giây xem thử. Vui lòng mở khóa hoặc đăng ký gói Premium để tiếp tục xem đầy đủ {formatTime(apiDuration)}.
+          </Text>
+
+          <View className="w-full flex-col gap-2 max-w-xs">
+            <TouchableOpacity
+              onPress={onNavigateToPlans}
+              className="bg-[#E50914] py-2.5 rounded-full items-center justify-center active:opacity-85 shadow-lg flex-row"
+            >
+              <Ionicons name="sparkles" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text className="text-white font-black text-xs uppercase tracking-wider">
+                Mở khóa / Gói Premium
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => handleSeek(0)}
+              className="bg-white/10 border border-white/15 py-2.5 rounded-full items-center justify-center active:opacity-80 flex-row"
+            >
+              <Ionicons name="reload-outline" size={14} color="#D4AF37" style={{ marginRight: 6 }} />
+              <Text className="text-white font-bold text-xs">
+                Xem lại đoạn xem thử (10s)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* OVERLAY PLAYBACK CONTROLS & TIMELINE SCRUBBER */}
+      {!isUnlockFormVisible && showOverlayControls && (
+        <View className="absolute inset-0 bg-black/40 justify-between p-3 z-20">
+          <View className="flex-row justify-end items-center">
+            {isLocked && (
+              <View className="bg-[#E50914]/80 px-2.5 py-1 rounded-full flex-row items-center border border-white/20">
+                <Ionicons name="lock-closed" size={11} color="#FFFFFF" />
+                <Text className="text-white font-extrabold text-[10px] ml-1">
+                  Xem thử 10s
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View className="flex-row items-center justify-center space-x-6">
+            <TouchableOpacity
+              onPress={() => handleSeek(displayTime - 10)}
+              className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
+              style={{ marginRight: 16 }}
+            >
+              <MaterialCommunityIcons name="rewind-10" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={togglePlayPause}
+              className="w-14 h-14 rounded-full bg-[#E50914] items-center justify-center shadow-lg"
+            >
+              <Ionicons
+                name={isPlaying ? "pause" : "play"}
+                size={28}
+                color="#FFFFFF"
+                style={{ marginLeft: isPlaying ? 0 : 3 }}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => handleSeek(displayTime + 10)}
+              className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
+              style={{ marginLeft: 16 }}
+            >
+              <MaterialCommunityIcons name="fast-forward-10" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* A. SMART TIMELINE SCRUBBER */}
+          <View className="w-full space-y-1">
+            <View className="flex-row justify-between items-center px-1 mb-1">
+              <Text className="text-white font-black text-[11px]">
+                {formatTime(displayTime)}
+              </Text>
+              <Text className="text-zinc-400 font-bold text-[11px]">
+                {formatTime(apiDuration)}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={handleProgressBarPress}
+              onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+              className="w-full h-3 justify-center"
+            >
+              <View className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden relative">
+                <View
+                  style={{ width: `${currentProgressPercent}%` }}
+                  className="h-full bg-[#E50914] rounded-full"
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -134,6 +379,8 @@ export default function MoviePlayerScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const params = (route.params || {}) as MoviePlayerRouteParams;
+
+  const { user } = useAuth();
 
   const {
     movieId,
@@ -147,6 +394,9 @@ export default function MoviePlayerScreen() {
   const [episodes, setEpisodes] = useState<EpisodeItem[]>(passedEpisodes);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [playbackUrl, setPlaybackUrl] = useState<string>("");
+  const [apiDuration, setApiDuration] = useState<number>(900);
+  const [playbackType, setPlaybackType] = useState<string>("HLS");
+  const [isLocked, setIsLocked] = useState<boolean>(false);
   const [loadingPlayback, setLoadingPlayback] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [replayCounter, setReplayCounter] = useState(0);
@@ -238,34 +488,44 @@ export default function MoviePlayerScreen() {
       setPaywallEpisodeId(null);
       setPlaybackUrl("");
 
-      const episodeMeta = episodes.find((e) => e.episodeId === epId);
-      const isPaidEpisode = episodeMeta?.unlockType === "PAID";
+    getEpisodePlayback(epId, user?.accountId)
+      .then((res) => {
+        if (res && res.code === 200 && res.data) {
+          const data = res.data;
+          const url = data.playbackUrl || data.hlsUrl;
+          setPlaybackUrl(url || "https://www.w3schools.com/html/mov_bbb.mp4");
 
-      getEpisodePlayback(epId)
-        .then((res) => {
-          if (res && res.code === 200 && res.data && res.data.playbackUrl) {
-            setPlaybackUrl(res.data.playbackUrl);
-          } else if (!isPaidEpisode) {
-            setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
-          }
-        })
-        .catch((err: any) => {
-          if (err?.status === 403) {
-            // Not entitled — show the paywall instead of a demo video.
-            setPaywallEpisodeId(epId);
-          } else if (!isPaidEpisode) {
-            // Free content hitting a transient error still gets the fallback
-            // sample so playback UI isn't empty; paid content shows nothing
-            // rather than a misleading demo video.
-            setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
-          }
-        })
-        .finally(() => {
-          setLoadingPlayback(false);
-        });
-    },
-    [episodes],
-  );
+          const dur = data.duration && data.duration > 0 ? data.duration : 900;
+          setApiDuration(dur);
+
+          const pType = data.playbackType || "HLS";
+          setPlaybackType(pType);
+
+          const locked = Boolean(
+            data.isLocked === true ||
+            data.isEntitled === false ||
+            pType === "MP4"
+          );
+          setIsLocked(locked);
+        } else {
+          setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
+          setApiDuration(900);
+          setIsLocked(false);
+        }
+      })
+      .catch((err: any) => {
+        if (err?.status === 403 || (err?.message && err.message.includes("403"))) {
+          setPaywallEpisodeId(epId);
+        } else {
+          setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
+          setApiDuration(900);
+          setIsLocked(false);
+        }
+      })
+      .finally(() => {
+        setLoadingPlayback(false);
+      });
+  }, [user?.accountId]);
 
   useEffect(() => {
     if (activeEpisodeId) {
@@ -340,8 +600,11 @@ export default function MoviePlayerScreen() {
           <VideoPlayerCore
             key={playbackUrl}
             videoUrl={playbackUrl}
+            apiDuration={apiDuration}
+            isLocked={isLocked}
             replayCounter={replayCounter}
             playbackSpeed={playbackSpeed}
+            onNavigateToPlans={() => navigation.navigate("SubscriptionPlans")}
             onFinishedChange={setIsFinished}
           />
         ) : paywallEpisodeId && paywallEpisodeId === activeEpisodeId ? (

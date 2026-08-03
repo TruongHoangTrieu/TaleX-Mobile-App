@@ -176,8 +176,7 @@ export async function getEpisodePlayback(
   if (viewerId) {
     url += `?viewerId=${viewerId}`;
   }
-  // authFetch (not plain fetch) so a 403 PLAYBACK_NOT_ENTITLED surfaces to the
-  // caller instead of being indistinguishable from a network error.
+  // authFetch so Authorization header is sent when available
   const res = await authFetch(url, {
     method: "GET",
     headers: {
@@ -193,6 +192,7 @@ export async function getEpisodePlayback(
 
   return res.json();
 }
+
 
 export async function getPublicEpisodeMedia(episodeId: string, viewerId?: string): Promise<any> {
   let endpoint = `/api/v1/public/episodes/${episodeId}/media`;

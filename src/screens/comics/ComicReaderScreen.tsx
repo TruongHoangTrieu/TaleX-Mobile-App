@@ -21,6 +21,7 @@ import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getComicById } from "./comicMockData";
 import {
   getPublicEpisodeMedia,
+  getPublicEpisodeDetail,
   getSeriesSeasons,
   getSeasonEpisodes,
   getPublicSeriesDetail,
@@ -248,6 +249,125 @@ function ComicImagePage({
   );
 }
 
+function PaywallCard({ navigation }: { navigation: any }) {
+  return (
+    <View
+      style={{
+        width: "100%",
+        maxWidth: 320,
+        backgroundColor: "#161618",
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: "rgba(212, 175, 55, 0.4)",
+        paddingVertical: 28,
+        paddingHorizontal: 20,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.8,
+        shadowRadius: 20,
+        elevation: 25,
+      }}
+    >
+      {/* Lock Badge Circle */}
+      <View
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: "rgba(212, 175, 55, 0.12)",
+          borderWidth: 1.5,
+          borderColor: "rgba(212, 175, 55, 0.5)",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 16,
+        }}
+      >
+        <Ionicons name="lock-closed" size={26} color="#D4AF37" />
+      </View>
+
+      {/* Title */}
+      <Text
+        style={{
+          color: "#F3C649",
+          fontSize: 19,
+          fontWeight: "900",
+          textAlign: "center",
+          marginBottom: 6,
+          letterSpacing: 0.3,
+        }}
+      >
+        Nội Dung Đặc Quyền
+      </Text>
+
+      {/* Subtitle */}
+      <Text
+        style={{
+          color: "#A1A1AA",
+          fontSize: 13,
+          fontWeight: "500",
+          textAlign: "center",
+          marginBottom: 22,
+        }}
+      >
+        Bạn cần mua tập này để đọc tiếp.
+      </Text>
+
+      {/* Action Button */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate("SubscriptionPlans")}
+        style={{
+          width: "100%",
+          backgroundColor: "#D4AF37",
+          borderRadius: 16,
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          shadowColor: "#D4AF37",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.4,
+          shadowRadius: 8,
+          elevation: 6,
+        }}
+      >
+        <Ionicons
+          name="lock-closed"
+          size={20}
+          color="#000000"
+          style={{ marginRight: 10 }}
+        />
+        <View style={{ justifyContent: "center" }}>
+          <Text
+            style={{
+              color: "#000000",
+              fontWeight: "900",
+              fontSize: 13,
+              letterSpacing: 0.5,
+              lineHeight: 16,
+            }}
+          >
+            MỞ KHÓA NGAY
+          </Text>
+          <Text
+            style={{
+              color: "rgba(0, 0, 0, 0.75)",
+              fontWeight: "800",
+              fontSize: 10,
+              letterSpacing: 0.5,
+              lineHeight: 13,
+            }}
+          >
+            TẬP TRẢ PHÍ
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 import { useAuth } from "@/context/AuthContext";
 
 export default function ComicReaderScreen() {
@@ -288,6 +408,8 @@ export default function ComicReaderScreen() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [pages, setPages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isLockedEpisode, setIsLockedEpisode] = useState(false);
+  const [firstLockedPageIndex, setFirstLockedPageIndex] = useState<number>(0);
   const [dbEpisodes, setDbEpisodes] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPaywallError, setIsPaywallError] = useState(false);
@@ -318,6 +440,10 @@ export default function ComicReaderScreen() {
     title: string;
     index: number;
     episodeId?: string;
+    isLocked?: boolean;
+    isEntitled?: boolean;
+    isUnlocked?: boolean;
+    unlockType?: string;
   }[] = isMock
     ? (() => {
         const list: any[] = [];
@@ -386,44 +512,89 @@ export default function ComicReaderScreen() {
     if (activeEpId) {
       setLoading(true);
       setErrorMsg(null);
+      setIsLockedEpisode(false);
       setIsPaywallError(false);
-      getPublicEpisodeMedia(activeEpId, user?.accountId)
-        .then((res) => {
-          const data = Array.isArray(res)
+
+      Promise.all([
+        getPublicEpisodeMedia(activeEpId, user?.accountId).catch((e) => e),
+        getPublicEpisodeDetail(activeEpId).catch(() => null),
+      ])
+        .then(([res, detailRes]) => {
+          if (res instanceof Error && (res as any).status === 403) {
+            setIsLockedEpisode(true);
+            setIsPaywallError(true);
+            setErrorMsg("Tập truyện này là nội dung trả phí. Vui lòng mở khóa gói để đọc tiếp.");
+            setPages([]);
+            return;
+          }
+
+          const detailData = detailRes?.data || detailRes || {};
+          const mediaData = res?.data || res || {};
+          const rawData = Array.isArray(res)
             ? res
+            : Array.isArray(res?.data)
+            ? res.data
+            : Array.isArray(res?.data?.media)
+            ? res.data.media
             : res?.data || res?.result || [];
+
+          const data = Array.isArray(rawData) ? rawData : [];
+
+          const isLockedFromMedia = Boolean(
+            res?.isLocked === true ||
+            mediaData?.isLocked === true ||
+            res?.isEntitled === false ||
+            mediaData?.isEntitled === false ||
+            (Array.isArray(data) && data.some((m: any) => m.isLocked === true || m.isEntitled === false || m.locked === true))
+          );
+
+          const isLockedFromDetail = Boolean(
+            detailData?.isLocked === true ||
+            detailData?.isEntitled === false ||
+            detailData?.isUnlocked === false ||
+            (detailData?.unlockType === "PAID" && !detailData?.isUnlocked && !detailData?.isEntitled)
+          );
+
+          const epMeta = (currentEp || {}) as any;
+          const isLockedFromCurrentEp = Boolean(
+            epMeta.isLocked === true ||
+            epMeta.isEntitled === false ||
+            (epMeta.unlockType === "PAID" && epMeta.isUnlocked === false && epMeta.isEntitled === false)
+          );
+
+          const locked = isLockedFromMedia || isLockedFromDetail || isLockedFromCurrentEp;
+          setIsLockedEpisode(locked);
+
           if (data && data.length > 0) {
             const sorted = [...data].sort(
               (a: any, b: any) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
             );
-            // BE marks pages past the free-preview limit with isLocked=true
-            // and swaps fileUrl for a (watermarked) previewUrl — stop
-            // rendering real pages there and show the paywall instead.
-            const lockedIndex = sorted.findIndex((m: any) => m.isLocked === true);
-            const visible = lockedIndex === -1 ? sorted : sorted.slice(0, lockedIndex);
-            const urls = visible
+
+            const foundBlurredIdx = sorted.findIndex(
+              (m: any) =>
+                m.isLocked === true ||
+                m.isBlurred === true ||
+                m.locked === true ||
+                m.isEntitled === false ||
+                m.isUnlocked === false,
+            );
+            const firstIdx = foundBlurredIdx !== -1 ? foundBlurredIdx : 0;
+            setFirstLockedPageIndex(firstIdx);
+
+            const urls = sorted
               .map((m: any) => m.fileUrl || m.mediaUrl || m.url || "")
               .filter((u: string) => Boolean(u));
-            setPages(lockedIndex === -1 ? urls : [...urls, PAYWALL_SENTINEL]);
+            setPages(urls);
           } else {
             setPages([]);
+            setFirstLockedPageIndex(0);
           }
         })
         .catch((err: any) => {
           console.error("Lỗi tải trang truyện từ API:", err);
-          if (
-            err.status === 403 ||
-            (err.message && err.message.includes("403"))
-          ) {
-            setIsPaywallError(true);
-            setErrorMsg(
-              "Tập truyện này là nội dung trả phí hoặc yêu cầu quyền truy cập. Vui lòng mở khóa hoặc sở hữu gói trước khi đọc.",
-            );
-          } else {
-            setErrorMsg(
-              err.message || "Lỗi tải trang truyện. Vui lòng thử lại sau.",
-            );
-          }
+          setErrorMsg(
+            err.message || "Lỗi tải trang truyện. Vui lòng thử lại sau.",
+          );
         })
         .finally(() => setLoading(false));
 
@@ -776,29 +947,36 @@ export default function ComicReaderScreen() {
               paddingBottom: showControls ? 80 + insets.bottom : 0,
             }}
           >
-            {pages.map((page, idx) =>
-              page === PAYWALL_SENTINEL ? (
-                <View key="vertical-paywall" className="w-full px-6 py-10">
-                  <ContentPaywall
-                    episodeId={activeEpId}
-                    itemType="EPISODE"
-                    title={currentEp?.title || episodeTitle}
-                    priceVnd={(currentEp as any)?.priceVnd}
-                    returnScreen="ComicReader"
-                    message="Bạn đã đọc hết số trang xem thử miễn phí. Mua tập này để đọc toàn bộ nội dung còn lại."
-                  />
-                </View>
-              ) : (
+            {pages.map((page, idx) => (
+              <View key={`vertical-${idx}`} style={{ position: "relative", width: screenWidth }}>
                 <ComicImagePage
-                  key={`vertical-${idx}`}
                   page={page}
                   getPageSource={getPageSource}
                   width={screenWidth}
                   readingMode="vertical"
                   onPress={toggleControls}
                 />
-              ),
-            )}
+                {/* Paywall Overlay nằm trực tiếp ở giữa trang làm mờ đầu tiên */}
+                {isLockedEpisode && idx === firstLockedPageIndex && (
+                  <View
+                    pointerEvents="box-none"
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      zIndex: 30,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      paddingHorizontal: 20,
+                    }}
+                  >
+                    <PaywallCard navigation={navigation} />
+                  </View>
+                )}
+              </View>
+            ))}
           </ScrollView>
         ) : (
           // Chế độ vuốt ngang (FlatList paging)
@@ -810,22 +988,8 @@ export default function ComicReaderScreen() {
             keyExtractor={(_, index) => `horizontal-${index}`}
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={handleHorizontalScroll}
-            renderItem={({ item }) =>
-              item === PAYWALL_SENTINEL ? (
-                <View
-                  style={{ width: screenWidth, height: screenHeight }}
-                  className="items-center justify-center px-6"
-                >
-                  <ContentPaywall
-                    episodeId={activeEpId}
-                    itemType="EPISODE"
-                    title={currentEp?.title || episodeTitle}
-                    priceVnd={(currentEp as any)?.priceVnd}
-                    returnScreen="ComicReader"
-                    message="Bạn đã đọc hết số trang xem thử miễn phí. Mua tập này để đọc toàn bộ nội dung còn lại."
-                  />
-                </View>
-              ) : (
+            renderItem={({ item, index }) => (
+              <View style={{ position: "relative", width: screenWidth, height: screenHeight }}>
                 <ComicImagePage
                   page={item}
                   getPageSource={getPageSource}
@@ -834,8 +998,26 @@ export default function ComicReaderScreen() {
                   readingMode="horizontal"
                   onPress={toggleControls}
                 />
-              )
-            }
+                {isLockedEpisode && index === firstLockedPageIndex && (
+                  <View
+                    pointerEvents="box-none"
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      zIndex: 30,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      paddingHorizontal: 20,
+                    }}
+                  >
+                    <PaywallCard navigation={navigation} />
+                  </View>
+                )}
+              </View>
+            )}
           />
         )}
       </View>

@@ -28,6 +28,7 @@ import CoinCenterScreen from "@/screens/rewards/CoinCenterScreen";
 import LikedScreen from "@/screens/profile/LikedScreen";
 import SubscriptionsScreen from "@/screens/profile/SubscriptionsScreen";
 import BookmarkedScreen from "@/screens/profile/BookmarkedScreen";
+import HistoryScreen from "@/screens/profile/HistoryScreen";
 import { navigationRef } from "./navigationRef";
 import type { SeriesItem } from "@/services/series";
 
@@ -52,6 +53,7 @@ export type RootStackParamList = {
   LikedScreen: undefined;
   SubscriptionsScreen: undefined;
   BookmarkedScreen: undefined;
+  HistoryScreen: undefined;
   ComicDetailScreen: { comicId?: string } | undefined;
   ComicReader:
     | {
@@ -130,6 +132,7 @@ export default function RootNavigator() {
           component={SubscriptionsScreen}
         />
         <Stack.Screen name="BookmarkedScreen" component={BookmarkedScreen} />
+        <Stack.Screen name="HistoryScreen" component={HistoryScreen} />
         <Stack.Screen name="ComicDetailScreen" component={ComicDetailScreen} />
         <Stack.Screen name="MovieDetailScreen" component={MovieDetailScreen} />
         <Stack.Screen name="Top10Movies" component={Top10MoviesScreen} />

@@ -13,7 +13,10 @@ export type ComicItem = {
   category: string;
   author: string;
   status: string;
-  views: string;
+  views: string | number;
+  totalViews?: number;
+  analyticData?: any;
+  averageRating?: number;
   rating: string;
   ageRating?: string;
   chapters: ComicChapter[];

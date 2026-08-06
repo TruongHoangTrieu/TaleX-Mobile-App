@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import {
   View,
   Text,
@@ -24,7 +30,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getEpisodePlayback,
   getSeasonEpisodes,
+  getSeriesSeasons,
   getPublicSeriesDetail,
+  formatWatchTime,
+  formatAnalyticNumber,
   EpisodeItem,
 } from "@/services/series";
 import { useAuth } from "@/context/AuthContext";
@@ -47,6 +56,7 @@ type MoviePlayerRouteParams = {
   episodeTitle?: string;
   episodeIndex?: number;
   episodesList?: EpisodeItem[];
+  initialPosition?: number;
 };
 
 function formatTime(seconds: number): string {
@@ -62,6 +72,7 @@ function VideoPlayerCore({
   isLocked,
   replayCounter,
   playbackSpeed,
+  initialPosition = 0,
   onNavigateToPlans,
   onFinishedChange,
 }: {
@@ -70,11 +81,13 @@ function VideoPlayerCore({
   isLocked: boolean;
   replayCounter: number;
   playbackSpeed: number;
+  initialPosition?: number;
   onNavigateToPlans: () => void;
   onFinishedChange: (finished: boolean) => void;
 }) {
-  const [displayTime, setDisplayTime] = useState<number>(0);
-  const [isUnlockFormVisible, setIsUnlockFormVisible] = useState<boolean>(false);
+  const [displayTime, setDisplayTime] = useState<number>(initialPosition || 0);
+  const [isUnlockFormVisible, setIsUnlockFormVisible] =
+    useState<boolean>(false);
   const [showOverlayControls, setShowOverlayControls] = useState<boolean>(true);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [barWidth, setBarWidth] = useState<number>(1);
@@ -106,6 +119,11 @@ function VideoPlayerCore({
 
   const player = useVideoPlayer(source, (playerInstance) => {
     playerInstance.timeUpdateEventInterval = 0.25;
+    if (initialPosition && initialPosition > 0) {
+      try {
+        playerInstance.currentTime = initialPosition;
+      } catch (e) {}
+    }
     playerInstance.play();
   });
 
@@ -116,10 +134,10 @@ function VideoPlayerCore({
   }, [player, playbackSpeed]);
 
   useEffect(() => {
-    setDisplayTime(0);
+    setDisplayTime(initialPosition || 0);
     setIsUnlockFormVisible(false);
     setIsPlaying(true);
-  }, [videoUrl]);
+  }, [videoUrl, initialPosition]);
 
   useEffect(() => {
     if (!player) return;
@@ -273,7 +291,8 @@ function VideoPlayerCore({
           </Text>
 
           <Text className="text-zinc-400 text-xs text-center mt-1 mb-4 leading-relaxed max-w-xs font-medium">
-            Bạn đã xem hết 10 giây xem thử. Vui lòng mở khóa hoặc đăng ký gói Premium để tiếp tục xem đầy đủ {formatTime(apiDuration)}.
+            Bạn đã xem hết 10 giây xem thử. Vui lòng mở khóa hoặc đăng ký gói
+            Premium để tiếp tục xem đầy đủ {formatTime(apiDuration)}.
           </Text>
 
           <View className="w-full flex-col gap-2 max-w-xs">
@@ -281,7 +300,12 @@ function VideoPlayerCore({
               onPress={onNavigateToPlans}
               className="bg-[#E50914] py-2.5 rounded-full items-center justify-center active:opacity-85 shadow-lg flex-row"
             >
-              <Ionicons name="sparkles" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Ionicons
+                name="sparkles"
+                size={15}
+                color="#FFFFFF"
+                style={{ marginRight: 6 }}
+              />
               <Text className="text-white font-black text-xs uppercase tracking-wider">
                 Mở khóa / Gói Premium
               </Text>
@@ -291,7 +315,12 @@ function VideoPlayerCore({
               onPress={() => handleSeek(0)}
               className="bg-white/10 border border-white/15 py-2.5 rounded-full items-center justify-center active:opacity-80 flex-row"
             >
-              <Ionicons name="reload-outline" size={14} color="#D4AF37" style={{ marginRight: 6 }} />
+              <Ionicons
+                name="reload-outline"
+                size={14}
+                color="#D4AF37"
+                style={{ marginRight: 6 }}
+              />
               <Text className="text-white font-bold text-xs">
                 Xem lại đoạn xem thử (10s)
               </Text>
@@ -320,7 +349,11 @@ function VideoPlayerCore({
               className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
               style={{ marginRight: 16 }}
             >
-              <MaterialCommunityIcons name="rewind-10" size={22} color="#FFFFFF" />
+              <MaterialCommunityIcons
+                name="rewind-10"
+                size={22}
+                color="#FFFFFF"
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -340,7 +373,11 @@ function VideoPlayerCore({
               className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
               style={{ marginLeft: 16 }}
             >
-              <MaterialCommunityIcons name="fast-forward-10" size={22} color="#FFFFFF" />
+              <MaterialCommunityIcons
+                name="fast-forward-10"
+                size={22}
+                color="#FFFFFF"
+              />
             </TouchableOpacity>
           </View>
 
@@ -407,7 +444,9 @@ export default function MoviePlayerScreen() {
   const [paywallEpisodeId, setPaywallEpisodeId] = useState<string | null>(null);
 
   // Active Tab state ("recommend" | "comments" | "episodes")
-  const [activeTab, setActiveTab] = useState<"recommend" | "comments" | "episodes">("recommend");
+  const [activeTab, setActiveTab] = useState<
+    "recommend" | "comments" | "episodes"
+  >("recommend");
 
   // Video Speed state
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
@@ -469,16 +508,39 @@ export default function MoviePlayerScreen() {
 
   useEffect(() => {
     if (passedEpisodes.length > 0) return;
-    if (!seasonId) return;
 
-    getSeasonEpisodes(seasonId)
-      .then((res) => {
-        if (res && res.code === 200 && res.data) {
+    const loadEpisodes = async () => {
+      let activeSeasonId = seasonId;
+      if (!activeSeasonId && movieId) {
+        try {
+          const seasonRes = await getSeriesSeasons(movieId);
+          const seasons = seasonRes?.data || [];
+          if (Array.isArray(seasons) && seasons.length > 0) {
+            activeSeasonId = seasons[0].seasonId;
+          }
+        } catch (e) {}
+      }
+
+      if (!activeSeasonId) return;
+
+      try {
+        const res = await getSeasonEpisodes(activeSeasonId);
+        if (res && res.code === 200 && Array.isArray(res.data)) {
           setEpisodes(res.data);
+          if (initialEpisodeId) {
+            const idx = res.data.findIndex((e: EpisodeItem) => e.episodeId === initialEpisodeId);
+            if (idx !== -1) {
+              setCurrentIndex(idx);
+            }
+          }
         }
-      })
-      .catch((err) => console.error("Error fetching season episodes:", err));
-  }, [seasonId, passedEpisodes]);
+      } catch (err) {
+        console.error("Error fetching season episodes:", err);
+      }
+    };
+
+    loadEpisodes();
+  }, [seasonId, movieId, passedEpisodes, initialEpisodeId]);
 
   const fetchPlayback = useCallback(
     (epId: string) => {
@@ -488,44 +550,50 @@ export default function MoviePlayerScreen() {
       setPaywallEpisodeId(null);
       setPlaybackUrl("");
 
-    getEpisodePlayback(epId, user?.accountId)
-      .then((res) => {
-        if (res && res.code === 200 && res.data) {
-          const data = res.data;
-          const url = data.playbackUrl || data.hlsUrl;
-          setPlaybackUrl(url || "https://www.w3schools.com/html/mov_bbb.mp4");
+      getEpisodePlayback(epId, user?.accountId)
+        .then((res) => {
+          if (res && res.code === 200 && res.data) {
+            const data = res.data;
+            const url = data.playbackUrl || data.hlsUrl;
+            setPlaybackUrl(url || "https://www.w3schools.com/html/mov_bbb.mp4");
 
-          const dur = data.duration && data.duration > 0 ? data.duration : 900;
-          setApiDuration(dur);
+            const dur =
+              data.duration && data.duration > 0 ? data.duration : 900;
+            setApiDuration(dur);
 
-          const pType = data.playbackType || "HLS";
-          setPlaybackType(pType);
+            const pType = data.playbackType || "HLS";
+            setPlaybackType(pType);
 
-          const locked = Boolean(
-            data.isLocked === true ||
-            data.isEntitled === false ||
-            pType === "MP4"
-          );
-          setIsLocked(locked);
-        } else {
-          setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
-          setApiDuration(900);
-          setIsLocked(false);
-        }
-      })
-      .catch((err: any) => {
-        if (err?.status === 403 || (err?.message && err.message.includes("403"))) {
-          setPaywallEpisodeId(epId);
-        } else {
-          setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
-          setApiDuration(900);
-          setIsLocked(false);
-        }
-      })
-      .finally(() => {
-        setLoadingPlayback(false);
-      });
-  }, [user?.accountId]);
+            const locked = Boolean(
+              data.isLocked === true ||
+              data.isEntitled === false ||
+              pType === "MP4",
+            );
+            setIsLocked(locked);
+          } else {
+            setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
+            setApiDuration(900);
+            setIsLocked(false);
+          }
+        })
+        .catch((err: any) => {
+          if (
+            err?.status === 403 ||
+            (err?.message && err.message.includes("403"))
+          ) {
+            setPaywallEpisodeId(epId);
+          } else {
+            setPlaybackUrl("https://www.w3schools.com/html/mov_bbb.mp4");
+            setApiDuration(900);
+            setIsLocked(false);
+          }
+        })
+        .finally(() => {
+          setLoadingPlayback(false);
+        });
+    },
+    [user?.accountId],
+  );
 
   useEffect(() => {
     if (activeEpisodeId) {
@@ -604,6 +672,7 @@ export default function MoviePlayerScreen() {
             isLocked={isLocked}
             replayCounter={replayCounter}
             playbackSpeed={playbackSpeed}
+            initialPosition={params.initialPosition}
             onNavigateToPlans={() => navigation.navigate("SubscriptionPlans")}
             onFinishedChange={setIsFinished}
           />
@@ -624,7 +693,9 @@ export default function MoviePlayerScreen() {
         {loadingPlayback && (
           <View className="absolute inset-0 bg-black/75 items-center justify-center space-y-2">
             <ActivityIndicator size="large" color="#E50914" />
-            <Text className="text-zinc-300 text-xs font-semibold">Đang tải luồng video HD...</Text>
+            <Text className="text-zinc-300 text-xs font-semibold">
+              Đang tải luồng video HD...
+            </Text>
           </View>
         )}
 
@@ -647,7 +718,9 @@ export default function MoviePlayerScreen() {
                 className="bg-white/15 border border-white/20 px-5 py-2 rounded-full flex-row items-center"
                 activeOpacity={0.8}
               >
-                <Text className="text-white font-bold text-xs mr-1.5">Tập tiếp theo</Text>
+                <Text className="text-white font-bold text-xs mr-1.5">
+                  Tập tiếp theo
+                </Text>
                 <Ionicons name="play-skip-forward" size={14} color="#FFFFFF" />
               </TouchableOpacity>
             )}
@@ -667,20 +740,41 @@ export default function MoviePlayerScreen() {
           className="px-4 pt-3 pb-2"
           activeOpacity={0.9}
         >
-          <Text className="text-white text-base font-bold leading-snug" numberOfLines={showFullDesc ? undefined : 2}>
+          <Text
+            className="text-white text-base font-bold leading-snug"
+            numberOfLines={showFullDesc ? undefined : 2}
+          >
             {movieTitle}: {currentEp?.title || `Tập ${currentIndex + 1}`}
           </Text>
 
           <View className="flex-row items-center flex-wrap gap-1.5 mt-1.5">
-            <Text className="text-zinc-400 text-xs">12.5K lượt xem</Text>
-            <Text className="text-zinc-500 text-xs">·</Text>
-            <Text className="text-zinc-300 text-xs font-semibold">
-              {likeCount > 0 ? `${likeCount.toLocaleString("vi-VN")}` : "1.2K"} lượt thích
+            <Text className="text-zinc-400 text-xs">
+              {formatAnalyticNumber(currentEp?.analyticData?.views ?? currentEp?.views ?? 12500)} lượt xem
             </Text>
             <Text className="text-zinc-500 text-xs">·</Text>
-            <Text className="text-zinc-400 text-xs">2 ngày trước</Text>
+            <Text className="text-zinc-300 text-xs font-semibold">
+              {formatAnalyticNumber(currentEp?.analyticData?.likes ?? likeCount ?? 1200)} lượt thích
+            </Text>
+            {currentEp?.analyticData?.watchTime ? (
+              <>
+                <Text className="text-zinc-500 text-xs">·</Text>
+                <Text className="text-zinc-400 text-xs">
+                  ⏱️ {formatWatchTime(currentEp.analyticData.watchTime)}
+                </Text>
+              </>
+            ) : null}
+            {currentEp?.averageRating ? (
+              <>
+                <Text className="text-zinc-500 text-xs">·</Text>
+                <Text className="text-[#D4AF37] text-xs font-bold">
+                  ⭐ {Number(currentEp.averageRating).toFixed(1)}
+                </Text>
+              </>
+            ) : null}
             <Text className="text-zinc-500 text-xs">·</Text>
-            <Text className="text-[#D4AF37] text-xs font-semibold">#TaleX #PhimBo</Text>
+            <Text className="text-[#D4AF37] text-xs font-semibold">
+              #TaleX #PhimBo
+            </Text>
             <Text className="text-zinc-400 text-xs font-bold ml-1">
               {showFullDesc ? "... Thu gọn" : "... Xem thêm"}
             </Text>
@@ -698,7 +792,9 @@ export default function MoviePlayerScreen() {
           {/* BÊN TRÁI: HÌNH CHỦ KÊNH + NÚT THEO DÕI (KHÔNG CÓ TÊN HAY SỐ NGƯỜI ĐĂNG KÝ) */}
           <View className="flex-row items-center">
             <TouchableOpacity
-              onPress={() => creatorInfo.accountId && setShowFollowersModal(true)}
+              onPress={() =>
+                creatorInfo.accountId && setShowFollowersModal(true)
+              }
               activeOpacity={0.8}
               className="w-10 h-10 rounded-full overflow-hidden bg-zinc-800 border border-[#D4AF37]/40"
               style={{ marginRight: 8 }}
@@ -767,11 +863,7 @@ export default function MoviePlayerScreen() {
               activeOpacity={0.75}
               className="p-1"
             >
-              <Ionicons
-                name="share-social-outline"
-                size={24}
-                color="#FFFFFF"
-              />
+              <Ionicons name="share-social-outline" size={24} color="#FFFFFF" />
             </TouchableOpacity>
 
             {/* Danh sách tập phim Icon */}
@@ -852,23 +944,34 @@ export default function MoviePlayerScreen() {
                 <TouchableOpacity
                   key={rec.id}
                   onPress={() => {
-                    navigation.replace("MovieDetailScreen", { movieId: rec.id });
+                    navigation.replace("MovieDetailScreen", {
+                      movieId: rec.id,
+                    });
                   }}
                   className="flex-row space-x-3 mb-3"
                   activeOpacity={0.85}
                 >
                   {/* 16:9 Thumbnail */}
                   <View className="w-[135px] h-[80px] rounded-xl overflow-hidden bg-zinc-800 relative border border-white/10">
-                    <Image source={rec.image} className="w-full h-full" resizeMode="cover" />
+                    <Image
+                      source={rec.image}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
                     <View className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded">
-                      <Text className="text-white text-[9px] font-bold">45:00</Text>
+                      <Text className="text-white text-[9px] font-bold">
+                        45:00
+                      </Text>
                     </View>
                   </View>
 
                   {/* Details */}
                   <View className="flex-1 ml-2.5 justify-between py-0.5">
                     <View>
-                      <Text className="text-white font-bold text-xs leading-snug" numberOfLines={2}>
+                      <Text
+                        className="text-white font-bold text-xs leading-snug"
+                        numberOfLines={2}
+                      >
                         {rec.title} - Tập Đặc Biệt 2026
                       </Text>
                       <Text className="text-zinc-400 text-[11px] mt-1">
@@ -910,9 +1013,16 @@ export default function MoviePlayerScreen() {
                   }`}
                 >
                   <View className="flex-row items-center flex-1 mr-2 space-x-3">
-                    <View className={`w-8 h-8 rounded-xl items-center justify-center ${isActive ? "bg-[#D4AF37]" : "bg-white/10"}`}>
+                    <View
+                      className={`w-8 h-8 rounded-xl items-center justify-center ${isActive ? "bg-[#D4AF37]" : "bg-white/10"}`}
+                    >
                       {isActive ? (
-                        <Ionicons name="play" size={14} color="#141210" style={{ marginLeft: 1 }} />
+                        <Ionicons
+                          name="play"
+                          size={14}
+                          color="#141210"
+                          style={{ marginLeft: 1 }}
+                        />
                       ) : (
                         <Text className="text-xs font-black text-white">
                           {ep.episodeNumber || idx + 1}
@@ -921,7 +1031,10 @@ export default function MoviePlayerScreen() {
                     </View>
 
                     <View className="flex-1 ml-2">
-                      <Text className={`font-bold text-xs ${isActive ? "text-[#D4AF37]" : "text-white"}`} numberOfLines={1}>
+                      <Text
+                        className={`font-bold text-xs ${isActive ? "text-[#D4AF37]" : "text-white"}`}
+                        numberOfLines={1}
+                      >
                         Tập {ep.episodeNumber || idx + 1}: {ep.title}
                       </Text>
                       <Text className="text-zinc-400 text-[11px] mt-0.5">
@@ -932,11 +1045,15 @@ export default function MoviePlayerScreen() {
 
                   {isPaid ? (
                     <View className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
-                      <Text className="text-[9px] font-black text-amber-400">Trả phí</Text>
+                      <Text className="text-[9px] font-black text-amber-400">
+                        Trả phí
+                      </Text>
                     </View>
                   ) : (
                     <View className="px-2 py-0.5 rounded bg-green-500/20 border border-green-500/30">
-                      <Text className="text-[9px] font-black text-green-400">Miễn phí</Text>
+                      <Text className="text-[9px] font-black text-green-400">
+                        Miễn phí
+                      </Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -984,9 +1101,16 @@ export default function MoviePlayerScreen() {
                       }`}
                     >
                       <View className="flex-row items-center flex-1 mr-2 space-x-3">
-                        <View className={`w-8 h-8 rounded-xl items-center justify-center ${isActive ? "bg-[#D4AF37]" : "bg-white/10"}`}>
+                        <View
+                          className={`w-8 h-8 rounded-xl items-center justify-center ${isActive ? "bg-[#D4AF37]" : "bg-white/10"}`}
+                        >
                           {isActive ? (
-                            <Ionicons name="play" size={14} color="#141210" style={{ marginLeft: 1 }} />
+                            <Ionicons
+                              name="play"
+                              size={14}
+                              color="#141210"
+                              style={{ marginLeft: 1 }}
+                            />
                           ) : (
                             <Text className="text-xs font-black text-white">
                               {ep.episodeNumber || idx + 1}
@@ -995,7 +1119,10 @@ export default function MoviePlayerScreen() {
                         </View>
 
                         <View className="flex-1 ml-2">
-                          <Text className={`font-bold text-xs ${isActive ? "text-[#D4AF37]" : "text-white"}`} numberOfLines={1}>
+                          <Text
+                            className={`font-bold text-xs ${isActive ? "text-[#D4AF37]" : "text-white"}`}
+                            numberOfLines={1}
+                          >
                             Tập {ep.episodeNumber || idx + 1}: {ep.title}
                           </Text>
                           <Text className="text-zinc-400 text-[11px] mt-0.5">
@@ -1006,11 +1133,15 @@ export default function MoviePlayerScreen() {
 
                       {isPaid ? (
                         <View className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
-                          <Text className="text-[9px] font-black text-amber-400">Trả phí</Text>
+                          <Text className="text-[9px] font-black text-amber-400">
+                            Trả phí
+                          </Text>
                         </View>
                       ) : (
                         <View className="px-2 py-0.5 rounded bg-green-500/20 border border-green-500/30">
-                          <Text className="text-[9px] font-black text-green-400">Miễn phí</Text>
+                          <Text className="text-[9px] font-black text-green-400">
+                            Miễn phí
+                          </Text>
                         </View>
                       )}
                     </TouchableOpacity>
@@ -1042,7 +1173,10 @@ export default function MoviePlayerScreen() {
             </View>
 
             {activeEpisodeId && (
-              <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                className="flex-1"
+              >
                 <EpisodeCommentsSection episodeId={activeEpisodeId} />
               </ScrollView>
             )}
@@ -1061,5 +1195,3 @@ export default function MoviePlayerScreen() {
     </SafeAreaView>
   );
 }
-
-

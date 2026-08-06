@@ -585,6 +585,21 @@ export default function ComicReaderScreen() {
               .map((m: any) => m.fileUrl || m.mediaUrl || m.url || "")
               .filter((u: string) => Boolean(u));
             setPages(urls);
+
+            const initPos = (route.params as any)?.initialPosition;
+            if (initPos && initPos > 0) {
+              const targetPageIdx = Math.min(urls.length - 1, Math.max(0, Math.round(initPos) - 1));
+              setCurrentPage(targetPageIdx);
+              setTimeout(() => {
+                try {
+                  if (readingMode === "vertical") {
+                    scrollRef.current?.scrollTo({ y: targetPageIdx * (screenWidth * 1.3), animated: false });
+                  } else {
+                    flatListRef.current?.scrollToIndex({ index: targetPageIdx, animated: false });
+                  }
+                } catch (e) {}
+              }, 400);
+            }
           } else {
             setPages([]);
             setFirstLockedPageIndex(0);

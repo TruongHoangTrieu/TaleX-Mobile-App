@@ -1,5 +1,6 @@
 import { BASE_URL } from "@/config";
 import { authFetch } from "@/services/auth";
+import { AnalyticData } from "@/services/series";
 
 type ApiEnvelope<T> = {
   success?: boolean;
@@ -61,6 +62,8 @@ export interface SeriesItem {
   visibility?: Visibility;
   categories?: CategoryResponse[];
   tags?: TagResponse[];
+  analyticData?: AnalyticData;
+  averageRating?: number;
 }
 
 export interface SeasonItem {
@@ -82,6 +85,8 @@ export interface EpisodeItem {
   status: EpisodeStatus;
   unlockType?: EpisodeUnlockType;
   priceVnd?: number;
+  analyticData?: AnalyticData;
+  averageRating?: number;
 }
 
 export interface MediaResponse {
@@ -725,4 +730,6 @@ export async function getTags(): Promise<BasePageResponse<TagResponse>> {
   const res = await authFetch(url, { method: "GET" });
   return handleResponse<BasePageResponse<TagResponse>>(res);
 }
+
+
 

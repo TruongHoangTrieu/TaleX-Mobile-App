@@ -27,22 +27,16 @@ import { useUserFeature } from "@/hooks/useUserFeature";
 
 import Header from "@components/Header";
 import BannerCarousel from "@components/BannerCarousel";
+import RecentWatchSection from "@/components/RecentWatchSection";
 import {
   getHomeFeed,
   HomeFeedData,
   HomeFeedSeries,
 } from "@/services/recommendations";
+import { formatAnalyticNumber } from "@/services/series";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1518676590629-3dcbd9c5a5c9?q=80&w=1400&auto=format&fit=crop";
-
-const quickFilterTabs = [
-  { id: "all", label: "Tất cả", icon: "grid" },
-  { id: "hot", label: "Phim Hot", icon: "film" },
-  { id: "comics", label: "Truyện Mới", icon: "book-open" },
-  { id: "rank", label: "Bảng Xếp Hạng", icon: "award" },
-  { id: "continue", label: "Xem Tiếp", icon: "play-circle" },
-];
 
 function SkeletonPulse({
   style,
@@ -260,9 +254,13 @@ export default function HomeScreen() {
                   </Text>
                 </View>
 
-                <View className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black via-black/80 to-transparent">
-                  <Text className="text-orange-400 text-[10px] font-extrabold text-right">
-                    🔥 {formatViews(item.totalViews)}
+                {/* Views Counter Badge Bottom Right */}
+                <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
+                  <Ionicons name="eye" size={9} color="#38bdf8" />
+                  <Text className="text-white text-[9px] font-bold ml-1">
+                    {formatAnalyticNumber(
+                      item.analyticData?.views ?? item.totalViews,
+                    )}
                   </Text>
                 </View>
               </View>
@@ -330,11 +328,24 @@ export default function HomeScreen() {
                   className="w-full h-full"
                   resizeMode="cover"
                 />
+
                 <View className="absolute top-2 right-2 bg-sky-500/30 border border-sky-400 px-2 py-0.5 rounded-md backdrop-blur-md">
                   <Text className="text-sky-300 text-[9px] font-black uppercase">
                     🚀 MỚI
                   </Text>
                 </View>
+
+                {/* Views Counter Badge Bottom Right */}
+                {item.analyticData?.views || item.totalViews ? (
+                  <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
+                    <Ionicons name="eye" size={9} color="#38bdf8" />
+                    <Text className="text-white text-[9px] font-bold ml-1">
+                      {formatAnalyticNumber(
+                        item.analyticData?.views ?? item.totalViews,
+                      )}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
               <Text
@@ -408,6 +419,18 @@ export default function HomeScreen() {
                     CẬP NHẬT
                   </Text>
                 </View>
+
+                {/* Views Counter Badge Bottom Right */}
+                {item.analyticData?.views || item.totalViews ? (
+                  <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
+                    <Ionicons name="eye" size={9} color="#38bdf8" />
+                    <Text className="text-white text-[9px] font-bold ml-1">
+                      {formatAnalyticNumber(
+                        item.analyticData?.views ?? item.totalViews,
+                      )}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
               <Text
@@ -471,7 +494,8 @@ export default function HomeScreen() {
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item }) => {
             const isComic = item.contentType?.toUpperCase() === "COMIC";
-            const dateStr = item.releasedUpdateTime || item.createdAt || item.updatedAt;
+            const dateStr =
+              item.releasedUpdateTime || item.createdAt || item.updatedAt;
             const yearStr = dateStr ? new Date(dateStr).getFullYear() : null;
 
             return (
@@ -578,7 +602,6 @@ export default function HomeScreen() {
               onPress={() => handleSeriesPress(item)}
               className="mr-4 w-[155px]"
             >
-              {/* Poster Card */}
               <View className="w-full h-[215px] rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 shadow-2xl mb-2.5">
                 <Image
                   source={{ uri: getImageUri(item, true) }}
@@ -677,6 +700,16 @@ export default function HomeScreen() {
                     Khám phá
                   </Text>
                 </View>
+
+                {/* Views Counter Badge Bottom Right */}
+                <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
+                  <Ionicons name="eye" size={9} color="#38bdf8" />
+                  <Text className="text-white text-[9px] font-bold ml-1">
+                    {formatAnalyticNumber(
+                      item.analyticData?.views ?? item.totalViews ?? 0,
+                    )}
+                  </Text>
+                </View>
               </View>
 
               <Text
@@ -750,6 +783,16 @@ export default function HomeScreen() {
                     Đã đăng ký
                   </Text>
                 </View>
+
+                {/* Views Counter Badge Bottom Right */}
+                <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
+                  <Ionicons name="eye" size={9} color="#38bdf8" />
+                  <Text className="text-white text-[9px] font-bold ml-1">
+                    {formatAnalyticNumber(
+                      item.analyticData?.views ?? item.totalViews ?? 0,
+                    )}
+                  </Text>
+                </View>
               </View>
 
               <Text
@@ -806,49 +849,8 @@ export default function HomeScreen() {
           navigation={navigation}
         />
 
-        {/* Quick Filter Tabs */}
-        <View className="mt-4 mb-2">
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16 }}
-          >
-            {quickFilterTabs.map((tab) => {
-              const isSelected = activeTab === tab.id;
-              return (
-                <TouchableOpacity
-                  key={tab.id}
-                  onPress={() => {
-                    setActiveTab(tab.id);
-                    if (tab.id === "rank" || tab.id === "hot") {
-                      (navigation.navigate as any)("Top10Movies");
-                    }
-                  }}
-                  activeOpacity={0.8}
-                  className={`mr-2.5 px-4 py-2 rounded-full flex-row items-center border ${
-                    isSelected
-                      ? "bg-[#D4AF37] border-[#D4AF37]"
-                      : "bg-[#1E1B18] border-stone-800"
-                  }`}
-                >
-                  <Feather
-                    name={tab.icon as any}
-                    size={12}
-                    color={isSelected ? "#141210" : "#7C766B"}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text
-                    className={`text-xs font-bold ${
-                      isSelected ? "text-[#141210]" : "text-[#D4AF37]"
-                    }`}
-                  >
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
+        {/* RECENTLY WATCHED / CONTINUE WATCHING SECTION */}
+        <RecentWatchSection filterType="ALL" />
 
         {/* 7 REMAINING RECOMMENDATION CHANNELS FROM API */}
         {renderTrendingChannel()}

@@ -245,7 +245,9 @@ export default function BannerCarousel({
             {/* Content Type (Truyện / Phim) */}
             <View className="bg-black/50 px-2.5 py-0.5 rounded-md">
               <Text className="text-white text-[11px] font-bold">
-                {item.contentType?.toUpperCase() === "COMIC" ? "Truyện" : "Phim"}
+                {item.contentType?.toUpperCase() === "COMIC"
+                  ? "Truyện"
+                  : "Phim"}
               </Text>
             </View>
 
@@ -273,12 +275,17 @@ export default function BannerCarousel({
   };
 
   return (
-    <View style={{ height: bannerHeight + 20 }} className="relative bg-[#141619]">
+    <View
+      style={{ height: bannerHeight + 20 }}
+      className="relative bg-[#141619]"
+    >
       <Animated.FlatList
         ref={flatListRef}
         data={slides}
         renderItem={renderCarouselItem}
-        keyExtractor={(item, index) => `banner-real-${item.seriesId || index}-${index}`}
+        keyExtractor={(item, index) =>
+          `banner-real-${item.seriesId || index}-${index}`
+        }
         horizontal
         showsHorizontalScrollIndicator={false}
         pagingEnabled={false}
@@ -294,7 +301,7 @@ export default function BannerCarousel({
         })}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: true }
+          { useNativeDriver: true },
         )}
       />
     </View>

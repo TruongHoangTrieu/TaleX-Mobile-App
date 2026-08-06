@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { navigationRef } from "@/navigation/navigationRef";
 import TermsAcceptanceModal from "@/components/creator/TermsAcceptanceModal";
 import {
   getOwnCreator,
@@ -20,8 +20,8 @@ const initialModalConfig: ModalConfig = {
   termsData: null,
 };
 
-export default function CreatorGuardScreen() {
-  const navigation = useNavigation<any>();
+export default function CreatorGuardScreen({ navigation: propNav }: any) {
+  const navigation = propNav || navigationRef;
   const [loading, setLoading] = useState(true);
   const [modalConfig, setModalConfig] =
     useState<ModalConfig>(initialModalConfig);

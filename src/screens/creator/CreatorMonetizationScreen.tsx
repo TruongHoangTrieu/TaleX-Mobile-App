@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { navigationRef } from "@/navigation/navigationRef";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   acceptTerms,
@@ -260,8 +260,8 @@ function TimelineStep({
   );
 }
 
-export default function CreatorMonetizationScreen() {
-  const navigation = useNavigation<any>();
+export default function CreatorMonetizationScreen({ navigation: propNav }: any) {
+  const navigation = propNav || navigationRef;
   const [verificationStatus, setVerificationStatus] =
     useState<VerificationStatusDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);

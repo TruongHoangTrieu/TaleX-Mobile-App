@@ -24,6 +24,10 @@ export type MovieItem = {
   description: string;
   actors: MovieActor[];
   episodes: MovieEpisode[];
+  analyticData?: any;
+  views?: any;
+  totalViews?: any;
+  averageRating?: number;
 };
 
 export const movieCategories = ["Đề xuất", "Phim Bộ", "Viễn Tưởng", "Tình Cảm", "Tiểu Thuyết"];

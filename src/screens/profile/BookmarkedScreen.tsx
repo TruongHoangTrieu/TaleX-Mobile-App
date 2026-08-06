@@ -248,13 +248,6 @@ export default function BookmarkedScreen({ navigation }: any) {
                     className="w-full h-full"
                     resizeMode="cover"
                   />
-                  <View className="absolute inset-0 bg-black/30 items-center justify-center">
-                    {isComic ? (
-                      <Feather name="book-open" size={16} color="#D4AF37" />
-                    ) : (
-                      <Ionicons name="play" size={18} color="#D4AF37" />
-                    )}
-                  </View>
                 </View>
 
                 {/* Details */}

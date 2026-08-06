@@ -1,6 +1,43 @@
 import { BASE_URL } from "@/config";
 import { authFetch } from "@/services/auth";
 
+export interface AnalyticData {
+  likes?: number;
+  views?: number;
+  comments?: number;
+  shares?: number;
+  bookmarks?: number;
+  watchTime?: number;
+}
+
+export function formatWatchTime(secondsOrMins?: number): string {
+  if (secondsOrMins == null || secondsOrMins < 0) return "0s";
+  if (secondsOrMins < 60) return `${secondsOrMins}s`;
+  const mins = Math.floor(secondsOrMins / 60);
+  const secs = secondsOrMins % 60;
+  if (mins < 60) {
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  }
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins > 0 ? `${hrs}h ${remMins}m` : `${hrs}h`;
+}
+
+export function formatAnalyticNumber(num?: any): string {
+  if (num == null) return "0";
+  if (typeof num === "string") {
+    const trimmed = num.trim();
+    if (/[kKmM]$/.test(trimmed)) return trimmed;
+    const parsed = parseFloat(trimmed);
+    if (isNaN(parsed) || parsed <= 0) return "0";
+    num = parsed;
+  }
+  if (typeof num !== "number" || isNaN(num) || num <= 0) return "0";
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+  return num.toLocaleString("vi-VN");
+}
+
 export interface SeriesItem {
   id?: string;
   seriesId?: string;
@@ -16,6 +53,8 @@ export interface SeriesItem {
   translation?: string;
   regionAndGenre?: string;
   episodes?: any[];
+  analyticData?: AnalyticData;
+  averageRating?: number;
   [key: string]: any;
 }
 
@@ -111,6 +150,8 @@ export interface EpisodeItem {
   views?: number;
   publishedAt?: string;
   totalPage?: number | null;
+  analyticData?: AnalyticData;
+  averageRating?: number;
   [key: string]: any;
 }
 
@@ -138,6 +179,9 @@ export interface PlaybackResponse {
 }
 
 export async function getSeriesSeasons(seriesId: string): Promise<SeasonListResponse> {
+  if (!seriesId) {
+    return { code: 200, message: "OK", data: [] };
+  }
   const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/series/${seriesId}/seasons`;
   const res = await fetch(url, {
     method: "GET",
@@ -150,9 +194,23 @@ export async function getSeriesSeasons(seriesId: string): Promise<SeasonListResp
     throw new Error(`Failed to fetch seasons: ${res.status}`);
   }
 
-  return res.json();
+  const text = await res.text();
+  if (!text || !text.trim()) {
+    return { code: 200, message: "OK", data: [] };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.warn("getSeriesSeasons: Invalid JSON response:", text);
+    return { code: 200, message: "OK", data: [] };
+  }
 }
+
 export async function getSeasonEpisodes(seasonId: string): Promise<EpisodeListResponse> {
+  if (!seasonId) {
+    return { code: 200, message: "OK", data: [] };
+  }
   const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/seasons/${seasonId}/episodes`;
   const res = await fetch(url, {
     method: "GET",
@@ -165,7 +223,17 @@ export async function getSeasonEpisodes(seasonId: string): Promise<EpisodeListRe
     throw new Error(`Failed to fetch episodes: ${res.status}`);
   }
 
-  return res.json();
+  const text = await res.text();
+  if (!text || !text.trim()) {
+    return { code: 200, message: "OK", data: [] };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.warn("getSeasonEpisodes: Invalid JSON response:", text);
+    return { code: 200, message: "OK", data: [] };
+  }
 }
 
 export async function getEpisodePlayback(
@@ -223,6 +291,9 @@ export async function getPublicEpisodeMedia(episodeId: string, viewerId?: string
 }
 
 export async function getPublicEpisodeDetail(episodeId: string): Promise<any> {
+  if (!episodeId) {
+    return { code: 400, message: "Missing episodeId", data: null };
+  }
   const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/episodes/${episodeId}`;
   const res = await fetch(url, {
     method: "GET",
@@ -233,7 +304,17 @@ export async function getPublicEpisodeDetail(episodeId: string): Promise<any> {
     throw new Error(`Failed to fetch episode detail: ${res.status}`);
   }
 
-  return res.json();
+  const text = await res.text();
+  if (!text || !text.trim()) {
+    return { code: 200, message: "OK", data: null };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.warn("getPublicEpisodeDetail: Invalid JSON response:", text);
+    return { code: 200, message: "OK", data: null };
+  }
 }
 
 // ─── Combo ─────────────────────────────────────────────────────────────────

@@ -204,9 +204,7 @@ export default function ProfileScreen() {
               onPress={() => navigation.navigate("CreatorChannel")}
               className="flex-row items-center mt-2.5 bg-[#D4AF37]/10 px-3 py-1 rounded-full border border-[#D4AF37]/30 z-10"
             >
-              <Text className="text-[#D4AF37] text-xs font-bold">
-                Xem Kênh 
-              </Text>
+              <Text className="text-[#D4AF37] text-xs font-bold">Xem Kênh</Text>
               <Feather
                 name="chevron-right"
                 size={12}
@@ -345,6 +343,12 @@ export default function ProfileScreen() {
                 <Feather name="user" size={16} color="#A19E95" />,
                 "Hồ sơ cá nhân",
                 () => navigation.navigate("EditProfileScreen"),
+              )}
+              <View className="h-[1px] bg-zinc-800/40 mx-4" />
+              {renderMenuItem(
+                <MaterialCommunityIcons name="history" size={18} color="#D4AF37" />,
+                "Lịch sử xem",
+                () => navigation.navigate("HistoryScreen"),
               )}
               <View className="h-[1px] bg-zinc-800/40 mx-4" />
               {renderMenuItem(

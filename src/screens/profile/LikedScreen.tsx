@@ -249,13 +249,6 @@ export default function LikedScreen() {
                     className="w-full h-full"
                     resizeMode="cover"
                   />
-                  <View className="absolute inset-0 bg-black/30 items-center justify-center">
-                    <Feather
-                      name={itemType === "COMIC" ? "book-open" : "play"}
-                      size={18}
-                      color="#D4AF37"
-                    />
-                  </View>
                 </View>
 
                 {/* Info */}

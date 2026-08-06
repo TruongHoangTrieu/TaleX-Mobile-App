@@ -24,7 +24,8 @@ import {
   FontAwesome5,
   Ionicons,
 } from "@expo/vector-icons";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
+import { navigationRef } from "@/navigation/navigationRef";
 import { useAuth } from "@/context/AuthContext";
 import { useUserFeature } from "@/hooks/useUserFeature";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -81,8 +82,8 @@ const getAgeRatingStyle = (ratingStr?: string | null) => {
   return { bg: "bg-amber-500/90", text: "text-black", border: "border-amber-400" };
 };
 
-export default function CreatorChannelScreen() {
-  const navigation = useNavigation<any>();
+export default function CreatorChannelScreen({ navigation: propNav }: any) {
+  const navigation = propNav || navigationRef;
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { profile: userFeatureProfile } = useUserFeature();

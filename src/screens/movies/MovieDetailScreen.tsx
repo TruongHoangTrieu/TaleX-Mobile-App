@@ -29,12 +29,15 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Animated } from "react-native";
 import { useAuth } from "@/context/AuthContext";
+import { InteractiveStarRating } from "@/components/InteractiveStarRating";
 import { getMovieById, allMovies } from "./movieMockData";
 import {
   getPublicSeriesDetail,
   getSeriesSeasons,
   getSeasonEpisodes,
   getPublicCombos,
+  formatWatchTime,
+  formatAnalyticNumber,
   SeasonItem,
   EpisodeItem,
   ComboItem,
@@ -403,6 +406,8 @@ export default function MovieDetailScreen() {
                 categories: detail.categories || [],
                 tags: detail.tags || [],
                 rating: detail.rating || null,
+                averageRating: detail.averageRating ?? (detail as any).rating ?? null,
+                analyticData: detail.analyticData || null,
                 year: detail.year || null,
                 ageRating: detail.ageRating || null,
                 language: detail.language || null,
@@ -410,7 +415,8 @@ export default function MovieDetailScreen() {
                 createdAt: (detail as any).createdAt || null,
                 updatedAt: (detail as any).updatedAt || null,
                 description: detail.description || null,
-                views: detail.views ?? (detail as any).totalViews ?? null,
+                views: detail.analyticData?.views ?? detail.views ?? (detail as any).totalViews ?? null,
+                likes: detail.analyticData?.likes ?? (detail as any).likes ?? null,
               });
               setBaseFollowerCount(detail.totalCreatorFollowers ?? 0);
             }
@@ -668,6 +674,17 @@ export default function MovieDetailScreen() {
               </Text>
             </TouchableOpacity>
 
+            {/* Interactive 5-Star Rating Badge Component */}
+            <View className="mt-1.5 flex-row items-center">
+              <InteractiveStarRating
+                seriesId={movieId || movie.id}
+                seriesTitle={movie.title}
+                averageRating={movie.averageRating || 0}
+                totalRatingsCount={movie.totalRatingsCount || 0}
+                onRatingUpdated={() => loadData(true)}
+              />
+            </View>
+
             {/* Description */}
             {movie.description ? (
               <Text className="text-zinc-300 text-xs mt-1 leading-4" numberOfLines={2}>
@@ -726,6 +743,43 @@ export default function MovieDetailScreen() {
         {/* ================= 4. TAB CONTENT ================= */}
         {bottomTab === "about" && (
           <View className="px-4">
+            {/* ================= ANALYTIC DATA CARD ================= */}
+            <View className="mb-5 bg-[#1E2024] border border-white/10 rounded-2xl p-4 shadow-lg">
+              <View className="flex-row items-center gap-2 mb-3 border-b border-white/5 pb-2.5">
+                <Ionicons name="bar-chart-outline" size={16} color="#D4AF37" />
+                <Text className="text-white text-sm font-bold">Chỉ số tác phẩm</Text>
+              </View>
+
+              <View className="flex-row items-center justify-between">
+                {/* Likes */}
+                <View className="w-[31%] bg-zinc-900/60 border border-white/5 p-2.5 rounded-xl items-center">
+                  <Ionicons name="heart-outline" size={16} color="#f43f5e" />
+                  <Text className="text-white text-xs font-black mt-1">
+                    {formatAnalyticNumber(movie.analyticData?.likes ?? movie.likes ?? 0)}
+                  </Text>
+                  <Text className="text-zinc-400 text-[10px] font-medium">Lượt thích</Text>
+                </View>
+
+                {/* Bookmarks */}
+                <View className="w-[31%] bg-zinc-900/60 border border-white/5 p-2.5 rounded-xl items-center">
+                  <Ionicons name="bookmark-outline" size={16} color="#fbbf24" />
+                  <Text className="text-white text-xs font-black mt-1">
+                    {formatAnalyticNumber(movie.analyticData?.bookmarks ?? 0)}
+                  </Text>
+                  <Text className="text-zinc-400 text-[10px] font-medium">Lượt lưu</Text>
+                </View>
+
+                {/* Shares */}
+                <View className="w-[31%] bg-zinc-900/60 border border-white/5 p-2.5 rounded-xl items-center">
+                  <Ionicons name="share-social-outline" size={16} color="#34d399" />
+                  <Text className="text-white text-xs font-black mt-1">
+                    {formatAnalyticNumber(movie.analyticData?.shares ?? 0)}
+                  </Text>
+                  <Text className="text-zinc-400 text-[10px] font-medium">Chia sẻ</Text>
+                </View>
+              </View>
+            </View>
+
             {/* Badge Summary Row with Age Rating */}
             <View className="flex-row items-center gap-2 mb-3 flex-wrap">
               <Text className="text-white text-xs font-bold">Phim bộ</Text>

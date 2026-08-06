@@ -37,6 +37,7 @@ export interface OwnCreatorResponse {
   avatarUrl?: string;
   bannerUrl?: string;
   status?: string;
+  followerCount?: number;
   isAcceptedLatestTerms: boolean;
   termsVersion?: CreatorTermsVersion | null;
   latestTermsVersionId?: string;
@@ -63,6 +64,47 @@ export interface TermsLogResponse {
   versionId: string;
   acceptedAt?: string;
   createdAt?: string;
+}
+
+export interface CreatorAnalyticData {
+  views?: number;
+  likes?: number;
+  comments?: number;
+  bookmarks?: number;
+  shares?: number;
+  watchTime?: number;
+}
+
+export interface CreatorLogItem {
+  id?: string;
+  hourBucket?: string;
+  creatorId?: string;
+  follows?: number;
+  analyticData?: CreatorAnalyticData;
+}
+
+export interface CreatorSeriesResponseItem {
+  seriesId: string;
+  title: string;
+  contentType?: "COMIC" | "VIDEO";
+  status?: string;
+  coverUrl?: string;
+  totalViews?: number;
+  totalSubscriptions?: number;
+  createdAt?: string;
+}
+
+export interface CreatorSeriesListResponse {
+  content?: CreatorSeriesResponseItem[];
+  items?: CreatorSeriesResponseItem[];
+  totalElements?: number;
+  totalPages?: number;
+}
+
+export interface CoinWalletResponse {
+  balance?: number;
+  totalEarned?: number;
+  totalSpent?: number;
 }
 
 const apiUrl = (path: string) => `${BASE_URL.replace(/\/$/, "")}${path}`;
@@ -124,36 +166,84 @@ async function parseCreatorResponse<T>(res: Response, url: string): Promise<T> {
   return envelope && "data" in envelope ? (envelope.data as T) : (json as T);
 }
 
+// 1. GET /api/v1/creators/own
 export async function getOwnCreator(): Promise<OwnCreatorResponse> {
   const url = apiUrl("/api/v1/creators/own");
-  const res = await authFetch(url, {
-    method: "GET",
-  });
-
+  const res = await authFetch(url, { method: "GET" });
   return parseCreatorResponse<OwnCreatorResponse>(res, url);
+}
+
+// 2. GET /api/v1/creators/logs?from=...&to=...
+export async function getCreatorLogs(params?: { from?: string; to?: string }): Promise<CreatorLogItem[]> {
+  try {
+    let query = "";
+    if (params?.from || params?.to) {
+      const qp = new URLSearchParams();
+      if (params.from) qp.append("from", params.from);
+      if (params.to) qp.append("to", params.to);
+      query = `?${qp.toString()}`;
+    }
+    const url = apiUrl(`/api/v1/creators/logs${query}`);
+    const res = await authFetch(url, { method: "GET" });
+    const data = await parseCreatorResponse<CreatorLogItem[]>(res, url);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+// 3. GET /api/v1/series/by-creator?page=...&size=...
+export async function listSeriesByCreator(page: number = 0, size: number = 100): Promise<CreatorSeriesListResponse> {
+  try {
+    const url = apiUrl(`/api/v1/series/by-creator?page=${page}&size=${size}`);
+    const res = await authFetch(url, { method: "GET" });
+    return await parseCreatorResponse<CreatorSeriesListResponse>(res, url);
+  } catch {
+    return { content: [] };
+  }
+}
+
+// 4. GET /api/v1/series/follows/creator/followers
+export async function getCreatorFollowersCount(): Promise<number> {
+  try {
+    const url = apiUrl("/api/v1/series/follows/creator/followers");
+    const res = await authFetch(url, { method: "GET" });
+    const data = await parseCreatorResponse<any>(res, url);
+    if (typeof data === "number") return data;
+    if (typeof data?.totalElements === "number") return data.totalElements;
+    if (typeof data?.numberOfElements === "number") return data.numberOfElements;
+    if (Array.isArray(data?.content)) return data.content.length;
+    if (Array.isArray(data)) return data.length;
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+// 5. GET /api/v1/coins/wallet
+export async function getCoinWallet(): Promise<CoinWalletResponse> {
+  try {
+    const url = apiUrl("/api/v1/coins/wallet");
+    const res = await authFetch(url, { method: "GET" });
+    return await parseCreatorResponse<CoinWalletResponse>(res, url);
+  } catch {
+    return { balance: 0, totalEarned: 0, totalSpent: 0 };
+  }
 }
 
 export async function getActiveCreatorTerms(): Promise<CreatorTermsVersion> {
   const url = apiUrl("/api/v1/terms-versions/active/CREATOR");
-  const res = await authFetch(url, {
-    method: "GET",
-  });
-
+  const res = await authFetch(url, { method: "GET" });
   return parseCreatorResponse<CreatorTermsVersion>(res, url);
 }
 
-export async function registerCreator(
-  termsId: string,
-): Promise<RegisterCreatorResponse> {
+export async function registerCreator(termsId: string): Promise<RegisterCreatorResponse> {
   const url = apiUrl("/api/v1/creators");
   const res = await authFetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ termsId }),
   });
-
   return parseCreatorResponse<RegisterCreatorResponse>(res, url);
 }
 
@@ -161,11 +251,8 @@ export async function acceptNewTerms(versionId: string): Promise<TermsLogRespons
   const url = apiUrl("/api/v1/terms-logs");
   const res = await authFetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ versionId }),
   });
-
   return parseCreatorResponse<TermsLogResponse>(res, url);
 }

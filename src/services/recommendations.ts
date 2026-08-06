@@ -16,6 +16,8 @@ export interface HomeFeedSeries {
   ageRating?: string;
   language?: string;
   totalViews?: number;
+  views?: number;
+  analyticData?: any;
   createdAt?: string;
   updatedAt?: string;
   averageRating?: number;

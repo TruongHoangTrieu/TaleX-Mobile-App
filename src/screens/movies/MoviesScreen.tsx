@@ -17,13 +17,14 @@ import { navigate as safeNavigateRef } from "@/navigation/navigationRef";
 
 import Header from "@components/Header";
 import MovieCarousel from "@components/MovieCarousel";
+import RecentWatchSection from "@/components/RecentWatchSection";
 import {
   MovieItem,
   trendingMovies,
   animeHotMovies,
   newSeriesMovies,
 } from "./movieMockData";
-import { getPublicSeries, SeriesItem } from "@/services/series";
+import { getPublicSeries, SeriesItem, formatAnalyticNumber } from "@/services/series";
 
 function SkeletonPulse({
   style,
@@ -84,7 +85,7 @@ export default function MoviesScreen() {
   const loadMovies = async (isRefreshing = false) => {
     if (!isRefreshing) setLoading(true);
     try {
-      const res = await getPublicSeries(1, 20);
+      const res = await getPublicSeries(1, 100);
       if (res && res.code === 200 && res.data && res.data.content) {
         const filtered = res.data.content.filter(
           (item) =>
@@ -172,7 +173,7 @@ export default function MoviesScreen() {
             resizeMode="cover"
           />
 
-          {/* Age Rating Badge Top Right - Strictly if provided */}
+          {/* Age Rating Badge Top Right */}
           {ageRatingStr && (
             <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md ${getBadgeBg(ageRatingStr)} shadow-md z-10`}>
               <Text className="text-white text-[9px] font-black tracking-tight">
@@ -180,6 +181,14 @@ export default function MoviesScreen() {
               </Text>
             </View>
           )}
+
+          {/* Views Counter Badge Bottom Right */}
+          <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
+            <Ionicons name="eye" size={9} color="#38bdf8" />
+            <Text className="text-white text-[9px] font-bold ml-1">
+              {formatAnalyticNumber(item.analyticData?.views ?? item.views ?? item.totalViews ?? 1250)}
+            </Text>
+          </View>
         </View>
 
         <Text
@@ -222,7 +231,7 @@ export default function MoviesScreen() {
             resizeMode="cover"
           />
 
-          {/* Age Rating Badge Top Right - Strictly if provided */}
+          {/* Age Rating Badge Top Right */}
           {ageRatingStr && (
             <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md ${getBadgeBg(ageRatingStr)} shadow-md z-10`}>
               <Text className="text-white text-[9px] font-black tracking-tight">
@@ -230,6 +239,14 @@ export default function MoviesScreen() {
               </Text>
             </View>
           )}
+
+          {/* Views Counter Badge Bottom Right */}
+          <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
+            <Ionicons name="eye" size={9} color="#38bdf8" />
+            <Text className="text-white text-[9px] font-bold ml-1">
+              {formatAnalyticNumber(item.analyticData?.views ?? item.totalViews ?? item.views ?? 0)}
+            </Text>
+          </View>
         </View>
 
         <Text
@@ -263,6 +280,9 @@ export default function MoviesScreen() {
           <MovieCarousel />
         </View>
 
+        {/* TIẾP TỤC XEM PHIM SECTION */}
+        <RecentWatchSection filterType="VIDEO" title="Tiếp Tục Xem Phim" />
+
         {/* ================= SECTION 1: PHIM BỘ HỆ THỐNG ================= */}
         <View className="mt-6">
           <View className="flex-row justify-between items-center px-4 mb-3">
@@ -272,14 +292,6 @@ export default function MoviesScreen() {
                 Phim Bộ Hệ Thống
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => navigateTo("Search")}
-              activeOpacity={0.7}
-            >
-              <Text className="text-[#A1A1AA] text-xs font-medium">
-                Xem thêm
-              </Text>
-            </TouchableOpacity>
           </View>
 
           {loading ? (
@@ -367,9 +379,6 @@ function MovieSection({
             {title}
           </Text>
         </View>
-        <TouchableOpacity onPress={onSeeMore} activeOpacity={0.7}>
-          <Text className="text-[#A1A1AA] text-xs font-medium">Xem thêm</Text>
-        </TouchableOpacity>
       </View>
 
       <FlatList

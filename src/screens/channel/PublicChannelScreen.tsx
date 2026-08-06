@@ -10,9 +10,7 @@ import {
   Dimensions,
   Modal,
 } from "react-native";
-import {
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Feather,
   FontAwesome5,
@@ -38,12 +36,24 @@ const formatAgeRating = (rating?: string) => {
 };
 
 const getAgeRatingStyle = (ratingStr?: string | null) => {
-  if (!ratingStr) return { bg: "bg-zinc-800", text: "text-white", border: "border-zinc-700" };
+  if (!ratingStr)
+    return { bg: "bg-zinc-800", text: "text-white", border: "border-zinc-700" };
   const r = ratingStr.toUpperCase();
-  if (r.includes("18")) return { bg: "bg-red-600", text: "text-white", border: "border-red-500" };
-  if (r.includes("16")) return { bg: "bg-amber-600", text: "text-white", border: "border-amber-500" };
-  if (r.includes("13")) return { bg: "bg-blue-600", text: "text-white", border: "border-blue-500" };
-  return { bg: "bg-amber-500/90", text: "text-black", border: "border-amber-400" };
+  if (r.includes("18"))
+    return { bg: "bg-red-600", text: "text-white", border: "border-red-500" };
+  if (r.includes("16"))
+    return {
+      bg: "bg-amber-600",
+      text: "text-white",
+      border: "border-amber-500",
+    };
+  if (r.includes("13"))
+    return { bg: "bg-blue-600", text: "text-white", border: "border-blue-500" };
+  return {
+    bg: "bg-amber-500/90",
+    text: "text-black",
+    border: "border-amber-400",
+  };
 };
 
 export default function PublicChannelScreen() {
@@ -453,7 +463,11 @@ export default function PublicChannelScreen() {
                       >
                         {seriesList[0].coverUrl || seriesList[0].bannerUrl ? (
                           <Image
-                            source={{ uri: seriesList[0].coverUrl || seriesList[0].bannerUrl }}
+                            source={{
+                              uri:
+                                seriesList[0].coverUrl ||
+                                seriesList[0].bannerUrl,
+                            }}
                             className="w-full h-[185px]"
                             resizeMode="cover"
                           />
@@ -465,7 +479,11 @@ export default function PublicChannelScreen() {
                           />
                         )}
                         <LinearGradient
-                          colors={["transparent", "rgba(18,18,20,0.45)", "rgba(18,18,20,0.95)"]}
+                          colors={[
+                            "transparent",
+                            "rgba(18,18,20,0.45)",
+                            "rgba(18,18,20,0.95)",
+                          ]}
                           className="absolute inset-0 p-4 justify-end"
                         >
                           <View className="bg-[#D4AF37] self-start px-2.5 py-1 rounded-lg mb-2 flex-row items-center shadow-md">
@@ -474,11 +492,18 @@ export default function PublicChannelScreen() {
                               SIÊU PHẨM TUẦN NÀY
                             </Text>
                           </View>
-                          <Text className="text-white font-extrabold text-xl leading-tight" numberOfLines={1}>
+                          <Text
+                            className="text-white font-extrabold text-xl leading-tight"
+                            numberOfLines={1}
+                          >
                             {seriesList[0].title}
                           </Text>
-                          <Text className="text-[#D1D5DB] text-xs mt-1 leading-snug" numberOfLines={2}>
-                            {seriesList[0].description || "Cuộc chiến giữa các thế lực kịch tính và hấp dẫn kéo theo những lựa chọn không thể quay đầu."}
+                          <Text
+                            className="text-[#D1D5DB] text-xs mt-1 leading-snug"
+                            numberOfLines={2}
+                          >
+                            {seriesList[0].description ||
+                              "Cuộc chiến giữa các thế lực kịch tính và hấp dẫn kéo theo những lựa chọn không thể quay đầu."}
                           </Text>
                         </LinearGradient>
                       </TouchableOpacity>
@@ -491,7 +516,8 @@ export default function PublicChannelScreen() {
                   <View className="flex-row flex-wrap justify-between">
                     {seriesList.map((item: any) => {
                       const sId = item.seriesId || item.id;
-                      const isComic = item.contentType?.toUpperCase() === "COMIC";
+                      const isComic =
+                        item.contentType?.toUpperCase() === "COMIC";
 
                       return (
                         <TouchableOpacity
@@ -518,12 +544,20 @@ export default function PublicChannelScreen() {
                           )}
                           {/* Age Rating Overlay Badge Top Right - Only if provided by API */}
                           {(() => {
-                            const formatted = formatAgeRating(item.ageRating || item.targetAudience || item.contentRating);
+                            const formatted = formatAgeRating(
+                              item.ageRating ||
+                                item.targetAudience ||
+                                item.contentRating,
+                            );
                             if (!formatted) return null;
                             const style = getAgeRatingStyle(formatted);
                             return (
-                              <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}>
-                                <Text className={`text-[9px] font-black ${style.text}`}>
+                              <View
+                                className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}
+                              >
+                                <Text
+                                  className={`text-[9px] font-black ${style.text}`}
+                                >
                                   {formatted}
                                 </Text>
                               </View>
@@ -577,12 +611,20 @@ export default function PublicChannelScreen() {
                         )}
                         {/* Age Rating Overlay Badge Top Right - Only if provided by API */}
                         {(() => {
-                          const formatted = formatAgeRating(item.ageRating || item.targetAudience || item.contentRating);
+                          const formatted = formatAgeRating(
+                            item.ageRating ||
+                              item.targetAudience ||
+                              item.contentRating,
+                          );
                           if (!formatted) return null;
                           const style = getAgeRatingStyle(formatted);
                           return (
-                            <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}>
-                              <Text className={`text-[9px] font-black ${style.text}`}>
+                            <View
+                              className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}
+                            >
+                              <Text
+                                className={`text-[9px] font-black ${style.text}`}
+                              >
                                 {formatted}
                               </Text>
                             </View>
@@ -631,12 +673,20 @@ export default function PublicChannelScreen() {
                         )}
                         {/* Age Rating Overlay Badge Top Right - Only if provided by API */}
                         {(() => {
-                          const formatted = formatAgeRating(item.ageRating || item.targetAudience || item.contentRating);
+                          const formatted = formatAgeRating(
+                            item.ageRating ||
+                              item.targetAudience ||
+                              item.contentRating,
+                          );
                           if (!formatted) return null;
                           const style = getAgeRatingStyle(formatted);
                           return (
-                            <View className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}>
-                              <Text className={`text-[9px] font-black ${style.text}`}>
+                            <View
+                              className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-md border ${style.bg} ${style.border} shadow-md z-10`}
+                            >
+                              <Text
+                                className={`text-[9px] font-black ${style.text}`}
+                              >
                                 {formatted}
                               </Text>
                             </View>

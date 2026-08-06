@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { navigationRef } from "@/navigation/navigationRef";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
 
@@ -79,8 +79,8 @@ const getImageDimensions = (
   });
 };
 
-export default function UploadComicScreen() {
-  const navigation = useNavigation<any>();
+export default function UploadComicScreen({ navigation: propNav }: any) {
+  const navigation = propNav || navigationRef;
   const { user } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 

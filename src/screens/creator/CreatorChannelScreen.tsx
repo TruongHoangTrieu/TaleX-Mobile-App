@@ -32,6 +32,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { getOwnCreator, type OwnCreatorResponse } from "@/services/creator";
 import { getFollowers, type AccountFollowInfoDto } from "@/services/follow";
 import { FollowButton } from "@/components/FollowButton";
+import { CreatorTierModal } from "@/components/CreatorTierModal";
 import {
   listSeriesByCreator,
   updateSeries,
@@ -97,6 +98,7 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
   const [followersList, setFollowersList] = useState<AccountFollowInfoDto[]>(
     [],
   );
+  const [followersCount, setFollowersCount] = useState<number>(0);
   const [loadingFollowers, setLoadingFollowers] = useState(false);
   const [isNotCreator, setIsNotCreator] = useState(false);
   const [filterStatus, setFilterStatus] = useState<
@@ -107,6 +109,24 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
   );
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [showTierModal, setShowTierModal] = useState(false);
+
+  const currentTierLevel = (creator as any)?.tierLevel ?? (creator as any)?.tier?.tierLevel ?? 0;
+  const currentTierName = (creator as any)?.tierName ?? (creator as any)?.tier?.tierName ?? "Creator Khởi Đầu";
+
+  const totalViewsSum = React.useMemo(() => {
+    return series.reduce(
+      (acc, item) => acc + ((item as any).totalViews || item.analyticData?.views || 0),
+      0
+    );
+  }, [series]);
+
+  const totalWatchTimeSum = React.useMemo(() => {
+    return series.reduce(
+      (acc, item) => acc + (item.analyticData?.watchTime || 0),
+      0
+    );
+  }, [series]);
 
   // Categories & Tags list for editing
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
@@ -197,8 +217,14 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
       try {
         const followersRes = await getFollowers(0, 100);
         setFollowersList(followersRes.content || []);
+        setFollowersCount(
+          typeof followersRes.totalElements === "number"
+            ? followersRes.totalElements
+            : followersRes.content?.length || 0
+        );
       } catch (e) {
         setFollowersList([]);
+        setFollowersCount(0);
       }
     } catch (err: any) {
       console.log("[Channel] Fetch error:", err);
@@ -1059,14 +1085,28 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
                   </TouchableOpacity>
                 </View>
 
-                {/* Name & Bio */}
-                <Text className="text-white text-2xl font-black tracking-wide mt-3">
-                  {effectiveDisplayName}
-                </Text>
+                {/* Name & Prominent LV Badge Row */}
+                <View className="flex-row items-center mt-3 gap-2 flex-wrap">
+                  <Text className="text-white text-2xl font-black tracking-wide">
+                    {effectiveDisplayName}
+                  </Text>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setShowTierModal(true)}
+                    className="flex-row items-center bg-[#D4AF37] border border-[#FFE58F] px-2.5 py-0.5 rounded-full shadow-md active:scale-95"
+                  >
+                    <FontAwesome5 name="award" size={10} color="#141210" />
+                    <Text className="text-[#141210] text-[11px] font-black ml-1 uppercase tracking-wider">
+                      LV.{currentTierLevel}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
                 <Text className="text-zinc-400 text-xs font-bold mt-1.5">
-                  {user?.email || "Email không xác định"} • {series.length} Tác
-                  phẩm
+                  @{user?.username || "creator"} • {followersCount} người đăng ký • {series.length} tác phẩm
                 </Text>
+
                 <Text className="text-stone-200 text-[13px] font-semibold mt-3 leading-5">
                   {effectiveBio}
                 </Text>
@@ -2635,6 +2675,14 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
           )}
         </View>
       </Modal>
+      <CreatorTierModal
+        visible={showTierModal}
+        onClose={() => setShowTierModal(false)}
+        currentTierLevel={currentTierLevel}
+        currentFollowers={followersCount}
+        currentViews={totalViewsSum}
+        currentWatchTime={totalWatchTimeSum}
+      />
     </View>
   );
 }

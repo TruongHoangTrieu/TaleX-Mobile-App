@@ -36,7 +36,10 @@ function MissionCard({
 }) {
   const progress =
     mission.targetValue > 0
-      ? Math.min(100, Math.max(0, (mission.currentValue / mission.targetValue) * 100))
+      ? Math.min(
+          100,
+          Math.max(0, (mission.currentValue / mission.targetValue) * 100),
+        )
       : 0;
   const isOnlineMission = mission.code.startsWith("ONLINE_");
   const isAdMission = mission.code.startsWith("WATCH_AD_");
@@ -104,8 +107,7 @@ export default function CoinCenterScreen() {
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [activeAdMission, setActiveAdMission] = useState<string | null>(null);
   const hasPendingOnlineMission = missions.some(
-    (mission) =>
-      mission.code.startsWith("ONLINE_") && !mission.isCompleted,
+    (mission) => mission.code.startsWith("ONLINE_") && !mission.isCompleted,
   );
 
   const loadCheckInStatus = useCallback(async () => {
@@ -139,8 +141,6 @@ export default function CoinCenterScreen() {
       return () => clearInterval(syncInterval);
     }, [hasPendingOnlineMission, loadCheckInStatus, refreshRewardData]),
   );
-
-
 
   const handleCheckIn = async () => {
     if (isCheckingIn || checkInStatus.isCheckedInToday) return;
@@ -230,9 +230,7 @@ export default function CoinCenterScreen() {
               checkInStatus.isCheckedInToday ? "bg-[#262628]" : "bg-[#D4AF37]"
             }`}
           >
-            {isCheckingIn && (
-              <ActivityIndicator size="small" color="#141210" />
-            )}
+            {isCheckingIn && <ActivityIndicator size="small" color="#141210" />}
             <Text
               className={`font-black ${isCheckingIn ? "ml-2" : ""} ${
                 checkInStatus.isCheckedInToday
@@ -248,7 +246,9 @@ export default function CoinCenterScreen() {
         </View>
 
         <View className="mb-3 flex-row items-center justify-between">
-          <Text className="text-lg font-black text-white">Nhiệm Vụ Hôm Nay</Text>
+          <Text className="text-lg font-black text-white">
+            Nhiệm Vụ Hôm Nay
+          </Text>
           <Text className="text-xs font-bold text-[#7C766B]">
             {missions.length} nhiệm vụ
           </Text>
@@ -287,4 +287,3 @@ export default function CoinCenterScreen() {
     </SafeAreaView>
   );
 }
-

@@ -29,6 +29,7 @@ import LikedScreen from "@/screens/profile/LikedScreen";
 import SubscriptionsScreen from "@/screens/profile/SubscriptionsScreen";
 import BookmarkedScreen from "@/screens/profile/BookmarkedScreen";
 import HistoryScreen from "@/screens/profile/HistoryScreen";
+import ChangePasswordScreen from "@/screens/profile/ChangePasswordScreen";
 import { navigationRef } from "./navigationRef";
 import type { SeriesItem } from "@/services/series";
 
@@ -50,6 +51,7 @@ export type RootStackParamList = {
   };
   OnboardingScreen: undefined;
   EditProfileScreen: undefined;
+  ChangePasswordScreen: undefined;
   LikedScreen: undefined;
   SubscriptionsScreen: undefined;
   BookmarkedScreen: undefined;
@@ -126,6 +128,10 @@ export default function RootNavigator() {
         />
         <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} />
         <Stack.Screen name="EditProfileScreen" component={EditProfileScreen} />
+        <Stack.Screen
+          name="ChangePasswordScreen"
+          component={ChangePasswordScreen}
+        />
         <Stack.Screen name="LikedScreen" component={LikedScreen} />
         <Stack.Screen
           name="SubscriptionsScreen"

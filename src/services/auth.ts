@@ -541,6 +541,42 @@ export async function resetPassword(
   return json;
 }
 
+export interface ChangePasswordRequest {
+  currentPassword?: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export async function changePassword(
+  req: ChangePasswordRequest
+): Promise<GenericResponse<string>> {
+  const url = `${BASE_URL.replace(/\/$/, "")}/api/auth/change-password`;
+
+  const res = await authFetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "*/*",
+    },
+    body: JSON.stringify(req),
+  });
+
+  const text = await res.text();
+  let json: GenericResponse<any>;
+  try {
+    json = text ? JSON.parse(text) : ({} as GenericResponse<any>);
+  } catch (e) {
+    throw new Error(`Invalid JSON response from ${url}`);
+  }
+
+  if (!res.ok || json?.success === false) {
+    const msg = json?.message || `Đổi mật khẩu thất bại (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return json;
+}
+
 /**
  * One-time code so the website can auto-login this account (SSO handoff) —
  * never throws, returns null on any failure so callers can fall back to

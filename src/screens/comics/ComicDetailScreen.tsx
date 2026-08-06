@@ -25,6 +25,7 @@ import { InteractiveStarRating } from "@/components/InteractiveStarRating";
 import { getComicById, allComics } from "./comicMockData";
 import {
   getPublicSeriesDetail,
+  getPublicSeries,
   getSeriesSeasons,
   getSeasonEpisodes,
   getPublicCombos,
@@ -33,6 +34,7 @@ import {
   SeasonItem,
   EpisodeItem,
   ComboItem,
+  SeriesItem,
 } from "@/services/series";
 import { useCreatorFollow } from "@/hooks/useCreatorFollow";
 import { FollowButton } from "@/components/FollowButton";
@@ -129,12 +131,47 @@ export default function ComicDetailScreen() {
     isMutating: isFollowMutating,
   } = useCreatorFollow(creatorAccountId);
 
+  const [realRecommendations, setRealRecommendations] = useState<SeriesItem[]>([]);
+  const [recPage, setRecPage] = useState<number>(1);
+  const [loadingRecs, setLoadingRecs] = useState<boolean>(false);
+
+  const fetchComicRecommendations = useCallback(
+    async (pageToFetch = 1) => {
+      setLoadingRecs(true);
+      try {
+        const res = await getPublicSeries(pageToFetch, 20, "COMIC");
+        if (res?.data?.content) {
+          const filtered = res.data.content.filter(
+            (item: any) =>
+              (item.seriesId || item.id) !== comicId &&
+              (item.contentType?.toUpperCase() === "COMIC" || !item.contentType)
+          );
+          const shuffled = [...filtered].sort(() => 0.5 - Math.random());
+          setRealRecommendations(shuffled.slice(0, 6));
+        }
+      } catch (err) {
+        console.error("Lỗi tải đề xuất truyện:", err);
+      } finally {
+        setLoadingRecs(false);
+      }
+    },
+    [comicId],
+  );
+
+  const handleRefreshRecommendations = () => {
+    const nextPage = recPage >= 3 ? 1 : recPage + 1;
+    setRecPage(nextPage);
+    fetchComicRecommendations(nextPage);
+  };
+
   // Tải chi tiết dữ liệu thực từ API đầy đủ tất cả các trường
   const loadData = useCallback(
     async (isSilent = false) => {
       if (!isSilent) setLoading(true);
 
       try {
+        fetchComicRecommendations(1);
+
         if (comicId && comicId.length >= 10) {
           const detailRes = await getPublicSeriesDetail(comicId);
           const detail = detailRes?.data;
@@ -481,8 +518,13 @@ export default function ComicDetailScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Interactive 5-Star Rating Badge Component */}
-            <View className="mt-1.5 flex-row items-center">
+            {/* Rating & Compact Inline Stats Badge Row (Single Horizontal Scrollable Row) */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="mt-1.5"
+              contentContainerStyle={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
               <InteractiveStarRating
                 seriesId={comicId || comic.id}
                 seriesTitle={comic.title}
@@ -490,7 +532,28 @@ export default function ComicDetailScreen() {
                 totalRatingsCount={comic.totalRatingsCount || 0}
                 onRatingUpdated={() => loadData(true)}
               />
-            </View>
+
+              <View className="flex-row items-center bg-rose-500/10 border border-rose-500/30 px-1.5 py-0.5 rounded-lg">
+                <Ionicons name="heart" size={10} color="#f43f5e" />
+                <Text className="text-rose-400 text-[10px] font-extrabold ml-1">
+                  {formatAnalyticNumber(comic.analyticData?.likes ?? comic.likes ?? 0)}
+                </Text>
+              </View>
+
+              <View className="flex-row items-center bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded-lg">
+                <Ionicons name="bookmark" size={10} color="#fbbf24" />
+                <Text className="text-amber-400 text-[10px] font-extrabold ml-1">
+                  {formatAnalyticNumber(comic.analyticData?.bookmarks ?? 0)}
+                </Text>
+              </View>
+
+              <View className="flex-row items-center bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 rounded-lg">
+                <Ionicons name="share-social" size={10} color="#34d399" />
+                <Text className="text-emerald-400 text-[10px] font-extrabold ml-1">
+                  {formatAnalyticNumber(comic.analyticData?.shares ?? 0)}
+                </Text>
+              </View>
+            </ScrollView>
 
             {/* Description */}
             {comic.description ? (
@@ -499,23 +562,23 @@ export default function ComicDetailScreen() {
               </Text>
             ) : null}
 
-            {/* Category Pill Badges (Teal Theme) */}
+            {/* Category Pill Badges Row (Max 3 items, well-spaced) */}
             {categoriesArray.length > 0 && (
-              <View className="flex-row items-center flex-wrap gap-1.5 mt-2">
-                {categoriesArray.map((cat: string, idx: number) => (
-                  <View key={`cat-${idx}`} className="px-2.5 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/40">
-                    <Text className="text-teal-300 text-[10px] font-bold">{cat}</Text>
+              <View className="flex-row items-center flex-wrap gap-2 mt-2">
+                {categoriesArray.slice(0, 3).map((cat: string, idx: number) => (
+                  <View key={`cat-${idx}`} className="px-2.5 py-0.5 rounded-md bg-teal-500/15 border border-teal-400/35">
+                    <Text className="text-teal-300 text-[10px] font-extrabold">{cat}</Text>
                   </View>
                 ))}
               </View>
             )}
 
-            {/* Tag Pill Badges (Amber/Gold Theme) */}
+            {/* Tag Pill Badges Row (Max 3 items, well-spaced) */}
             {displayTagNames.length > 0 && (
-              <View className="flex-row items-center flex-wrap gap-1.5 mt-1.5">
-                {displayTagNames.map((tag: string, idx: number) => (
-                  <View key={`tag-${idx}`} className="px-2.5 py-0.5 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/40">
-                    <Text className="text-[#D4AF37] text-[10px] font-bold">#{tag}</Text>
+              <View className="flex-row items-center flex-wrap gap-2 mt-1.5">
+                {displayTagNames.slice(0, 3).map((tag: string, idx: number) => (
+                  <View key={`tag-${idx}`} className="px-2.5 py-0.5 rounded-md bg-[#D4AF37]/15 border border-[#D4AF37]/35">
+                    <Text className="text-[#D4AF37] text-[10px] font-extrabold">#{tag}</Text>
                   </View>
                 ))}
               </View>
@@ -550,42 +613,6 @@ export default function ComicDetailScreen() {
         {/* ================= 4. TAB CONTENT ================= */}
         {bottomTab === "about" && (
           <View className="px-4">
-            {/* ================= ANALYTIC DATA CARD ================= */}
-            <View className="mb-5 bg-[#1E2024] border border-white/10 rounded-2xl p-4 shadow-lg">
-              <View className="flex-row items-center gap-2 mb-3 border-b border-white/5 pb-2.5">
-                <Ionicons name="bar-chart-outline" size={16} color="#D4AF37" />
-                <Text className="text-white text-sm font-bold">Chỉ số tác phẩm</Text>
-              </View>
-
-              <View className="flex-row items-center justify-between">
-                {/* Likes */}
-                <View className="w-[31%] bg-zinc-900/60 border border-white/5 p-2.5 rounded-xl items-center">
-                  <Ionicons name="heart-outline" size={16} color="#f43f5e" />
-                  <Text className="text-white text-xs font-black mt-1">
-                    {formatAnalyticNumber(comic.analyticData?.likes ?? comic.likes ?? 0)}
-                  </Text>
-                  <Text className="text-zinc-400 text-[10px] font-medium">Lượt thích</Text>
-                </View>
-
-                {/* Bookmarks */}
-                <View className="w-[31%] bg-zinc-900/60 border border-white/5 p-2.5 rounded-xl items-center">
-                  <Ionicons name="bookmark-outline" size={16} color="#fbbf24" />
-                  <Text className="text-white text-xs font-black mt-1">
-                    {formatAnalyticNumber(comic.analyticData?.bookmarks ?? 0)}
-                  </Text>
-                  <Text className="text-zinc-400 text-[10px] font-medium">Lượt lưu</Text>
-                </View>
-
-                {/* Shares */}
-                <View className="w-[31%] bg-zinc-900/60 border border-white/5 p-2.5 rounded-xl items-center">
-                  <Ionicons name="share-social-outline" size={16} color="#34d399" />
-                  <Text className="text-white text-xs font-black mt-1">
-                    {formatAnalyticNumber(comic.analyticData?.shares ?? 0)}
-                  </Text>
-                  <Text className="text-zinc-400 text-[10px] font-medium">Chia sẻ</Text>
-                </View>
-              </View>
-            </View>
 
             {/* Badge Summary Row with Age Rating */}
             <View className="flex-row items-center gap-2 mb-3 flex-wrap">
@@ -764,43 +791,56 @@ export default function ComicDetailScreen() {
               )}
             </View>
 
-            {/* ================= 6. ĐỀ XUẤT (GRID 3 CỘT CHUẨN MẪU) ================= */}
+            {/* ================= 6. ĐỀ XUẤT TRUYỆN CÙNG THỂ LOẠI (API GET /api/v1/public/series?contentType=COMIC) ================= */}
             <View className="mt-2 mb-4">
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-white text-base font-bold">Đề xuất</Text>
                 <TouchableOpacity
-                  onPress={() => onRefresh()}
-                  className="flex-row items-center"
+                  onPress={handleRefreshRecommendations}
+                  disabled={loadingRecs}
+                  className="flex-row items-center px-2.5 py-1 bg-zinc-800/80 border border-white/10 rounded-full active:scale-95 shadow-sm"
                   activeOpacity={0.7}
                 >
-                  <Text className="text-zinc-300 text-xs font-semibold mr-1">Làm mới</Text>
-                  <Ionicons name="refresh-outline" size={14} color="#D4AF37" />
+                  <Text className="text-zinc-300 text-xs font-semibold mr-1.5">
+                    {loadingRecs ? "Đang tải..." : "Làm mới"}
+                  </Text>
+                  {loadingRecs ? (
+                    <ActivityIndicator size="small" color="#D4AF37" />
+                  ) : (
+                    <Ionicons name="refresh-outline" size={14} color="#D4AF37" />
+                  )}
                 </TouchableOpacity>
               </View>
 
               {/* 3-Column Recommendations Grid */}
               <View className="flex-row flex-wrap justify-between gap-y-3">
-                {recommendations.map((rec) => (
-                  <TouchableOpacity
-                    key={rec.id}
-                    onPress={() => {
-                      navigation.replace("ComicDetailScreen", { comicId: rec.id });
-                    }}
-                    className="w-[31.5%]"
-                    activeOpacity={0.85}
-                  >
-                    <View className="w-full h-[140px] rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
-                      <Image
-                        source={rec.image}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                      />
-                    </View>
-                    <Text className="text-white text-xs font-bold mt-1.5 leading-4" numberOfLines={2}>
-                      {rec.title}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {(realRecommendations.length > 0 ? realRecommendations : recommendations).map((rec: any) => {
+                  const recId = rec.seriesId || rec.id;
+                  const recImg = rec.coverUrl || rec.bannerUrl || rec.thumbnailUrl || rec.image;
+                  return (
+                    <TouchableOpacity
+                      key={recId}
+                      onPress={() => {
+                        navigation.replace("ComicDetailScreen", { comicId: recId, seriesItem: rec });
+                      }}
+                      className="w-[31.5%]"
+                      activeOpacity={0.85}
+                    >
+                      <View className="w-full h-[140px] rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
+                        {typeof recImg === "string" ? (
+                          <Image source={{ uri: recImg }} className="w-full h-full" resizeMode="cover" />
+                        ) : recImg ? (
+                          <Image source={recImg} className="w-full h-full" resizeMode="cover" />
+                        ) : (
+                          <Image source={require("@assets/comic1.webp")} className="w-full h-full" resizeMode="cover" />
+                        )}
+                      </View>
+                      <Text className="text-white text-xs font-bold mt-1.5 leading-4" numberOfLines={2}>
+                        {rec.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </View>

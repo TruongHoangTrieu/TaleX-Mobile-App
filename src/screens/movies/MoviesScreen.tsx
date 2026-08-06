@@ -18,6 +18,7 @@ import { navigate as safeNavigateRef } from "@/navigation/navigationRef";
 import Header from "@components/Header";
 import MovieCarousel from "@components/MovieCarousel";
 import RecentWatchSection from "@/components/RecentWatchSection";
+import CinematicBackground from "@/components/CinematicBackground";
 import {
   MovieItem,
   trendingMovies,
@@ -264,95 +265,97 @@ export default function MoviesScreen() {
   };
 
   return (
-    <SafeAreaView edges={[]} className="flex-1 bg-[#141619]">
+    <SafeAreaView edges={[]} className="flex-1 bg-black" style={{ backgroundColor: "#000000" }}>
       <StatusBar barStyle="light-content" translucent />
 
-      <Header titleType="text" titleText="Phim" showCategories={false} />
+      <CinematicBackground>
+        <Header titleType="text" titleText="Phim" showCategories={false} />
 
-      <ScrollView
-        className="flex-1"
-        alwaysBounceVertical={true}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 130 }}
-      >
-        {/* ================= HERO CAROUSEL PHIM VỚI BỘ 3 NÚT BẤM NETFLIX ================= */}
-        <View className="mt-3">
-          <MovieCarousel />
-        </View>
-
-        {/* TIẾP TỤC XEM PHIM SECTION */}
-        <RecentWatchSection filterType="VIDEO" title="Tiếp Tục Xem Phim" />
-
-        {/* ================= SECTION 1: PHIM BỘ HỆ THỐNG ================= */}
-        <View className="mt-6">
-          <View className="flex-row justify-between items-center px-4 mb-3">
-            <View className="flex-row items-center">
-              <FontAwesome5 name="film" size={15} color="#D4AF37" />
-              <Text className="text-white font-bold text-base tracking-wide ml-2">
-                Phim Bộ Hệ Thống
-              </Text>
-            </View>
+        <ScrollView
+          className="flex-1"
+          alwaysBounceVertical={true}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 130 }}
+        >
+          {/* ================= HERO CAROUSEL PHIM VỚI BỘ 3 NÚT BẤM NETFLIX ================= */}
+          <View className="mt-3">
+            <MovieCarousel />
           </View>
 
-          {loading ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 16 }}
-            >
-              {Array.from({ length: 5 }).map((_, idx) => (
-                <View
-                  key={idx}
-                  className="mr-4 w-[135px] h-[180px] rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 p-2"
-                >
-                  <SkeletonPulse className="w-full h-full rounded-xl" />
-                </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <FlatList
-              horizontal
-              data={apiSeries}
-              renderItem={renderApiSeriesCard}
-              keyExtractor={(i) => "api-series-" + (i.seriesId || i.id)}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 16 }}
-              ListEmptyComponent={
-                <Text className="text-[#A1A1AA] text-xs px-4 py-2 italic">
-                  Không có phim bộ hệ thống nào
+          {/* TIẾP TỤC XEM PHIM SECTION */}
+          <RecentWatchSection filterType="VIDEO" title="Tiếp Tục Xem Phim" />
+
+          {/* ================= SECTION 1: PHIM BỘ HỆ THỐNG ================= */}
+          <View className="mt-6">
+            <View className="flex-row justify-between items-center px-4 mb-3">
+              <View className="flex-row items-center">
+                <FontAwesome5 name="film" size={15} color="#D4AF37" />
+                <Text className="text-white font-bold text-base tracking-wide ml-2">
+                  Phim Bộ Hệ Thống
                 </Text>
-              }
-            />
-          )}
-        </View>
+              </View>
+            </View>
 
-        {/* ================= SECTION 2: PHIM ĐANG THỊNH HÀNH ================= */}
-        <MovieSection
-          title="Phim Đang Thịnh Hành"
-          icon={<Ionicons name="flame" size={16} color="#D4AF37" />}
-          data={filterContent(trendingMovies)}
-          renderItem={renderMovieCard}
-          onSeeMore={() => navigateTo("Search")}
-        />
+            {loading ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 16 }}
+              >
+                {Array.from({ length: 5 }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    className="mr-4 w-[135px] h-[180px] rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 p-2"
+                  >
+                    <SkeletonPulse className="w-full h-full rounded-xl" />
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <FlatList
+                horizontal
+                data={apiSeries}
+                renderItem={renderApiSeriesCard}
+                keyExtractor={(i) => "api-series-" + (i.seriesId || i.id)}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 16 }}
+                ListEmptyComponent={
+                  <Text className="text-[#A1A1AA] text-xs px-4 py-2 italic">
+                    Không có phim bộ hệ thống nào
+                  </Text>
+                }
+              />
+            )}
+          </View>
 
-        {/* ================= SECTION 3: ANIME NỔI BẬT ================= */}
-        <MovieSection
-          title="Anime Nổi Bật"
-          icon={<Ionicons name="sparkles" size={16} color="#D4AF37" />}
-          data={filterContent(animeHotMovies)}
-          renderItem={renderMovieCard}
-          onSeeMore={() => navigateTo("Search")}
-        />
+          {/* ================= SECTION 2: PHIM ĐANG THỊNH HÀNH ================= */}
+          <MovieSection
+            title="Phim Đang Thịnh Hành"
+            icon={<Ionicons name="flame" size={16} color="#D4AF37" />}
+            data={filterContent(trendingMovies)}
+            renderItem={renderMovieCard}
+            onSeeMore={() => navigateTo("Search")}
+          />
 
-        {/* ================= SECTION 4: PHIM BỘ CHỌN LỌC ================= */}
-        <MovieSection
-          title="Phim Bộ Chọn Lọc"
-          icon={<Feather name="tv" size={16} color="#D4AF37" />}
-          data={filterContent(newSeriesMovies)}
-          renderItem={renderMovieCard}
-          onSeeMore={() => navigateTo("Search")}
-        />
-      </ScrollView>
+          {/* ================= SECTION 3: ANIME NỔI BẬT ================= */}
+          <MovieSection
+            title="Anime Nổi Bật"
+            icon={<Ionicons name="sparkles" size={16} color="#D4AF37" />}
+            data={filterContent(animeHotMovies)}
+            renderItem={renderMovieCard}
+            onSeeMore={() => navigateTo("Search")}
+          />
+
+          {/* ================= SECTION 4: PHIM BỘ CHỌN LỌC ================= */}
+          <MovieSection
+            title="Phim Bộ Chọn Lọc"
+            icon={<Feather name="tv" size={16} color="#D4AF37" />}
+            data={filterContent(newSeriesMovies)}
+            renderItem={renderMovieCard}
+            onSeeMore={() => navigateTo("Search")}
+          />
+        </ScrollView>
+      </CinematicBackground>
     </SafeAreaView>
   );
 }

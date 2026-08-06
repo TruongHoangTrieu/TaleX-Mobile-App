@@ -256,3 +256,39 @@ export async function acceptNewTerms(versionId: string): Promise<TermsLogRespons
   });
   return parseCreatorResponse<TermsLogResponse>(res, url);
 }
+
+export interface NextCreatorTierData {
+  tierId?: string;
+  tierName: string;
+  tierLevel: number;
+  minFollowerRequired: number;
+  minViewsRequired: number;
+  minWatchTimeRequired: number;
+  premiumFundShareRatio: number;
+  directPurchaseShareRatio: number;
+  isDefault?: boolean;
+}
+
+export async function getNextCreatorTier(currentTierLevel = 0): Promise<NextCreatorTierData | null> {
+  const baseUrlClean = BASE_URL.replace(/\/$/, "");
+  const url = `${baseUrlClean}/api/v1/creator-tiers/next?currentTierLevel=${currentTierLevel}`;
+
+  try {
+    const res = await authFetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "*/*",
+      },
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const json = await res.json();
+    return json?.data ?? null;
+  } catch (err) {
+    console.log("Error fetching next creator tier:", err);
+    return null;
+  }
+}

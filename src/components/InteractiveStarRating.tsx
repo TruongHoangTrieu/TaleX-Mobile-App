@@ -150,36 +150,36 @@ export function InteractiveStarRating({
 
   const hasRatings = realRatingsCount > 0;
   const displayRatingScore = hasRatings ? realAvgScore.toFixed(1) : "0.0";
+  const hasUserRated = userRating !== null;
 
   return (
     <>
       {/* BADGE TRIGGER BUTTON */}
-      {hasRatings ? (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => setModalVisible(true)}
-          className="flex-row items-center bg-[#D4AF37]/15 border border-[#D4AF37]/35 px-2 py-0.5 rounded-lg"
-        >
-          <FontAwesome name="star" size={11} color="#D4AF37" />
-          <Text className="text-[#D4AF37] text-[11px] font-black ml-1">
-            {displayRatingScore}
-          </Text>
-          <Text className="text-zinc-400 text-[9px] font-semibold ml-0.5">
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => setModalVisible(true)}
+        className="flex-row items-center bg-[#D4AF37]/15 border border-[#D4AF37]/40 px-2 py-0.5 rounded-lg active:scale-95 shadow-sm"
+      >
+        <FontAwesome name={hasRatings ? "star" : "star-o"} size={11} color="#D4AF37" />
+        <Text className="text-[#D4AF37] text-[11px] font-black ml-1.5">
+          {displayRatingScore}
+        </Text>
+
+        {hasRatings && (
+          <Text className="text-zinc-400 text-[10px] font-medium ml-1">
             ({realRatingsCount})
           </Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => setModalVisible(true)}
-          className="flex-row items-center bg-[#D4AF37]/10 border border-[#D4AF37]/45 px-2.5 py-0.5 rounded-lg active:scale-95"
-        >
-          <FontAwesome name="star-o" size={11} color="#D4AF37" />
-          <Text className="text-[#D4AF37] text-[11px] font-black ml-1.5">
-            Đánh giá ngay
-          </Text>
-        </TouchableOpacity>
-      )}
+        )}
+
+        {!hasUserRated && (
+          <>
+            <Text className="text-zinc-500 text-[10px] font-medium mx-1.5">·</Text>
+            <Text className="text-[#D4AF37] text-[10px] font-bold tracking-wide">
+              Đánh giá ngay
+            </Text>
+          </>
+        )}
+      </TouchableOpacity>
 
       {/* RATING INTERACTIVE MODAL */}
       <Modal

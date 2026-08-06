@@ -106,12 +106,12 @@ export default function BannerCarousel({
   if (!slides || slides.length === 0) {
     return (
       <View
-        style={{ width: screenWidth, height: bannerHeight + 20 }}
-        className="relative bg-[#141619] p-4 flex-col justify-end"
+        style={{ width: screenWidth, height: bannerHeight }}
+        className="relative bg-transparent p-4 flex-col justify-end"
       >
         <View className="w-full h-full absolute inset-0 bg-zinc-900/90 animate-pulse" />
         <LinearGradient
-          colors={["transparent", "rgba(20, 22, 25, 0.9)", "#141619"]}
+          colors={["transparent", "rgba(13, 11, 10, 0.6)", "rgba(13, 11, 10, 0.95)"]}
           className="absolute inset-0"
         />
         <View className="relative mb-2">
@@ -162,8 +162,8 @@ export default function BannerCarousel({
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={() => handleNavigate(item)}
-        style={{ width: screenWidth, height: bannerHeight + 20 }}
-        className="relative overflow-hidden bg-[#141619]"
+        style={{ width: screenWidth, height: bannerHeight }}
+        className="relative overflow-hidden bg-transparent"
       >
         {/* 16:9 FULL BANNER IMAGE FROM API */}
         <Animated.Image
@@ -192,16 +192,16 @@ export default function BannerCarousel({
         <LinearGradient
           colors={[
             "transparent",
-            "rgba(20, 22, 25, 0.25)",
-            "rgba(20, 22, 25, 0.85)",
-            "#141619",
+            "rgba(13, 11, 10, 0.25)",
+            "rgba(13, 11, 10, 0.75)",
+            "rgba(13, 11, 10, 0.95)",
           ]}
           style={{
             position: "absolute",
             bottom: 0,
             left: 0,
             right: 0,
-            height: 150,
+            height: 120,
           }}
           pointerEvents="none"
         />
@@ -210,7 +210,7 @@ export default function BannerCarousel({
         <Animated.View
           style={{
             position: "absolute",
-            bottom: 16,
+            bottom: 12,
             left: 0,
             right: 0,
             paddingHorizontal: 16,
@@ -251,14 +251,12 @@ export default function BannerCarousel({
               </Text>
             </View>
 
-            {/* View Count */}
-            {item.totalViews !== undefined ? (
-              <View className="bg-black/50 px-2.5 py-0.5 rounded-md">
-                <Text className="text-white text-[11px] font-bold">
-                  {formatViews(item.totalViews)}
-                </Text>
-              </View>
-            ) : null}
+            {/* Views Count */}
+            <View className="bg-black/50 px-2.5 py-0.5 rounded-md">
+              <Text className="text-white text-[11px] font-bold">
+                {formatViews(item.analyticData?.views ?? item.totalViews)}
+              </Text>
+            </View>
 
             {/* Average Rating Score (if > 0) */}
             {item.averageRating && item.averageRating > 0 ? (
@@ -276,8 +274,8 @@ export default function BannerCarousel({
 
   return (
     <View
-      style={{ height: bannerHeight + 20 }}
-      className="relative bg-[#141619]"
+      style={{ height: bannerHeight }}
+      className="relative bg-transparent"
     >
       <Animated.FlatList
         ref={flatListRef}

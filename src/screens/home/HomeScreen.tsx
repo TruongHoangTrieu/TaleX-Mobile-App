@@ -28,6 +28,7 @@ import { useUserFeature } from "@/hooks/useUserFeature";
 import Header from "@components/Header";
 import BannerCarousel from "@components/BannerCarousel";
 import RecentWatchSection from "@/components/RecentWatchSection";
+import CinematicBackground from "@/components/CinematicBackground";
 import {
   getHomeFeed,
   HomeFeedData,
@@ -817,8 +818,8 @@ export default function HomeScreen() {
   return (
     <SafeAreaView
       edges={[]}
-      className="flex-1 bg-[#141619]"
-      style={{ backgroundColor: "#141619" }}
+      className="flex-1 bg-black"
+      style={{ backgroundColor: "#000000" }}
     >
       <StatusBar
         barStyle="light-content"
@@ -826,41 +827,43 @@ export default function HomeScreen() {
         backgroundColor="transparent"
       />
 
-      {/* Header */}
-      <Header />
+      <CinematicBackground>
+        {/* Header */}
+        <Header />
 
-      <ScrollView
-        className="flex-1"
-        alwaysBounceVertical={true}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor="#D4AF37"
-            colors={["#D4AF37"]}
+        <ScrollView
+          className="flex-1"
+          alwaysBounceVertical={true}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 140 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#D4AF37"
+              colors={["#D4AF37"]}
+            />
+          }
+        >
+          {/* Banner Hero Carousel using Promoted Items (Max 3) */}
+          <BannerCarousel
+            promotedItems={feedData?.promoted?.slice(0, 3)}
+            navigation={navigation}
           />
-        }
-      >
-        {/* Banner Hero Carousel using Promoted Items (Max 3) */}
-        <BannerCarousel
-          promotedItems={feedData?.promoted?.slice(0, 3)}
-          navigation={navigation}
-        />
 
-        {/* RECENTLY WATCHED / CONTINUE WATCHING SECTION */}
-        <RecentWatchSection filterType="ALL" />
+          {/* RECENTLY WATCHED / CONTINUE WATCHING SECTION */}
+          <RecentWatchSection filterType="ALL" />
 
-        {/* 7 REMAINING RECOMMENDATION CHANNELS FROM API */}
-        {renderTrendingChannel()}
-        {renderNewReleasesChannel()}
-        {renderRecentlyUpdatedChannel()}
-        {renderLatestCommunityChoiceChannel()}
-        {renderCommunityChoiceChannel()}
-        {renderRandomCategoryChannel()}
-        {renderAccountSubscriptionChannel()}
-      </ScrollView>
+          {/* 7 REMAINING RECOMMENDATION CHANNELS FROM API */}
+          {renderTrendingChannel()}
+          {renderNewReleasesChannel()}
+          {renderRecentlyUpdatedChannel()}
+          {renderLatestCommunityChoiceChannel()}
+          {renderCommunityChoiceChannel()}
+          {renderRandomCategoryChannel()}
+          {renderAccountSubscriptionChannel()}
+        </ScrollView>
+      </CinematicBackground>
 
       {/* Onboarding Dialog Overlay */}
       {showOnboardingModal && (

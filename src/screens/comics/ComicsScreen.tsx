@@ -25,6 +25,7 @@ import { navigate as safeNavigateRef } from "@/navigation/navigationRef";
 import ComicCarousel from "@components/ComicCarousel";
 import Header from "@components/Header";
 import RecentWatchSection from "@/components/RecentWatchSection";
+import CinematicBackground from "@/components/CinematicBackground";
 import {
   ComicItem,
   comicCategories,
@@ -267,146 +268,148 @@ export default function ComicsScreen() {
   const topRankedComics = [...newComics, ...recommendedComics].slice(0, 5);
 
   return (
-    <SafeAreaView edges={[]} className="flex-1 bg-[#141619]">
+    <SafeAreaView edges={[]} className="flex-1 bg-black" style={{ backgroundColor: "#000000" }}>
       <StatusBar
         barStyle="light-content"
         translucent
         backgroundColor="transparent"
       />
 
-      <Header titleType="text" titleText="Truyện Tranh" showCategories={false} />
+      <CinematicBackground>
+        <Header titleType="text" titleText="Truyện Tranh" showCategories={false} />
 
-      <ScrollView
-        className="flex-1"
-        alwaysBounceVertical={true}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 130 }}
-      >
-        {/* 2. Carousel Banner */}
-        <View className="mt-1">
-          <ComicCarousel />
-        </View>
-
-        {/* 3. Continue Reading Bar (Tiếp tục đọc thực tế từ API) */}
-        <RecentWatchSection filterType="COMIC" title="Tiếp Tục Đọc Truyện" />
-
-        {/* 4. Top Webtoon Ranking (Bảng Xếp Hạng Tuần) */}
-        <View className="mt-7">
-          <View className="flex-row justify-between items-center px-4 mb-3">
-            <View className="flex-row items-center">
-              <FontAwesome5 name="trophy" size={15} color="#D4AF37" />
-              <Text className="text-white text-base font-bold tracking-wide ml-2">
-                Bảng Xếp Hạng Tuần Này
-              </Text>
-            </View>
+        <ScrollView
+          className="flex-1"
+          alwaysBounceVertical={true}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 130 }}
+        >
+          {/* 2. Carousel Banner */}
+          <View className="mt-1">
+            <ComicCarousel />
           </View>
 
-          <FlatList
-            horizontal
-            data={topRankedComics}
-            renderItem={renderRankedCard}
-            keyExtractor={(item) => `rank-${item.id}`}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16 }}
-          />
-        </View>
+          {/* 3. Continue Reading Bar (Tiếp tục đọc thực tế từ API) */}
+          <RecentWatchSection filterType="COMIC" title="Tiếp Tục Đọc Truyện" />
 
-        {/* 5. Spotlight Banner (Siêu Phẩm Chọn Lọc Tuần Này) */}
-        <View className="px-4 mt-7">
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => openComicDetail(newComics[2]?.id || newComics[0].id)}
-            className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900"
-          >
-            <Image
-              source={newComics[2]?.image || newComics[0].image}
-              className="w-full h-[170px]"
-              resizeMode="cover"
-            />
-            <LinearGradient
-              colors={["rgba(20,22,25,0.2)", "rgba(20,22,25,0.95)"]}
-              className="absolute inset-0 p-4 justify-end"
-            >
-              <View className="bg-[#D4AF37]/90 self-start px-2 py-0.5 rounded-md mb-1.5 flex-row items-center">
-                <Ionicons name="flame" size={12} color="#141619" />
-                <Text className="text-[#141619] text-[10px] font-black uppercase tracking-wider ml-1">
-                  SIÊU PHẨM TUẦN NÀY
+          {/* 4. Top Webtoon Ranking (Bảng Xếp Hạng Tuần) */}
+          <View className="mt-7">
+            <View className="flex-row justify-between items-center px-4 mb-3">
+              <View className="flex-row items-center">
+                <FontAwesome5 name="trophy" size={15} color="#D4AF37" />
+                <Text className="text-white text-base font-bold tracking-wide ml-2">
+                  Bảng Xếp Hạng Tuần Này
                 </Text>
               </View>
-              <Text className="text-white font-extrabold text-lg leading-tight">
-                {newComics[2]?.title || "Chú Thuật Hồi Chiến"}
-              </Text>
-              <Text
-                className="text-[#D1D5DB] text-xs mt-1 leading-snug"
-                numberOfLines={2}
+            </View>
+
+            <FlatList
+              horizontal
+              data={topRankedComics}
+              renderItem={renderRankedCard}
+              keyExtractor={(item) => `rank-${item.id}`}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
+            />
+          </View>
+
+          {/* 5. Spotlight Banner (Siêu Phẩm Chọn Lọc Tuần Này) */}
+          <View className="px-4 mt-7">
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => openComicDetail(newComics[2]?.id || newComics[0].id)}
+              className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900"
+            >
+              <Image
+                source={newComics[2]?.image || newComics[0].image}
+                className="w-full h-[170px]"
+                resizeMode="cover"
+              />
+              <LinearGradient
+                colors={["rgba(20,22,25,0.2)", "rgba(20,22,25,0.95)"]}
+                className="absolute inset-0 p-4 justify-end"
               >
-                {newComics[2]?.description ||
-                  "Cuộc chiến giữa các chú thuật sư và lời nguyền ngày càng khốc liệt."}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+                <View className="bg-[#D4AF37]/90 self-start px-2 py-0.5 rounded-md mb-1.5 flex-row items-center">
+                  <Ionicons name="flame" size={12} color="#141619" />
+                  <Text className="text-[#141619] text-[10px] font-black uppercase tracking-wider ml-1">
+                    SIÊU PHẨM TUẦN NÀY
+                  </Text>
+                </View>
+                <Text className="text-white font-extrabold text-lg leading-tight">
+                  {newComics[2]?.title || "Chú Thuật Hồi Chiến"}
+                </Text>
+                <Text
+                  className="text-[#D1D5DB] text-xs mt-1 leading-snug"
+                  numberOfLines={2}
+                >
+                  {newComics[2]?.description ||
+                    "Cuộc chiến giữa các chú thuật sư và lời nguyền ngày càng khốc liệt."}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
 
-        {/* 6. Truyện Tranh Hệ Thống (Mới Lên Sóng API) */}
-        <ComicSection
-          title="Truyện Tranh Mới Lên Sóng"
-          icon={<Ionicons name="flash" size={16} color="#D4AF37" />}
-          loading={loading}
-          data={apiComics.map((item) => ({
-            id: item.seriesId || item.id,
-            title: item.title,
-            image: item.coverUrl
-              ? { uri: item.coverUrl }
-              : require("@assets/comic1.webp"),
-            category: "Tất cả",
-            author: item.author || "TaleX Creator",
-            status:
-              item.status === "PUBLISHED" ? "Đã xuất bản" : "Đang tiến hành",
-            views: item.analyticData?.views ?? item.totalViews ?? item.views ?? 0,
-            analyticData: item.analyticData,
-            averageRating: item.averageRating,
-            totalViews: item.totalViews,
-            rating: item.rating || "10.0",
-            ageRating: item.ageRating || item.targetAudience || item.contentRating,
-            chapters: [],
-            description: item.description || "",
-          }))}
-          renderItem={renderComicCard}
-          emptyText="Chưa có truyện tranh hệ thống nào"
-          onSeeMore={() => navigateTo("Search")}
-        />
+          {/* 6. Truyện Tranh Hệ Thống (Mới Lên Sóng API) */}
+          <ComicSection
+            title="Truyện Tranh Mới Lên Sóng"
+            icon={<Ionicons name="flash" size={16} color="#D4AF37" />}
+            loading={loading}
+            data={apiComics.map((item) => ({
+              id: item.seriesId || item.id,
+              title: item.title,
+              image: item.coverUrl
+                ? { uri: item.coverUrl }
+                : require("@assets/comic1.webp"),
+              category: "Tất cả",
+              author: item.author || "TaleX Creator",
+              status:
+                item.status === "PUBLISHED" ? "Đã xuất bản" : "Đang tiến hành",
+              views: item.analyticData?.views ?? item.totalViews ?? item.views ?? 0,
+              analyticData: item.analyticData,
+              averageRating: item.averageRating,
+              totalViews: item.totalViews,
+              rating: item.rating || "10.0",
+              ageRating: item.ageRating || item.targetAudience || item.contentRating,
+              chapters: [],
+              description: item.description || "",
+            }))}
+            renderItem={renderComicCard}
+            emptyText="Chưa có truyện tranh hệ thống nào"
+            onSeeMore={() => navigateTo("Search")}
+          />
 
-        {/* 7. Nội Dung Mới */}
-        <ComicSection
-          title="Nội Dung Mới - Xem Ngay"
-          icon={<Ionicons name="sparkles" size={16} color="#D4AF37" />}
-          data={newComics}
-          renderItem={renderComicCard}
-          emptyText="Chưa có truyện mới"
-          onSeeMore={() => navigateTo("Search")}
-        />
+          {/* 7. Nội Dung Mới */}
+          <ComicSection
+            title="Nội Dung Mới - Xem Ngay"
+            icon={<Ionicons name="sparkles" size={16} color="#D4AF37" />}
+            data={newComics}
+            renderItem={renderComicCard}
+            emptyText="Chưa có truyện mới"
+            onSeeMore={() => navigateTo("Search")}
+          />
 
-        {/* 8. Đề Xuất Cho Bạn */}
-        <ComicSection
-          title="Đề Xuất Dành Cho Bạn"
-          icon={<FontAwesome5 name="bullseye" size={15} color="#D4AF37" />}
-          data={recommendedComics}
-          renderItem={renderComicCard}
-          emptyText="Chưa có đề xuất"
-          onSeeMore={() => navigateTo("Search")}
-        />
+          {/* 8. Đề Xuất Cho Bạn */}
+          <ComicSection
+            title="Đề Xuất Dành Cho Bạn"
+            icon={<FontAwesome5 name="bullseye" size={15} color="#D4AF37" />}
+            data={recommendedComics}
+            renderItem={renderComicCard}
+            emptyText="Chưa có đề xuất"
+            onSeeMore={() => navigateTo("Search")}
+          />
 
-        {/* 9. Combo Siêu Tiết Kiệm */}
-        <ComicSection
-          title="Combo Siêu Tiết Kiệm"
-          icon={<MaterialCommunityIcons name="diamond-stone" size={16} color="#D4AF37" />}
-          data={comboComics}
-          renderItem={renderComicCard}
-          emptyText="Không có gói combo nào"
-          highlighted
-          onSeeMore={() => navigateTo("Search")}
-        />
-      </ScrollView>
+          {/* 9. Combo Siêu Tiết Kiệm */}
+          <ComicSection
+            title="Combo Siêu Tiết Kiệm"
+            icon={<MaterialCommunityIcons name="diamond-stone" size={16} color="#D4AF37" />}
+            data={comboComics}
+            renderItem={renderComicCard}
+            emptyText="Không có gói combo nào"
+            highlighted
+            onSeeMore={() => navigateTo("Search")}
+          />
+        </ScrollView>
+      </CinematicBackground>
     </SafeAreaView>
   );
 }

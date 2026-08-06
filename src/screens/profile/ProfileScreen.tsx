@@ -390,6 +390,7 @@ export default function ProfileScreen() {
                 {renderMenuItem(
                   <SimpleLineIcons name="lock" size={14} color="#A19E95" />,
                   "Đổi mật khẩu tài khoản",
+                  () => navigation.navigate("ChangePasswordScreen"),
                 )}
                 <View className="h-[1px] bg-zinc-800/40 mx-4" />
               </>

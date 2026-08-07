@@ -899,6 +899,7 @@ export default function MovieDetailScreen() {
                             itemType: "COMBO",
                             title: combo.title,
                             returnScreen: "MovieDetailScreen",
+                            seriesId: movieId,
                           })
                         }
                       >

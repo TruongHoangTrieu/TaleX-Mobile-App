@@ -1,39 +1,22 @@
 import { WEB_BASE_URL } from "@/config";
-import type { ContentItemType } from "@/services/order";
 
 const webUrl = (path: string) => `${WEB_BASE_URL.replace(/\/$/, "")}${path}`;
 
-/**
- * Wraps a relative web path behind the SSO handoff route when a one-time
- * code is available, so the browser lands already logged in — falls back to
- * the plain URL (manual login on web) when `code` is null/undefined.
- */
-const wrapWithSso = (relativePath: string, code?: string | null) =>
-  code
-    ? webUrl(`/api/internal/auth/sso?code=${code}&redirect=${encodeURIComponent(relativePath)}`)
-    : webUrl(relativePath);
-
 /** `/checkout?subscriptionId=...` when a plan is already selected, else the plan list `/premium`. */
-export const buildPremiumWebUrl = (code?: string | null, subscriptionId?: string) =>
-  wrapWithSso(
-    subscriptionId ? `/checkout?subscriptionId=${subscriptionId}` : "/premium",
-    code,
-  );
+export const buildPremiumWebUrl = (subscriptionId?: string) =>
+  subscriptionId ? webUrl(`/checkout?subscriptionId=${subscriptionId}`) : webUrl("/premium");
 
-interface ContentCheckoutParams {
-  itemId: string;
-  itemType: ContentItemType;
-  title?: string;
-  returnTo?: string;
-}
+/**
+ * The episode's own content page — `/read/{id}` for comics, `/watch/{id}` for
+ * video — where the user can browse and tap "Mua" themselves on the website.
+ * Not a checkout URL: mobile only ever hands off to a content page, never
+ * straight into a payment flow.
+ */
+export const buildEpisodeWebUrl = (episodeId: string, contentKind: "COMIC" | "VIDEO") =>
+  webUrl(`/${contentKind === "COMIC" ? "read" : "watch"}/${episodeId}`);
 
-/** `/checkout-content` — used when the Coin balance can't fully cover an Episode/Combo. */
-export const buildContentCheckoutWebUrl = (
-  { itemId, itemType, title, returnTo }: ContentCheckoutParams,
-  code?: string | null,
-) => {
-  const params = new URLSearchParams({ itemId, itemType });
-  if (title) params.set("title", title);
-  if (returnTo) params.set("returnTo", returnTo);
-  return wrapWithSso(`/checkout-content?${params.toString()}`, code);
-};
+/**
+ * There's no standalone combo page on the website — combos are shown inside
+ * the series detail page, so that's the closest "combo's own page".
+ */
+export const buildComboWebUrl = (seriesId: string) => webUrl(`/series/${seriesId}`);

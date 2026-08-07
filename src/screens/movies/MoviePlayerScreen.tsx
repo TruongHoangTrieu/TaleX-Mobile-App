@@ -44,6 +44,7 @@ import { FollowButton } from "@/components/FollowButton";
 import { FollowersModal } from "@/components/FollowersModal";
 import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
 import ContentPaywall from "@/components/purchase/ContentPaywall";
+import { useContentPurchase } from "@/hooks/useContentPurchase";
 import { allMovies } from "./movieMockData";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -291,8 +292,8 @@ function VideoPlayerCore({
           </Text>
 
           <Text className="text-zinc-400 text-xs text-center mt-1 mb-4 leading-relaxed max-w-xs font-medium">
-            Bạn đã xem hết 10 giây xem thử. Vui lòng mở khóa hoặc đăng ký gói
-            Premium để tiếp tục xem đầy đủ {formatTime(apiDuration)}.
+            Bạn đã xem hết 10 giây xem thử. Vui lòng mua tập này để tiếp tục
+            xem đầy đủ {formatTime(apiDuration)}.
           </Text>
 
           <View className="w-full flex-col gap-2 max-w-xs">
@@ -307,7 +308,7 @@ function VideoPlayerCore({
                 style={{ marginRight: 6 }}
               />
               <Text className="text-white font-black text-xs uppercase tracking-wider">
-                Mở khóa / Gói Premium
+                Mua tập này
               </Text>
             </TouchableOpacity>
 
@@ -461,6 +462,7 @@ export default function MoviePlayerScreen() {
 
   const currentEp = episodes[currentIndex];
   const activeEpisodeId = currentEp?.episodeId || initialEpisodeId;
+  const { buy } = useContentPurchase();
 
   const {
     isLiked,
@@ -673,7 +675,15 @@ export default function MoviePlayerScreen() {
             replayCounter={replayCounter}
             playbackSpeed={playbackSpeed}
             initialPosition={params.initialPosition}
-            onNavigateToPlans={() => navigation.navigate("SubscriptionPlans")}
+            onNavigateToPlans={() =>
+              buy({
+                itemId: activeEpisodeId || "",
+                itemType: "EPISODE",
+                title: currentEp?.title || movieTitle,
+                returnScreen: "MoviePlayer",
+                contentKind: "VIDEO",
+              })
+            }
             onFinishedChange={setIsFinished}
           />
         ) : paywallEpisodeId && paywallEpisodeId === activeEpisodeId ? (
@@ -684,6 +694,7 @@ export default function MoviePlayerScreen() {
               title={currentEp?.title || movieTitle}
               priceVnd={currentEp?.priceVnd}
               returnScreen="MoviePlayer"
+              contentKind="VIDEO"
             />
           </View>
         ) : !loadingPlayback ? (

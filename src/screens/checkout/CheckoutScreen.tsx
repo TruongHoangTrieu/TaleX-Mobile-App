@@ -6,9 +6,8 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import { cancelOrder, confirmCoinPayment, type OrderResponseDto } from "@/services/order";
 import { getWallet } from "@/services/rewardService";
-import { getSsoHandoffCode } from "@/services/auth";
 import { useContentOrderCreation } from "@/hooks/useContentOrderCreation";
-import { buildContentCheckoutWebUrl } from "@/utils/web-checkout-links";
+import { buildComboWebUrl, buildEpisodeWebUrl } from "@/utils/web-checkout-links";
 import CoinConfirmPanel from "@/components/checkout/CoinConfirmPanel";
 import InsufficientCoinState from "@/components/checkout/InsufficientCoinState";
 import { ErrorState, SuccessState } from "@/components/checkout/CheckoutResultStates";
@@ -24,12 +23,18 @@ export default function CheckoutScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const params = route.params ?? {};
-  const { itemId, itemType, title, returnScreen = "MainTabs" } = params;
+  const {
+    itemId,
+    itemType,
+    title,
+    returnScreen = "MainTabs",
+    contentKind,
+    seriesId,
+  } = params;
 
   const { order, creating, error, create } = useContentOrderCreation(itemId, itemType);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [openingWeb, setOpeningWeb] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<OrderResponseDto | null>(null);
   const orderRef = useRef<OrderResponseDto | null>(null);
   const finalizedRef = useRef(false);
@@ -83,13 +88,12 @@ export default function CheckoutScreen() {
     navigation.navigate(returnScreen, { refreshKey: String(Date.now()) });
   };
 
-  const handleOpenWeb = async () => {
-    // Fetch the SSO code at press time (not earlier) so it can't go stale —
-    // the 60s TTL starts counting the moment it's issued.
-    setOpeningWeb(true);
-    const code = await getSsoHandoffCode();
-    setOpeningWeb(false);
-    Linking.openURL(buildContentCheckoutWebUrl({ itemId, itemType, title }, code));
+  const handleOpenWeb = () => {
+    const url =
+      itemType === "COMBO"
+        ? buildComboWebUrl(seriesId)
+        : buildEpisodeWebUrl(itemId, contentKind);
+    Linking.openURL(url);
   };
 
   return (
@@ -125,7 +129,6 @@ export default function CheckoutScreen() {
             requiredCoin={order.totalAmount}
             fiatShortfall={order.fiatAmount}
             onOpenWeb={handleOpenWeb}
-            openingWeb={openingWeb}
             onClose={handleCancelAndClose}
           />
         ) : (

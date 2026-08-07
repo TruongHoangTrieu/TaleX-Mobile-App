@@ -1,5 +1,6 @@
 import { Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useAuth } from "@/context/AuthContext";
 import type { ContentItemType } from "@/services/order";
 
 interface BuyContentParams {
@@ -7,6 +8,10 @@ interface BuyContentParams {
   itemType: ContentItemType;
   title?: string;
   returnScreen?: string;
+  /** Required for itemType "EPISODE" — picks the web page: /read (comic) vs /watch (video). */
+  contentKind?: "COMIC" | "VIDEO";
+  /** Required for itemType "COMBO" — the combo's own page is /series/{seriesId}, there's no dedicated combo page. */
+  seriesId?: string;
 }
 
 /**
@@ -20,8 +25,24 @@ interface BuyContentParams {
  */
 export function useContentPurchase() {
   const navigation = useNavigation<any>();
+  const { isAuthenticated } = useAuth();
 
-  const buy = ({ itemId, itemType, title, returnScreen }: BuyContentParams) => {
+  const buy = ({
+    itemId,
+    itemType,
+    title,
+    returnScreen,
+    contentKind,
+    seriesId,
+  }: BuyContentParams) => {
+    // Checkout needs a wallet/order lookup right away — without this guard a
+    // guest hits an unhandled "No refresh token available" error instead of
+    // being sent to log in first.
+    if (!isAuthenticated) {
+      navigation.navigate("LoginScreen");
+      return;
+    }
+
     Alert.alert(
       "Thanh toán bằng Coin",
       "Trên ứng dụng di động, nội dung này chỉ có thể mua bằng Coin. Nếu số dư Coin của bạn không đủ, bạn sẽ cần thanh toán phần còn thiếu trên website talex.pro.vn.",
@@ -30,7 +51,14 @@ export function useContentPurchase() {
         {
           text: "Tiếp tục",
           onPress: () =>
-            navigation.navigate("Checkout", { itemId, itemType, title, returnScreen }),
+            navigation.navigate("Checkout", {
+              itemId,
+              itemType,
+              title,
+              returnScreen,
+              contentKind,
+              seriesId,
+            }),
         },
       ],
     );

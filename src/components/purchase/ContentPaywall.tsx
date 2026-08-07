@@ -10,6 +10,7 @@ interface ContentPaywallProps {
   title?: string;
   priceVnd?: number;
   returnScreen?: string;
+  contentKind: "COMIC" | "VIDEO";
   message?: string;
 }
 
@@ -19,6 +20,7 @@ export default function ContentPaywall({
   title,
   priceVnd,
   returnScreen,
+  contentKind,
   message,
 }: ContentPaywallProps) {
   return (
@@ -38,6 +40,7 @@ export default function ContentPaywall({
           title={title}
           priceVnd={priceVnd}
           returnScreen={returnScreen}
+          contentKind={contentKind}
           label="Mua tập này"
         />
       </View>

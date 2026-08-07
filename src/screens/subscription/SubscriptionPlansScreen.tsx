@@ -26,7 +26,6 @@ import {
   type SubscriptionPlan,
 } from "@/services/subscription";
 import { useAuth } from "@/context/AuthContext";
-import { getSsoHandoffCode } from "@/services/auth";
 import { buildPremiumWebUrl } from "@/utils/web-checkout-links";
 
 const formatCurrency = (price: number) =>
@@ -257,10 +256,7 @@ export default function SubscriptionPlansScreen() {
                   { text: "Để sau", style: "cancel" },
                   {
                     text: "Đến Website",
-                    onPress: async () => {
-                      const code = await getSsoHandoffCode();
-                      Linking.openURL(buildPremiumWebUrl(code));
-                    },
+                    onPress: () => Linking.openURL(buildPremiumWebUrl()),
                   },
                 ],
               );

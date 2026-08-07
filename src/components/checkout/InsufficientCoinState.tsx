@@ -1,5 +1,5 @@
 import React from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { formatVnd } from "./format-vnd";
 
@@ -8,7 +8,6 @@ interface InsufficientCoinStateProps {
   requiredCoin: number;
   fiatShortfall: number;
   onOpenWeb: () => void;
-  openingWeb?: boolean;
   onClose: () => void;
 }
 
@@ -17,7 +16,6 @@ export default function InsufficientCoinState({
   requiredCoin,
   fiatShortfall,
   onOpenWeb,
-  openingWeb,
   onClose,
 }: InsufficientCoinStateProps) {
   return (
@@ -35,17 +33,12 @@ export default function InsufficientCoinState({
 
       <TouchableOpacity
         activeOpacity={0.85}
-        disabled={openingWeb}
         onPress={onOpenWeb}
         className="mt-5 h-12 w-full items-center justify-center rounded-xl bg-[#D4AF37]"
       >
-        {openingWeb ? (
-          <ActivityIndicator color="#141210" />
-        ) : (
-          <Text className="text-sm font-black uppercase tracking-wide text-[#141210]">
-            Mua trên Website
-          </Text>
-        )}
+        <Text className="text-sm font-black uppercase tracking-wide text-[#141210]">
+          Mua trên Website
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity
         activeOpacity={0.85}

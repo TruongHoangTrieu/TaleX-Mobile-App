@@ -100,6 +100,10 @@ export type RootStackParamList = {
     itemType: "EPISODE" | "COMBO";
     title?: string;
     returnScreen?: keyof RootStackParamList;
+    /** Required when itemType is "EPISODE" — picks /read vs /watch on the web fallback. */
+    contentKind?: "COMIC" | "VIDEO";
+    /** Required when itemType is "COMBO" — the combo's web fallback is its series page. */
+    seriesId?: string;
   };
 };
 

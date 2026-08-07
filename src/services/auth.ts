@@ -576,20 +576,3 @@ export async function changePassword(
 
   return json;
 }
-
-/**
- * One-time code so the website can auto-login this account (SSO handoff) —
- * never throws, returns null on any failure so callers can fall back to
- * opening the plain web URL and let the user log in manually there.
- */
-export async function getSsoHandoffCode(): Promise<string | null> {
-  try {
-    const url = `${BASE_URL.replace(/\/$/, "")}/api/auth/sso-handoff`;
-    const res = await authFetch(url, { method: "POST" });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json?.data?.code ?? null;
-  } catch {
-    return null;
-  }
-}

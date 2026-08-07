@@ -705,6 +705,7 @@ export default function ComicDetailScreen() {
                             itemType: "COMBO",
                             title: combo.title,
                             returnScreen: "ComicDetailScreen",
+                            seriesId: comicId,
                           })
                         }
                       >

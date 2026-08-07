@@ -39,6 +39,7 @@ import { LikeButton } from "@/components/LikeButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { ShareButton } from "@/components/ShareButton";
 import ContentPaywall from "@/components/purchase/ContentPaywall";
+import { useContentPurchase } from "@/hooks/useContentPurchase";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -249,7 +250,18 @@ function ComicImagePage({
   );
 }
 
-function PaywallCard({ navigation }: { navigation: any }) {
+function PaywallCard({
+  episodeId,
+  title,
+  priceVnd,
+  returnScreen,
+}: {
+  episodeId: string;
+  title?: string;
+  priceVnd?: number;
+  returnScreen?: string;
+}) {
+  const { buy } = useContentPurchase();
   return (
     <View
       style={{
@@ -316,7 +328,15 @@ function PaywallCard({ navigation }: { navigation: any }) {
       {/* Action Button */}
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={() => navigation.navigate("SubscriptionPlans")}
+        onPress={() =>
+          buy({
+            itemId: episodeId,
+            itemType: "EPISODE",
+            title,
+            returnScreen,
+            contentKind: "COMIC",
+          })
+        }
         style={{
           width: "100%",
           backgroundColor: "#D4AF37",
@@ -413,11 +433,6 @@ export default function ComicReaderScreen() {
   const [dbEpisodes, setDbEpisodes] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPaywallError, setIsPaywallError] = useState(false);
-  // Sentinel appended to `pages` in place of the first locked page — BE
-  // (MediaServiceImpl.listPublicByEpisode) allows a free preview (first 5
-  // pages) for COMIC content and returns 200 with `isLocked:true` items
-  // instead of an HTTP 403, so this can't be caught in the network error path.
-  const PAYWALL_SENTINEL = "__PAYWALL__";
 
   // Comment States
   const [showCommentsModal, setShowCommentsModal] = useState(false);
@@ -893,6 +908,7 @@ export default function ComicReaderScreen() {
               title={currentEp?.title || episodeTitle}
               priceVnd={(currentEp as any)?.priceVnd}
               returnScreen="ComicReader"
+              contentKind="COMIC"
               message={errorMsg}
             />
             <TouchableOpacity
@@ -987,7 +1003,12 @@ export default function ComicReaderScreen() {
                       paddingHorizontal: 20,
                     }}
                   >
-                    <PaywallCard navigation={navigation} />
+                    <PaywallCard
+                      episodeId={activeEpId}
+                      title={currentEp?.title || episodeTitle}
+                      priceVnd={(currentEp as any)?.priceVnd}
+                      returnScreen="ComicReader"
+                    />
                   </View>
                 )}
               </View>
@@ -1028,7 +1049,12 @@ export default function ComicReaderScreen() {
                       paddingHorizontal: 20,
                     }}
                   >
-                    <PaywallCard navigation={navigation} />
+                    <PaywallCard
+                      episodeId={activeEpId}
+                      title={currentEp?.title || episodeTitle}
+                      priceVnd={(currentEp as any)?.priceVnd}
+                      returnScreen="ComicReader"
+                    />
                   </View>
                 )}
               </View>

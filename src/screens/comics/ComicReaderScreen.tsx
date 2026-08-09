@@ -21,7 +21,6 @@ import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getComicById } from "./comicMockData";
 import {
   getPublicEpisodeMedia,
-  getPublicEpisodeDetail,
   getSeriesSeasons,
   getSeasonEpisodes,
   getPublicSeriesDetail,
@@ -255,11 +254,13 @@ function PaywallCard({
   title,
   priceVnd,
   returnScreen,
+  comicId,
 }: {
   episodeId: string;
   title?: string;
   priceVnd?: number;
   returnScreen?: string;
+  comicId?: string;
 }) {
   const { buy } = useContentPurchase();
   return (
@@ -335,6 +336,7 @@ function PaywallCard({
             title,
             returnScreen,
             contentKind: "COMIC",
+            seriesId: comicId,
           })
         }
         style={{
@@ -402,6 +404,7 @@ export default function ComicReaderScreen() {
     episodeTitle,
     episodeIndex = 0,
     episodeId,
+    refreshKey,
   } = route.params || {};
 
   const isMock = !comicId || comicId.length < 10;
@@ -479,19 +482,16 @@ export default function ComicReaderScreen() {
       })()
     : dbEpisodes;
 
-  const currentEpisodeIdx =
-    allEpisodes.findIndex(
-      (e) =>
-        e.episodeId === episodeId || (episodeTitle && e.title === episodeTitle),
-    ) !== -1
-      ? allEpisodes.findIndex(
-          (e) =>
-            e.episodeId === episodeId ||
-            (episodeTitle && e.title === episodeTitle),
-        )
-      : 0;
+  // -1 khi chưa tìm thấy (VD dbEpisodes chưa load xong) — KHÔNG fallback về
+  // index 0, vì đó là 1 tập ngẫu nhiên khác, gây hiện sai tên chương/tập.
+  // Nơi hiển thị (title/chapterTitle) đã có sẵn fallback về route params
+  // (`episodeTitle`/`chapterTitle`) khi currentEp không có dữ liệu.
+  const currentEpisodeIdx = allEpisodes.findIndex(
+    (e) =>
+      e.episodeId === episodeId || (episodeTitle && e.title === episodeTitle),
+  );
 
-  const currentEp = allEpisodes[currentEpisodeIdx] || allEpisodes[0] || {};
+  const currentEp = currentEpisodeIdx !== -1 ? allEpisodes[currentEpisodeIdx] : undefined;
   const activeEpId = episodeId || currentEp?.episodeId;
 
   // Fetch comments modal list from real API
@@ -530,11 +530,9 @@ export default function ComicReaderScreen() {
       setIsLockedEpisode(false);
       setIsPaywallError(false);
 
-      Promise.all([
-        getPublicEpisodeMedia(activeEpId, user?.accountId).catch((e) => e),
-        getPublicEpisodeDetail(activeEpId).catch(() => null),
-      ])
-        .then(([res, detailRes]) => {
+      getPublicEpisodeMedia(activeEpId, user?.accountId)
+        .catch((e) => e)
+        .then((res) => {
           if (res instanceof Error && (res as any).status === 403) {
             setIsLockedEpisode(true);
             setIsPaywallError(true);
@@ -543,7 +541,6 @@ export default function ComicReaderScreen() {
             return;
           }
 
-          const detailData = detailRes?.data || detailRes || {};
           const mediaData = res?.data || res || {};
           const rawData = Array.isArray(res)
             ? res
@@ -555,29 +552,21 @@ export default function ComicReaderScreen() {
 
           const data = Array.isArray(rawData) ? rawData : [];
 
-          const isLockedFromMedia = Boolean(
+          // The only entitlement-aware source: getPublicEpisodeMedia is sent
+          // via authFetch (Bearer token), so `isLocked`/`isEntitled` here
+          // reflect whether THIS viewer purchased the episode. Previously
+          // this also OR'd in getPublicEpisodeDetail (plain fetch, no auth —
+          // always reports "locked" for any PAID episode since it has no
+          // idea who's asking) and the client-cached episode list (never
+          // carries these fields at all) — both stuck `locked` at true
+          // forever, even right after a successful purchase.
+          const locked = Boolean(
             res?.isLocked === true ||
             mediaData?.isLocked === true ||
             res?.isEntitled === false ||
             mediaData?.isEntitled === false ||
             (Array.isArray(data) && data.some((m: any) => m.isLocked === true || m.isEntitled === false || m.locked === true))
           );
-
-          const isLockedFromDetail = Boolean(
-            detailData?.isLocked === true ||
-            detailData?.isEntitled === false ||
-            detailData?.isUnlocked === false ||
-            (detailData?.unlockType === "PAID" && !detailData?.isUnlocked && !detailData?.isEntitled)
-          );
-
-          const epMeta = (currentEp || {}) as any;
-          const isLockedFromCurrentEp = Boolean(
-            epMeta.isLocked === true ||
-            epMeta.isEntitled === false ||
-            (epMeta.unlockType === "PAID" && epMeta.isUnlocked === false && epMeta.isEntitled === false)
-          );
-
-          const locked = isLockedFromMedia || isLockedFromDetail || isLockedFromCurrentEp;
           setIsLockedEpisode(locked);
 
           if (data && data.length > 0) {
@@ -641,7 +630,10 @@ export default function ComicReaderScreen() {
     } else {
       setPages([]);
     }
-  }, [activeEpId, user?.accountId]);
+    // refreshKey: bumped by CheckoutScreen after a successful purchase so
+    // this effect re-runs and picks up the newly-unlocked pages even though
+    // activeEpId itself hasn't changed.
+  }, [activeEpId, user?.accountId, refreshKey]);
 
   const handleSendComment = async () => {
     if (!commentText.trim() || !activeEpId) return;
@@ -909,6 +901,7 @@ export default function ComicReaderScreen() {
               priceVnd={(currentEp as any)?.priceVnd}
               returnScreen="ComicReader"
               contentKind="COMIC"
+              seriesId={comicId}
               message={errorMsg}
             />
             <TouchableOpacity
@@ -1008,6 +1001,7 @@ export default function ComicReaderScreen() {
                       title={currentEp?.title || episodeTitle}
                       priceVnd={(currentEp as any)?.priceVnd}
                       returnScreen="ComicReader"
+                      comicId={comicId}
                     />
                   </View>
                 )}
@@ -1054,6 +1048,7 @@ export default function ComicReaderScreen() {
                       title={currentEp?.title || episodeTitle}
                       priceVnd={(currentEp as any)?.priceVnd}
                       returnScreen="ComicReader"
+                      comicId={comicId}
                     />
                   </View>
                 )}

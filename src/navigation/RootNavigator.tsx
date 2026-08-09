@@ -63,6 +63,8 @@ export type RootStackParamList = {
         chapterTitle?: string;
         episodeTitle?: string;
         episodeIndex?: number;
+        episodeId?: string;
+        refreshKey?: string;
       }
     | undefined;
   MovieDetailScreen:
@@ -82,6 +84,7 @@ export type RootStackParamList = {
         episodeTitle?: string;
         episodeIndex?: number;
         episodesList?: any[];
+        refreshKey?: string;
       }
     | undefined;
   Top10Movies: undefined;

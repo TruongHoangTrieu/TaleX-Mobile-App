@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { formatVnd } from "./format-vnd";
 
 interface CoinConfirmPanelProps {
+  walletBalance: number;
   totalAmount: number;
   coinAmountUsed: number;
   confirming: boolean;
@@ -11,22 +12,35 @@ interface CoinConfirmPanelProps {
 }
 
 export default function CoinConfirmPanel({
+  walletBalance,
   totalAmount,
   coinAmountUsed,
   confirming,
   onConfirm,
 }: CoinConfirmPanelProps) {
+  const remaining = walletBalance - coinAmountUsed;
   return (
     <View className="items-center rounded-3xl border border-[#D4AF37]/20 bg-[#1C1A18] p-5">
       <MaterialCommunityIcons name="hand-coin-outline" size={40} color="#D4AF37" />
       <Text className="mt-3 text-center text-sm text-[#A19E95]">
         Đơn hàng được thanh toán đủ bằng Coin, không cần quét QR.
       </Text>
-      <Text className="mt-3 text-2xl font-black text-[#D4AF37]">
-        {coinAmountUsed.toLocaleString("vi-VN")} Coin
+
+      <View className="mt-4 w-full flex-row items-center justify-between rounded-xl bg-black/20 px-4 py-2.5">
+        <Text className="text-xs font-semibold text-[#A19E95]">Số dư hiện tại</Text>
+        <Text className="text-sm font-bold text-white">
+          {walletBalance.toLocaleString("vi-VN")} Coin
+        </Text>
+      </View>
+
+      <Text className="mt-4 text-2xl font-black text-[#D4AF37]">
+        -{coinAmountUsed.toLocaleString("vi-VN")} Coin
       </Text>
       <Text className="mt-1 text-xs text-[#7C766B]">
         Tương đương {formatVnd(totalAmount)}
+      </Text>
+      <Text className="mt-2 text-xs font-semibold text-[#A19E95]">
+        Còn lại sau khi mua: {remaining.toLocaleString("vi-VN")} Coin
       </Text>
 
       <TouchableOpacity

@@ -11,6 +11,10 @@ interface ContentPaywallProps {
   priceVnd?: number;
   returnScreen?: string;
   contentKind: "COMIC" | "VIDEO";
+  /** comicId/movieId this episode belongs to — needed so the reader/player
+   * screen can resolve the right series after a successful purchase returns
+   * it here via navigate(). */
+  seriesId?: string;
   message?: string;
 }
 
@@ -21,6 +25,7 @@ export default function ContentPaywall({
   priceVnd,
   returnScreen,
   contentKind,
+  seriesId,
   message,
 }: ContentPaywallProps) {
   return (
@@ -41,6 +46,7 @@ export default function ContentPaywall({
           priceVnd={priceVnd}
           returnScreen={returnScreen}
           contentKind={contentKind}
+          seriesId={seriesId}
           label="Mua tập này"
         />
       </View>

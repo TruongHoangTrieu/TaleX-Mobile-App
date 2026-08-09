@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, ScrollView, StatusBar, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { CommonActions, useNavigation, useRoute } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import { cancelOrder, confirmCoinPayment, type OrderResponseDto } from "@/services/order";
 import { getWallet } from "@/services/rewardService";
@@ -85,7 +85,30 @@ export default function CheckoutScreen() {
   };
 
   const handleDone = () => {
-    navigation.navigate(returnScreen, { refreshKey: String(Date.now()) });
+    const extra: Record<string, string> = { refreshKey: String(Date.now()) };
+    if (itemType === "EPISODE") {
+      extra.episodeId = itemId;
+      if (contentKind === "COMIC" && seriesId) extra.comicId = seriesId;
+      if (contentKind === "VIDEO" && seriesId) extra.movieId = seriesId;
+    }
+    // navigate({..., merge: true}) relies on React Navigation finding an
+    // existing route with this name to pop back to — unreliable here, it was
+    // still leaving this success screen in the stack (back button landed on
+    // it instead of the series page). Instead, directly pop this screen off
+    // the stack and merge params into whatever screen is now on top — no
+    // dependency on name-matching, guaranteed to remove Checkout.
+    navigation.dispatch((state: any) => {
+      const routes = state.routes.slice(0, -1);
+      if (routes.length === 0) {
+        return CommonActions.navigate({ name: returnScreen, params: extra });
+      }
+      const lastIndex = routes.length - 1;
+      routes[lastIndex] = {
+        ...routes[lastIndex],
+        params: { ...routes[lastIndex].params, ...extra },
+      };
+      return CommonActions.reset({ ...state, routes, index: lastIndex });
+    });
   };
 
   const handleOpenWeb = () => {
@@ -133,6 +156,7 @@ export default function CheckoutScreen() {
           />
         ) : (
           <CoinConfirmPanel
+            walletBalance={walletBalance}
             totalAmount={order.totalAmount}
             coinAmountUsed={order.coinAmountUsed}
             confirming={confirming}

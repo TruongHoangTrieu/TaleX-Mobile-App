@@ -58,6 +58,7 @@ type MoviePlayerRouteParams = {
   episodeIndex?: number;
   episodesList?: EpisodeItem[];
   initialPosition?: number;
+  refreshKey?: string;
 };
 
 function formatTime(seconds: number): string {
@@ -427,6 +428,7 @@ export default function MoviePlayerScreen() {
     episodeId: initialEpisodeId,
     episodeIndex: initialIndex = 0,
     episodesList: passedEpisodes = [],
+    refreshKey,
   } = params;
 
   const [episodes, setEpisodes] = useState<EpisodeItem[]>(passedEpisodes);
@@ -601,7 +603,10 @@ export default function MoviePlayerScreen() {
     if (activeEpisodeId) {
       fetchPlayback(activeEpisodeId);
     }
-  }, [activeEpisodeId, fetchPlayback]);
+    // refreshKey: bumped by CheckoutScreen after a successful purchase so
+    // this re-fetches and picks up the newly-unlocked playback even though
+    // activeEpisodeId itself hasn't changed.
+  }, [activeEpisodeId, fetchPlayback, refreshKey]);
 
   const handleSelectEpisode = (index: number) => {
     if (index === currentIndex) {
@@ -682,6 +687,7 @@ export default function MoviePlayerScreen() {
                 title: currentEp?.title || movieTitle,
                 returnScreen: "MoviePlayer",
                 contentKind: "VIDEO",
+                seriesId: movieId,
               })
             }
             onFinishedChange={setIsFinished}
@@ -695,6 +701,7 @@ export default function MoviePlayerScreen() {
               priceVnd={currentEp?.priceVnd}
               returnScreen="MoviePlayer"
               contentKind="VIDEO"
+              seriesId={movieId}
             />
           </View>
         ) : !loadingPlayback ? (

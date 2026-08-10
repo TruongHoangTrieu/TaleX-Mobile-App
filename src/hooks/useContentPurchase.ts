@@ -43,25 +43,14 @@ export function useContentPurchase() {
       return;
     }
 
-    Alert.alert(
-      "Thanh toán bằng Coin",
-      "Trên ứng dụng di động, nội dung này chỉ có thể mua bằng Coin. Nếu số dư Coin của bạn không đủ, bạn sẽ cần thanh toán phần còn thiếu trên website talex.pro.vn.",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Tiếp tục",
-          onPress: () =>
-            navigation.navigate("Checkout", {
-              itemId,
-              itemType,
-              title,
-              returnScreen,
-              contentKind,
-              seriesId,
-            }),
-        },
-      ],
-    );
+    navigation.navigate("Checkout", {
+      itemId,
+      itemType,
+      title,
+      returnScreen,
+      contentKind,
+      seriesId,
+    });
   };
 
   return { buy };

@@ -15,6 +15,7 @@ interface BuyContentButtonProps {
   seriesId?: string;
   label?: string;
   size?: "small" | "medium";
+  onPress?: () => void;
 }
 
 export default function BuyContentButton({
@@ -27,6 +28,7 @@ export default function BuyContentButton({
   seriesId,
   label,
   size = "medium",
+  onPress,
 }: BuyContentButtonProps) {
   const { buy } = useContentPurchase();
   const small = size === "small";
@@ -34,7 +36,13 @@ export default function BuyContentButton({
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      onPress={() => buy({ itemId, itemType, title, returnScreen, contentKind, seriesId })}
+      onPress={() => {
+        if (onPress) {
+          onPress();
+        } else {
+          buy({ itemId, itemType, title, returnScreen, contentKind, seriesId });
+        }
+      }}
       className={`flex-row items-center justify-center rounded-full bg-[#D4AF37] ${
         small ? "px-3 py-1.5" : "px-4 py-2.5"
       }`}

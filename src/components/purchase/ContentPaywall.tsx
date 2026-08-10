@@ -11,11 +11,9 @@ interface ContentPaywallProps {
   priceVnd?: number;
   returnScreen?: string;
   contentKind: "COMIC" | "VIDEO";
-  /** comicId/movieId this episode belongs to — needed so the reader/player
-   * screen can resolve the right series after a successful purchase returns
-   * it here via navigate(). */
   seriesId?: string;
   message?: string;
+  onUnlockPress?: (episodeId: string, title?: string) => void;
 }
 
 export default function ContentPaywall({
@@ -27,6 +25,7 @@ export default function ContentPaywall({
   contentKind,
   seriesId,
   message,
+  onUnlockPress,
 }: ContentPaywallProps) {
   return (
     <View className="items-center rounded-2xl border border-[#D4AF37]/20 bg-[#1C1A18] p-6">
@@ -47,7 +46,8 @@ export default function ContentPaywall({
           returnScreen={returnScreen}
           contentKind={contentKind}
           seriesId={seriesId}
-          label="Mua tập này"
+          label="MỞ KHÓA NGAY"
+          onPress={onUnlockPress ? () => onUnlockPress(episodeId, title) : undefined}
         />
       </View>
     </View>

@@ -39,6 +39,7 @@ import { BookmarkButton } from "@/components/BookmarkButton";
 import { ShareButton } from "@/components/ShareButton";
 import ContentPaywall from "@/components/purchase/ContentPaywall";
 import { useContentPurchase } from "@/hooks/useContentPurchase";
+import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -255,12 +256,14 @@ function PaywallCard({
   priceVnd,
   returnScreen,
   comicId,
+  onUnlockPress,
 }: {
   episodeId: string;
   title?: string;
   priceVnd?: number;
   returnScreen?: string;
   comicId?: string;
+  onUnlockPress?: (episodeId: string, title?: string) => void;
 }) {
   const { buy } = useContentPurchase();
   return (
@@ -329,16 +332,20 @@ function PaywallCard({
       {/* Action Button */}
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={() =>
-          buy({
-            itemId: episodeId,
-            itemType: "EPISODE",
-            title,
-            returnScreen,
-            contentKind: "COMIC",
-            seriesId: comicId,
-          })
-        }
+        onPress={() => {
+          if (onUnlockPress) {
+            onUnlockPress(episodeId, title);
+          } else {
+            buy({
+              itemId: episodeId,
+              itemType: "EPISODE",
+              title,
+              returnScreen,
+              contentKind: "COMIC",
+              seriesId: comicId,
+            });
+          }
+        }}
         style={{
           width: "100%",
           backgroundColor: "#D4AF37",
@@ -436,6 +443,18 @@ export default function ComicReaderScreen() {
   const [dbEpisodes, setDbEpisodes] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPaywallError, setIsPaywallError] = useState(false);
+
+  // Quick Unlock Modal State
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockModalEpId, setUnlockModalEpId] = useState<string | null>(null);
+  const [unlockModalEpTitle, setUnlockModalEpTitle] = useState<string | undefined>(undefined);
+  const [refreshCount, setRefreshCount] = useState(0);
+
+  const handleOpenUnlockModal = useCallback((epId: string, epTitle?: string) => {
+    setUnlockModalEpId(epId);
+    setUnlockModalEpTitle(epTitle);
+    setShowUnlockModal(true);
+  }, []);
 
   // Comment States
   const [showCommentsModal, setShowCommentsModal] = useState(false);
@@ -633,7 +652,7 @@ export default function ComicReaderScreen() {
     // refreshKey: bumped by CheckoutScreen after a successful purchase so
     // this effect re-runs and picks up the newly-unlocked pages even though
     // activeEpId itself hasn't changed.
-  }, [activeEpId, user?.accountId, refreshKey]);
+  }, [activeEpId, user?.accountId, refreshKey, refreshCount]);
 
   const handleSendComment = async () => {
     if (!commentText.trim() || !activeEpId) return;
@@ -903,6 +922,7 @@ export default function ComicReaderScreen() {
               contentKind="COMIC"
               seriesId={comicId}
               message={errorMsg}
+              onUnlockPress={handleOpenUnlockModal}
             />
             <TouchableOpacity
               onPress={() => navigation.goBack()}
@@ -1002,6 +1022,7 @@ export default function ComicReaderScreen() {
                       priceVnd={(currentEp as any)?.priceVnd}
                       returnScreen="ComicReader"
                       comicId={comicId}
+                      onUnlockPress={handleOpenUnlockModal}
                     />
                   </View>
                 )}
@@ -1049,6 +1070,7 @@ export default function ComicReaderScreen() {
                       priceVnd={(currentEp as any)?.priceVnd}
                       returnScreen="ComicReader"
                       comicId={comicId}
+                      onUnlockPress={handleOpenUnlockModal}
                     />
                   </View>
                 )}
@@ -1478,6 +1500,18 @@ export default function ComicReaderScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Quick Unlock Modal Popup */}
+      <QuickUnlockModal
+        visible={showUnlockModal}
+        onClose={() => setShowUnlockModal(false)}
+        episodeId={unlockModalEpId}
+        episodeTitle={unlockModalEpTitle || currentEp?.title || episodeTitle}
+        comicTitle={comic?.title || (route.params as any)?.comicTitle}
+        onSuccess={() => {
+          setRefreshCount((prev) => prev + 1);
+        }}
+      />
     </View>
   );
 }

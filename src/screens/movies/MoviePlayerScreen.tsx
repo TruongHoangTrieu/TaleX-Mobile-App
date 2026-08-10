@@ -45,6 +45,7 @@ import { FollowersModal } from "@/components/FollowersModal";
 import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
 import ContentPaywall from "@/components/purchase/ContentPaywall";
 import { useContentPurchase } from "@/hooks/useContentPurchase";
+import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
 import { allMovies } from "./movieMockData";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -284,11 +285,11 @@ function VideoPlayerCore({
       {/* B. BLUR FRAME & UNLOCK FORM OVERLAY (Hiển thị khi video 10s kết thúc hoặc tua > 10s) */}
       {isUnlockFormVisible && (
         <View className="absolute inset-0 bg-black/90 items-center justify-center p-4 z-30">
-          <View className="w-12 h-12 rounded-full bg-[#E50914]/20 items-center justify-center border border-[#E50914]/50 mb-2">
-            <Ionicons name="lock-closed" size={24} color="#E50914" />
+          <View className="w-12 h-12 rounded-full bg-[#D4AF37]/15 items-center justify-center border border-[#D4AF37]/40 mb-2">
+            <Ionicons name="lock-closed" size={24} color="#D4AF37" />
           </View>
 
-          <Text className="text-white text-base font-extrabold text-center tracking-wide">
+          <Text className="text-[#F3C649] text-base font-extrabold text-center tracking-wide">
             Nội dung trả phí - Mở khóa nội dung
           </Text>
 
@@ -300,16 +301,16 @@ function VideoPlayerCore({
           <View className="w-full flex-col gap-2 max-w-xs">
             <TouchableOpacity
               onPress={onNavigateToPlans}
-              className="bg-[#E50914] py-2.5 rounded-full items-center justify-center active:opacity-85 shadow-lg flex-row"
+              className="bg-[#D4AF37] py-2.5 rounded-full items-center justify-center active:opacity-85 shadow-lg flex-row"
             >
               <Ionicons
                 name="sparkles"
                 size={15}
-                color="#FFFFFF"
+                color="#141210"
                 style={{ marginRight: 6 }}
               />
-              <Text className="text-white font-black text-xs uppercase tracking-wider">
-                Mua tập này
+              <Text className="text-[#141210] font-black text-xs uppercase tracking-wider">
+                MUA TẬP NÀY
               </Text>
             </TouchableOpacity>
 
@@ -336,9 +337,9 @@ function VideoPlayerCore({
         <View className="absolute inset-0 bg-black/40 justify-between p-3 z-20">
           <View className="flex-row justify-end items-center">
             {isLocked && (
-              <View className="bg-[#E50914]/80 px-2.5 py-1 rounded-full flex-row items-center border border-white/20">
-                <Ionicons name="lock-closed" size={11} color="#FFFFFF" />
-                <Text className="text-white font-extrabold text-[10px] ml-1">
+              <View className="bg-[#D4AF37]/90 px-2.5 py-1 rounded-full flex-row items-center border border-amber-400/30">
+                <Ionicons name="lock-closed" size={11} color="#141210" />
+                <Text className="text-[#141210] font-extrabold text-[10px] ml-1">
                   Xem thử 10s
                 </Text>
               </View>
@@ -465,6 +466,21 @@ export default function MoviePlayerScreen() {
   const currentEp = episodes[currentIndex];
   const activeEpisodeId = currentEp?.episodeId || initialEpisodeId;
   const { buy } = useContentPurchase();
+
+  // Quick Unlock Modal State
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockModalEpId, setUnlockModalEpId] = useState<string | null>(null);
+  const [unlockModalEpTitle, setUnlockModalEpTitle] = useState<string | undefined>(undefined);
+  const [refreshCount, setRefreshCount] = useState(0);
+
+  const handleOpenUnlockModal = useCallback(
+    (epId?: string, epTitle?: string) => {
+      setUnlockModalEpId(epId || activeEpisodeId || null);
+      setUnlockModalEpTitle(epTitle || currentEp?.title || movieTitle);
+      setShowUnlockModal(true);
+    },
+    [activeEpisodeId, currentEp?.title, movieTitle],
+  );
 
   const {
     isLiked,
@@ -606,7 +622,7 @@ export default function MoviePlayerScreen() {
     // refreshKey: bumped by CheckoutScreen after a successful purchase so
     // this re-fetches and picks up the newly-unlocked playback even though
     // activeEpisodeId itself hasn't changed.
-  }, [activeEpisodeId, fetchPlayback, refreshKey]);
+  }, [activeEpisodeId, fetchPlayback, refreshKey, refreshCount]);
 
   const handleSelectEpisode = (index: number) => {
     if (index === currentIndex) {
@@ -652,22 +668,14 @@ export default function MoviePlayerScreen() {
 
       {/* ================= 1. YOUTUBE VIDEO PLAYER FRAME ================= */}
       <View className="w-full h-[225px] bg-black relative justify-center items-center">
-        {/* Top Floating Back & Home Buttons Over Video */}
-        <View className="absolute top-2 left-2 right-2 flex-row justify-between items-center z-20">
+        {/* Top Floating Back Button Over Video */}
+        <View className="absolute top-2 left-2 z-20">
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             className="w-9 h-9 rounded-full bg-black/60 items-center justify-center border border-white/10"
             activeOpacity={0.8}
           >
             <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => navigation.navigate("MainTabs")}
-            className="w-9 h-9 rounded-full bg-black/60 items-center justify-center border border-white/10"
-            activeOpacity={0.8}
-          >
-            <Ionicons name="home-outline" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
@@ -680,16 +688,7 @@ export default function MoviePlayerScreen() {
             replayCounter={replayCounter}
             playbackSpeed={playbackSpeed}
             initialPosition={params.initialPosition}
-            onNavigateToPlans={() =>
-              buy({
-                itemId: activeEpisodeId || "",
-                itemType: "EPISODE",
-                title: currentEp?.title || movieTitle,
-                returnScreen: "MoviePlayer",
-                contentKind: "VIDEO",
-                seriesId: movieId,
-              })
-            }
+            onNavigateToPlans={() => handleOpenUnlockModal(activeEpisodeId)}
             onFinishedChange={setIsFinished}
           />
         ) : paywallEpisodeId && paywallEpisodeId === activeEpisodeId ? (
@@ -702,6 +701,7 @@ export default function MoviePlayerScreen() {
               returnScreen="MoviePlayer"
               contentKind="VIDEO"
               seriesId={movieId}
+              onUnlockPress={handleOpenUnlockModal}
             />
           </View>
         ) : !loadingPlayback ? (
@@ -710,7 +710,7 @@ export default function MoviePlayerScreen() {
 
         {loadingPlayback && (
           <View className="absolute inset-0 bg-black/75 items-center justify-center space-y-2">
-            <ActivityIndicator size="large" color="#E50914" />
+            <ActivityIndicator size="large" color="#D4AF37" />
             <Text className="text-zinc-300 text-xs font-semibold">
               Đang tải luồng video HD...
             </Text>
@@ -721,11 +721,11 @@ export default function MoviePlayerScreen() {
           <View className="absolute inset-0 bg-black/85 items-center justify-center space-y-3">
             <TouchableOpacity
               onPress={handleReplay}
-              className="bg-[#E50914] px-6 py-2.5 rounded-full flex-row items-center shadow-lg"
+              className="bg-[#D4AF37] px-6 py-2.5 rounded-full flex-row items-center shadow-lg"
               activeOpacity={0.8}
             >
-              <Ionicons name="reload" size={16} color="#FFFFFF" />
-              <Text className="text-white font-black text-xs ml-2 uppercase tracking-wide">
+              <Ionicons name="reload" size={16} color="#141210" />
+              <Text className="text-[#141210] font-black text-xs ml-2 uppercase tracking-wide">
                 Phát lại
               </Text>
             </TouchableOpacity>
@@ -1210,6 +1210,18 @@ export default function MoviePlayerScreen() {
           onClose={() => setShowFollowersModal(false)}
         />
       )}
+
+      {/* QUICK UNLOCK MODAL */}
+      <QuickUnlockModal
+        visible={showUnlockModal}
+        onClose={() => setShowUnlockModal(false)}
+        episodeId={unlockModalEpId || activeEpisodeId || null}
+        episodeTitle={unlockModalEpTitle || currentEp?.title || movieTitle}
+        comicTitle={movieTitle}
+        onSuccess={() => {
+          setRefreshCount((prev) => prev + 1);
+        }}
+      />
     </SafeAreaView>
   );
 }

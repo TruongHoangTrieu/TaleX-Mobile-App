@@ -94,6 +94,16 @@ function getImageUri(series?: HomeFeedSeries, isCover = false) {
   return series.bannerUrl || series.coverUrl || FALLBACK_IMAGE;
 }
 
+function uniqueSeries(items: HomeFeedSeries[] = []) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.seriesId || item.title;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -209,7 +219,7 @@ export default function HomeScreen() {
   // 1. Trending Channel (Kênh 1: Xu Hướng Thịnh Hành - Limit 10)
   // -------------------------------------------------------------------------
   const renderTrendingChannel = () => {
-    const items = feedData?.trending || [];
+    const items = uniqueSeries(feedData?.trending);
 
     if (isLoadingFeed || items.length === 0) {
       return (
@@ -289,7 +299,7 @@ export default function HomeScreen() {
   // 2. New Releases Channel (Kênh 2: Mới Ra Mắt - Limit 8)
   // -------------------------------------------------------------------------
   const renderNewReleasesChannel = () => {
-    const items = feedData?.newReleases || [];
+    const items = uniqueSeries(feedData?.newReleases);
 
     if (isLoadingFeed || items.length === 0) {
       return (
@@ -374,7 +384,7 @@ export default function HomeScreen() {
   // 3. Recently Updated Channel (Kênh 3: Vừa Cập Nhật - Limit 6)
   // -------------------------------------------------------------------------
   const renderRecentlyUpdatedChannel = () => {
-    const items = feedData?.recentlyUpdated || [];
+    const items = uniqueSeries(feedData?.recentlyUpdated);
 
     if (isLoadingFeed || items.length === 0) {
       return (
@@ -457,7 +467,7 @@ export default function HomeScreen() {
   // 4. Latest Community Choice Channel (Đề Xuất Hot Từ Cộng Đồng)
   // -------------------------------------------------------------------------
   const renderLatestCommunityChoiceChannel = () => {
-    const items = feedData?.latestCommunityChoice || [];
+    const items = uniqueSeries(feedData?.latestCommunityChoice);
 
     if (isLoadingFeed || items.length === 0) {
       return (
@@ -569,7 +579,7 @@ export default function HomeScreen() {
   // 5. Community Choice Channel (Top 5 series được cộng đồng yêu thích)
   // -------------------------------------------------------------------------
   const renderCommunityChoiceChannel = () => {
-    const items = (feedData?.communityChoice || []).slice(0, 5);
+    const items = uniqueSeries(feedData?.communityChoice).slice(0, 5);
 
     if (isLoadingFeed || items.length === 0) {
       return (
@@ -655,7 +665,7 @@ export default function HomeScreen() {
   // 6. Random Category Channel (Kênh 6: Đổi Vị Khám Phá - Limit 6)
   // -------------------------------------------------------------------------
   const renderRandomCategoryChannel = () => {
-    const items = feedData?.randomCategory || [];
+    const items = uniqueSeries(feedData?.randomCategory);
 
     if (isLoadingFeed || items.length === 0) {
       return (
@@ -738,7 +748,7 @@ export default function HomeScreen() {
   // 7. Account Subscription Channel (Kênh 7: Kênh Theo Dõi - Limit 6)
   // -------------------------------------------------------------------------
   const renderAccountSubscriptionChannel = () => {
-    const items = feedData?.accountSubscription || [];
+    const items = uniqueSeries(feedData?.accountSubscription);
 
     if (isLoadingFeed || items.length === 0) {
       return (

@@ -11,49 +11,12 @@ import {
 } from "react-native";
 import { FontAwesome5, Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { ImageSourcePropType } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { navigate as safeNavigateRef } from "@/navigation/navigationRef";
+import { searchPublicSeries, SearchSeriesItem } from "@/services/series";
 
 const { width: screenWidth } = Dimensions.get("window");
-
 const BANNER_HEIGHT = 275;
-
-interface MovieBannerItem {
-  id: string;
-  title: string;
-  subtitle?: string;
-  tag?: string;
-  image: ImageSourcePropType;
-  movieId?: string;
-}
-
-const movieBannerData: MovieBannerItem[] = [
-  {
-    id: "1",
-    title: "Ma Tôn Bản Truyền Kỳ",
-    subtitle: "Tập 1120 • Vietsub • Cực Hot",
-    tag: "Độc Quyền",
-    image: require("@assets/comic4.webp"),
-    movieId: "tm1",
-  },
-  {
-    id: "2",
-    title: "Võ Thần Chí Tôn",
-    subtitle: "Phần Mới • Full HD",
-    tag: "Trending",
-    image: require("@assets/movie2.jpg"),
-    movieId: "tm2",
-  },
-  {
-    id: "3",
-    title: "Tiểu Thư Ác Độc Đại Chiến",
-    subtitle: "Mới Cập Nhật",
-    tag: "Mới",
-    image: require("@assets/movie3.jpg"),
-    movieId: "tm3",
-  },
-];
 
 export default function MovieCarousel() {
   let navigation: any = null;
@@ -71,14 +34,42 @@ export default function MovieCarousel() {
     }
   };
 
+  const [bannerData, setBannerData] = useState<SearchSeriesItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [bookmarkedIds, setBookmarkedIds] = useState<{ [key: string]: boolean }>({});
   const flatListRef = useRef<FlatList>(null);
 
+  // Fetch real top video series from API for Carousel
   useEffect(() => {
+    let active = true;
+    const fetchTopMovies = async () => {
+      try {
+        const res = await searchPublicSeries({
+          contentType: "VIDEO",
+          status: "PUBLISHED",
+          sortBy: "views",
+          sortDirection: "DESC",
+          page: 0,
+          size: 5,
+        });
+        if (active && res?.data?.content && res.data.content.length > 0) {
+          setBannerData(res.data.content);
+        }
+      } catch (err) {
+        console.error("[MovieCarousel] Error fetching carousel data:", err);
+      }
+    };
+    fetchTopMovies();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (bannerData.length <= 1) return;
     const interval = setInterval(() => {
       const nextIndex =
-        activeIndex + 1 >= movieBannerData.length ? 0 : activeIndex + 1;
+        activeIndex + 1 >= bannerData.length ? 0 : activeIndex + 1;
 
       flatListRef.current?.scrollToIndex({
         index: nextIndex,
@@ -89,12 +80,12 @@ export default function MovieCarousel() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [activeIndex]);
+  }, [activeIndex, bannerData]);
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (bannerData.length === 0) return;
     const index = Math.round(event.nativeEvent.contentOffset.x / screenWidth);
-
-    if (index !== activeIndex) {
+    if (index !== activeIndex && index >= 0 && index < bannerData.length) {
       setActiveIndex(index);
     }
   };
@@ -106,15 +97,20 @@ export default function MovieCarousel() {
     }));
   };
 
-  const handleNavigate = (item: MovieBannerItem) => {
+  const handleNavigate = (item: SearchSeriesItem) => {
     navigateTo("MovieDetailScreen", {
-      movieId: item.movieId || item.id,
+      movieId: item.seriesId,
       movieTitle: item.title,
+      seriesItem: item,
     });
   };
 
-  const renderItem = ({ item }: { item: MovieBannerItem }) => {
-    const isBookmarked = !!bookmarkedIds[item.id];
+  const renderItem = ({ item }: { item: SearchSeriesItem }) => {
+    const isBookmarked = !!bookmarkedIds[item.seriesId];
+    const coverUri = item.bannerUrl || item.coverUrl;
+    const imageSource = coverUri
+      ? { uri: coverUri }
+      : require("@assets/movie2.jpg");
 
     return (
       <View
@@ -133,7 +129,7 @@ export default function MovieCarousel() {
         >
           {/* Background Image */}
           <Image
-            source={item.image}
+            source={imageSource}
             resizeMode="cover"
             style={{
               width: "100%",
@@ -153,16 +149,14 @@ export default function MovieCarousel() {
           >
             {/* TOP TAG */}
             <View>
-              {item.tag && (
-                <View className="self-start bg-[#D4AF37] px-3 py-1 rounded-full shadow-md">
-                  <Text className="text-[#141210] text-[11px] font-extrabold uppercase tracking-wide">
-                    {item.tag}
-                  </Text>
-                </View>
-              )}
+              <View className="self-start bg-[#D4AF37] px-3 py-1 rounded-full shadow-md">
+                <Text className="text-[#141210] text-[11px] font-extrabold uppercase tracking-wide">
+                  Độc Quyền TaleX
+                </Text>
+              </View>
             </View>
 
-            {/* BOTTOM: TITLE + SUBTITLE + CƠ CHẾ 3 NÚT NETFLIX CÂN ĐỐI NẰM GIỮA */}
+            {/* BOTTOM: TITLE + SUBTITLE + CƠ CHẾ 3 NÚT NETFLIX */}
             <View className="items-center">
               <Text
                 numberOfLines={1}
@@ -176,71 +170,42 @@ export default function MovieCarousel() {
                 {item.title}
               </Text>
 
-              {item.subtitle && (
+              <Text
+                numberOfLines={1}
+                className="text-stone-300 mt-1 text-xs font-semibold text-center"
+                style={{
+                  textShadowColor: "rgba(0, 0, 0, 0.8)",
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 3,
+                }}
+              >
+                {item.description || item.creatorName || "Phim đặc sắc trên TaleX"}
+              </Text>
+
+              {/* NÚT XEM NGAY CĂN GIỮA NỔI BẬT */}
+              <TouchableOpacity
+                onPress={() => handleNavigate(item)}
+                activeOpacity={0.85}
+                className="bg-[#D4AF37] px-8 py-2.5 rounded-2xl flex-row items-center justify-center shadow-lg shadow-amber-500/30 mt-3.5"
+              >
+                <FontAwesome5 name="play" size={12} color="#141210" />
                 <Text
                   numberOfLines={1}
-                  className="text-stone-300 mt-1 text-xs font-semibold text-center"
-                  style={{
-                    textShadowColor: "rgba(0, 0, 0, 0.8)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 3,
-                  }}
+                  className="text-[#141210] font-extrabold text-sm ml-2 tracking-wide"
                 >
-                  {item.subtitle}
+                  Xem Ngay
                 </Text>
-              )}
-
-              {/* 3 NÚT BẤM CÂN ĐỐI NẰM GIỮA (HIỂN THỊ ĐẦY ĐỦ "XEM NGAY") */}
-              <View className="flex-row items-center justify-between w-full mt-4 px-2">
-                {/* 1. Nút bên trái: + Danh sách / Đã lưu */}
-                <TouchableOpacity
-                  onPress={() => toggleBookmark(item.id)}
-                  className="items-center justify-center w-16 active:opacity-75"
-                  activeOpacity={0.75}
-                >
-                  <Feather
-                    name={isBookmarked ? "check" : "plus"}
-                    size={20}
-                    color={isBookmarked ? "#D4AF37" : "#FFFFFF"}
-                  />
-                  <Text className="text-white text-[11px] font-bold mt-1">
-                    {isBookmarked ? "Đã lưu" : "Danh sách"}
-                  </Text>
-                </TouchableOpacity>
-
-                {/* 2. Nút ở giữa: ► Xem Ngay (Nút vàng bo góc nổi bật, 1 hàng chuẩn) */}
-                <TouchableOpacity
-                  onPress={() => handleNavigate(item)}
-                  activeOpacity={0.85}
-                  className="bg-[#D4AF37] px-5 py-2.5 rounded-xl flex-row items-center justify-center shadow-lg shadow-amber-500/30"
-                >
-                  <FontAwesome5 name="play" size={12} color="#141210" />
-                  <Text
-                    numberOfLines={1}
-                    className="text-[#141210] font-black text-xs ml-1.5 tracking-wide"
-                  >
-                    Xem Ngay
-                  </Text>
-                </TouchableOpacity>
-
-                {/* 3. Nút bên phải: ⓘ Thông tin */}
-                <TouchableOpacity
-                  onPress={() => handleNavigate(item)}
-                  className="items-center justify-center w-16 active:opacity-75"
-                  activeOpacity={0.75}
-                >
-                  <Feather name="info" size={20} color="#FFFFFF" />
-                  <Text className="text-white text-[11px] font-bold mt-1">
-                    Thông tin
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             </View>
           </LinearGradient>
         </TouchableOpacity>
       </View>
     );
   };
+
+  if (bannerData.length === 0) {
+    return null;
+  }
 
   return (
     <View
@@ -250,12 +215,12 @@ export default function MovieCarousel() {
     >
       <FlatList
         ref={flatListRef}
-        data={movieBannerData}
+        data={bannerData}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.seriesId}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         getItemLayout={(_, index) => ({
@@ -265,9 +230,8 @@ export default function MovieCarousel() {
         })}
       />
 
-      {/* Dots Indicator */}
       <View className="absolute bottom-0 left-0 right-0 flex-row justify-center">
-        {movieBannerData.map((_, index) => {
+        {bannerData.map((_, index) => {
           const active = index === activeIndex;
 
           return (
@@ -287,4 +251,3 @@ export default function MovieCarousel() {
     </View>
   );
 }
-

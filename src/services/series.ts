@@ -360,3 +360,126 @@ export async function getPublicCombos(): Promise<ComboItem[]> {
     return [];
   }
 }
+
+// ─── Advanced Search Series (/api/v1/public/series/search) ────────────────
+
+export type SearchSeriesSortBy =
+  | "releasedupdatetime"
+  | "averagerating"
+  | "likes"
+  | "views"
+  | "watchtime"
+  | string;
+
+export interface SearchSeriesParams {
+  search?: string;
+  contentType?: "VIDEO" | "COMIC" | string;
+  ageRatings?: string[];
+  status?: string;
+  categoryIds?: string[];
+  tagIds?: string[];
+  sortBy?: SearchSeriesSortBy;
+  sortDirection?: "ASC" | "DESC" | "asc" | "desc" | string;
+  page?: number;
+  size?: number;
+  sort?: string[];
+}
+
+export interface SearchSeriesItem {
+  seriesId: string;
+  accountId?: string;
+  creatorId?: string;
+  creatorName?: string;
+  creatorAvatar?: string;
+  totalCreatorFollowers?: number;
+  title: string;
+  description?: string;
+  coverUrl?: string | null;
+  bannerUrl?: string | null;
+  contentType?: "VIDEO" | "COMIC" | string;
+  ageRating?: string;
+  language?: string;
+  totalViews?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  averageRating?: number;
+  releasedUpdateTime?: string;
+  [key: string]: any;
+}
+
+export interface SearchSeriesResponse {
+  code: number;
+  message: string;
+  data: {
+    content: SearchSeriesItem[];
+    isFirst?: boolean;
+    isLast?: boolean;
+    pageNumber?: number;
+    pageSize?: number;
+    totalElements?: number;
+    totalPages?: number;
+    [key: string]: any;
+  };
+}
+
+export async function searchPublicSeries(
+  params: SearchSeriesParams = {}
+): Promise<SearchSeriesResponse> {
+  const query = new URLSearchParams();
+
+  if (params.search && params.search.trim()) {
+    query.append("search", params.search.trim());
+  }
+  if (params.contentType) {
+    query.append("contentType", params.contentType);
+  }
+  if (params.status) {
+    query.append("status", params.status);
+  }
+  if (params.sortBy) {
+    query.append("sortBy", params.sortBy);
+  }
+  if (params.sortDirection) {
+    query.append("sortDirection", params.sortDirection);
+  }
+
+  query.append("page", (params.page ?? 0).toString());
+  query.append("size", (params.size ?? 20).toString());
+
+  if (params.categoryIds && Array.isArray(params.categoryIds)) {
+    params.categoryIds.forEach((id) => {
+      if (id) query.append("categoryIds", id);
+    });
+  }
+  if (params.tagIds && Array.isArray(params.tagIds)) {
+    params.tagIds.forEach((id) => {
+      if (id) query.append("tagIds", id);
+    });
+  }
+  if (params.ageRatings && Array.isArray(params.ageRatings)) {
+    params.ageRatings.forEach((age) => {
+      if (age) query.append("ageRatings", age);
+    });
+  }
+  if (params.sort && Array.isArray(params.sort)) {
+    params.sort.forEach((s) => {
+      if (s) query.append("sort", s);
+    });
+  }
+
+  const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/series/search?${query.toString()}`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "*/*",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to search public series: ${res.status}`);
+  }
+
+  return res.json();
+}
+

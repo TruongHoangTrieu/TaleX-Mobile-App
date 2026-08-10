@@ -8,32 +8,23 @@ import {
   TouchableOpacity,
   View,
   Animated,
+  RefreshControl,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   Ionicons,
-  Feather,
   FontAwesome5,
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
-import type { RootStackParamList } from "@/navigation/RootNavigator";
 import { navigate as safeNavigateRef } from "@/navigation/navigationRef";
 
 import ComicCarousel from "@components/ComicCarousel";
 import Header from "@components/Header";
 import RecentWatchSection from "@/components/RecentWatchSection";
 import CinematicBackground from "@/components/CinematicBackground";
-import {
-  ComicItem,
-  comicCategories,
-  comboComics,
-  newComics,
-  recommendedComics,
-} from "./comicMockData";
-import { formatAnalyticNumber, getPublicSeries } from "@/services/series";
+import { searchPublicSeries, SearchSeriesItem } from "@/services/series";
 
 function SkeletonPulse({
   style,
@@ -88,29 +79,72 @@ export default function ComicsScreen() {
   };
 
   const [loading, setLoading] = useState(true);
-  const [apiComics, setApiComics] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadComics = async (isRefreshing = false) => {
-    if (!isRefreshing) setLoading(true);
+  // 100% Real API Sections
+  const [latestComics, setLatestComics] = useState<SearchSeriesItem[]>([]);
+  const [topViewsComics, setTopViewsComics] = useState<SearchSeriesItem[]>([]);
+  const [topRatedComics, setTopRatedComics] = useState<SearchSeriesItem[]>([]);
+  const [topLikedComics, setTopLikedComics] = useState<SearchSeriesItem[]>([]);
+
+  const loadComicsData = async (isRefreshing = false) => {
+    if (isRefreshing) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      const res = await getPublicSeries(1, 100);
-      if (res && res.data && res.data.content) {
-        const filtered = res.data.content.filter(
-          (item: any) =>
-            item.contentType === "COMIC" || item.contentType === "comic",
-        );
-        setApiComics(filtered);
-      }
+      const [resLatest, resViews, resRating, resLikes] = await Promise.all([
+        searchPublicSeries({
+          contentType: "COMIC",
+          status: "PUBLISHED",
+          sortBy: "releasedupdatetime",
+          sortDirection: "DESC",
+          page: 0,
+          size: 10,
+        }),
+        searchPublicSeries({
+          contentType: "COMIC",
+          status: "PUBLISHED",
+          sortBy: "views",
+          sortDirection: "DESC",
+          page: 0,
+          size: 10,
+        }),
+        searchPublicSeries({
+          contentType: "COMIC",
+          status: "PUBLISHED",
+          sortBy: "averagerating",
+          sortDirection: "DESC",
+          page: 0,
+          size: 10,
+        }),
+        searchPublicSeries({
+          contentType: "COMIC",
+          status: "PUBLISHED",
+          sortBy: "likes",
+          sortDirection: "DESC",
+          page: 0,
+          size: 10,
+        }),
+      ]);
+
+      if (resLatest?.data?.content) setLatestComics(resLatest.data.content);
+      if (resViews?.data?.content) setTopViewsComics(resViews.data.content);
+      if (resRating?.data?.content) setTopRatedComics(resRating.data.content);
+      if (resLikes?.data?.content) setTopLikedComics(resLikes.data.content);
     } catch (err) {
-      console.error("Lỗi lấy danh sách truyện từ API:", err);
+      console.error("[ComicsScreen] Error fetching real API comics:", err);
     } finally {
-      if (!isRefreshing) setLoading(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
-      loadComics(false);
+      loadComicsData(false);
     }, []),
   );
 
@@ -118,104 +152,118 @@ export default function ComicsScreen() {
     navigateTo("ComicDetailScreen", { comicId });
   };
 
-  // Modern Card Component
-  const renderComicCard = ({ item }: { item: ComicItem }) => {
-    const rawRating = item.ageRating;
-    const ageRatingStr = rawRating && typeof rawRating === "string" && rawRating.trim() ? rawRating.trim() : null;
+  // Render Age Rating Badge Top Right
+  const renderAgeRatingBadge = (ageRating?: string) => {
+    if (!ageRating) return null;
+    const ratingStr = ageRating.toUpperCase().trim();
+    let label = ratingStr;
+    let bgStyle = "bg-emerald-600 border-emerald-400";
 
-    const isRed = ageRatingStr?.toUpperCase().includes("18");
-    const isAmber = ageRatingStr?.toUpperCase().includes("16");
-    const isBlue = ageRatingStr?.toUpperCase().includes("13");
-    const badgeBg = isRed
-      ? "bg-red-600"
-      : isAmber
-      ? "bg-amber-600"
-      : isBlue
-      ? "bg-blue-600"
-      : "bg-emerald-600";
+    if (ratingStr === "MATURE" || ratingStr.includes("18") || ratingStr.includes("ADULT")) {
+      label = "18+";
+      bgStyle = "bg-red-600 border-red-400";
+    } else if (ratingStr === "TEEN" || ratingStr.includes("13") || ratingStr.includes("PG")) {
+      label = "13+";
+      bgStyle = "bg-amber-600 border-amber-400";
+    } else if (ratingStr === "EVERYONE" || ratingStr === "P") {
+      label = "P";
+      bgStyle = "bg-emerald-600 border-emerald-400";
+    }
+
+    return (
+      <View className={`absolute top-2 right-2 px-2 py-0.5 rounded-lg border z-20 shadow-md ${bgStyle}`}>
+        <Text className="text-white text-[10px] font-black tracking-wider uppercase">{label}</Text>
+      </View>
+    );
+  };
+
+  // Modern Card Component
+  const renderComicCard = ({ item }: { item: SearchSeriesItem }) => {
+    const isComic = item.contentType === "COMIC";
+    const coverUri = item.coverUrl || item.bannerUrl;
+    const imageSource = coverUri
+      ? { uri: coverUri }
+      : require("@assets/comic4.webp");
 
     return (
       <TouchableOpacity
         className="mr-3.5 w-[135px]"
         activeOpacity={0.85}
-        onPress={() => openComicDetail(item.id)}
+        onPress={() => openComicDetail(item.seriesId)}
       >
         <View className="relative w-full h-[185px] rounded-2xl overflow-hidden border border-white/10 bg-zinc-800 shadow-md">
+          {/* Top Left: TRUYỆN (Solid Blue #2563EB) */}
+          <View
+            style={{ backgroundColor: "#2563EB", borderColor: "#60A5FA" }}
+            className="absolute top-2 left-2 px-2 py-0.5 rounded-lg border z-20 shadow-lg"
+          >
+            <Text className="text-white text-[9px] font-black uppercase tracking-wider">
+              TRUYỆN
+            </Text>
+          </View>
+
+          {/* Top Right: Age Rating Badge */}
+          {renderAgeRatingBadge(item.ageRating)}
+
           <Image
-            source={item.image}
+            source={imageSource}
             className="w-full h-full"
             resizeMode="cover"
           />
 
-          {/* Age Rating Badge Top Right */}
-          {ageRatingStr && (
-            <View className={`absolute top-2 right-2 px-2 py-0.5 rounded-md ${badgeBg} shadow-lg z-20 border border-white/20`}>
-              <Text className="text-white text-[10px] font-black tracking-wider uppercase">
-                {ageRatingStr}
-              </Text>
-            </View>
-          )}
-
           <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.85)"]}
-            className="absolute bottom-0 left-0 right-0 h-20 justify-end p-2.5"
+            colors={["transparent", "rgba(10, 8, 6, 0.98)"]}
+            className="absolute bottom-0 left-0 right-0 h-16 justify-end p-2.5"
           >
             <View className="flex-row items-center justify-between">
-              {item.tag ? (
-                <View className="bg-[#D4AF37] px-1.5 py-0.5 rounded shadow-sm">
-                  <Text className="text-[#141210] text-[9px] font-black tracking-tight">
-                    {item.tag}
-                  </Text>
-                </View>
-              ) : (
-                <View />
-              )}
-
-              {/* Views Counter Badge Bottom Right */}
-              <View className="px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10">
-                <Ionicons name="eye" size={9} color="#38bdf8" />
-                <Text className="text-white text-[9px] font-bold ml-1">
-                  {formatAnalyticNumber(item.analyticData?.views ?? (item as any).totalViews ?? (item as any).views ?? 0)}
+              <Text
+                className="flex-1 text-white text-xs font-black mr-1.5"
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {item.title}
+              </Text>
+              <View className="flex-row items-center bg-black/90 px-1.5 py-0.5 rounded-full border border-white/20">
+                <Ionicons name="star" size={10} color="#D4AF37" style={{ marginRight: 2 }} />
+                <Text className="text-[#E5E0D8] text-[9px] font-black">
+                  {(item.averageRating ?? 0).toFixed(1)}
                 </Text>
               </View>
             </View>
           </LinearGradient>
         </View>
 
-      <Text
-        className="text-white font-bold text-xs mt-2 px-0.5 leading-tight"
-        numberOfLines={1}
-      >
-        {item.title}
-      </Text>
-      <Text
-        className="text-[#A1A1AA] text-[11px] mt-0.5 px-0.5"
-        numberOfLines={1}
-      >
-        {item.description || item.author || ""}
-      </Text>
-    </TouchableOpacity>
+        <Text
+          className="text-[#A1A1AA] text-[11px] mt-1.5 px-0.5"
+          numberOfLines={1}
+        >
+          {item.description || item.creatorName || "Truyện tranh TaleX"}
+        </Text>
+      </TouchableOpacity>
     );
   };
 
-  // Top Ranked Card Component (Top Webtoon)
+  // Top Ranked Card Component
   const renderRankedCard = ({
     item,
     index,
   }: {
-    item: ComicItem;
+    item: SearchSeriesItem;
     index: number;
   }) => {
     const rankColors = ["#D4AF37", "#C0C0C0", "#CD7F32"];
     const rankColor = index < 3 ? rankColors[index] : "#A1A1AA";
+    const coverUri = item.coverUrl || item.bannerUrl;
+    const imageSource = coverUri
+      ? { uri: coverUri }
+      : require("@assets/comic4.webp");
 
     return (
       <TouchableOpacity
         className="mr-3.5 flex-row items-center w-[230px] bg-[#1A1C20] p-2.5 rounded-2xl border border-white/10"
         activeOpacity={0.85}
-        onPress={() => openComicDetail(item.id)}
+        onPress={() => openComicDetail(item.seriesId)}
       >
-        {/* Rank Number */}
         <Text
           className="text-3xl font-black italic mr-2.5 w-8 text-center"
           style={{ color: rankColor }}
@@ -223,14 +271,12 @@ export default function ComicsScreen() {
           #{index + 1}
         </Text>
 
-        {/* Comic Thumbnail */}
         <Image
-          source={item.image}
+          source={imageSource}
           className="w-[70px] h-[95px] rounded-xl bg-zinc-800"
           resizeMode="cover"
         />
 
-        {/* Comic Info */}
         <View className="flex-1 ml-2.5 justify-between h-[90px] py-1">
           <View>
             <Text
@@ -239,33 +285,32 @@ export default function ComicsScreen() {
             >
               {item.title}
             </Text>
-            <Text className="text-[#A1A1AA] text-[10px] mt-1">
-              {item.category}
+            <Text className="text-[#A1A1AA] text-[10px] mt-1" numberOfLines={1}>
+              {item.creatorName || "TaleX"}
             </Text>
           </View>
 
           <View className="flex-row items-center justify-between mt-1">
-            <View className="flex-row items-center">
-              <Ionicons name="eye-outline" size={11} color="#D4AF37" />
+            <View className="flex-row items-center bg-black/40 px-1.5 py-0.5 rounded">
+              <Ionicons name="eye-outline" size={10} color="#D4AF37" />
               <Text className="text-[#D4AF37] text-[10px] font-semibold ml-1">
-                {item.views || "100K"}
+                {item.totalViews ?? 0}
               </Text>
             </View>
-            {item.rating && (
-              <View className="flex-row items-center bg-black/40 px-1.5 py-0.5 rounded">
-                <Ionicons name="star" size={10} color="#D4AF37" />
-                <Text className="text-white text-[10px] font-bold ml-1">
-                  {item.rating}
-                </Text>
-              </View>
-            )}
+
+            <View className="flex-row items-center bg-black/40 px-1.5 py-0.5 rounded">
+              <Ionicons name="star" size={10} color="#D4AF37" />
+              <Text className="text-white text-[10px] font-bold ml-1">
+                {(item.averageRating ?? 0).toFixed(1)}
+              </Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
     );
   };
 
-  const topRankedComics = [...newComics, ...recommendedComics].slice(0, 5);
+  const spotlightComic = topViewsComics[0] || latestComics[0];
 
   return (
     <SafeAreaView edges={[]} className="flex-1 bg-black" style={{ backgroundColor: "#000000" }}>
@@ -283,130 +328,115 @@ export default function ComicsScreen() {
           alwaysBounceVertical={true}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 130 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadComicsData(true)}
+              tintColor="#D4AF37"
+            />
+          }
         >
-          {/* 2. Carousel Banner */}
+          {/* 1. Carousel Banner */}
           <View className="mt-1">
             <ComicCarousel />
           </View>
 
-          {/* 3. Continue Reading Bar (Tiếp tục đọc thực tế từ API) */}
+          {/* 2. Continue Reading Bar */}
           <RecentWatchSection filterType="COMIC" title="Tiếp Tục Đọc Truyện" />
 
-          {/* 4. Top Webtoon Ranking (Bảng Xếp Hạng Tuần) */}
-          <View className="mt-7">
-            <View className="flex-row justify-between items-center px-4 mb-3">
-              <View className="flex-row items-center">
-                <FontAwesome5 name="trophy" size={15} color="#D4AF37" />
-                <Text className="text-white text-base font-bold tracking-wide ml-2">
-                  Bảng Xếp Hạng Tuần Này
-                </Text>
-              </View>
-            </View>
-
-            <FlatList
-              horizontal
-              data={topRankedComics}
-              renderItem={renderRankedCard}
-              keyExtractor={(item) => `rank-${item.id}`}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 16 }}
-            />
-          </View>
-
-          {/* 5. Spotlight Banner (Siêu Phẩm Chọn Lọc Tuần Này) */}
-          <View className="px-4 mt-7">
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => openComicDetail(newComics[2]?.id || newComics[0].id)}
-              className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900"
-            >
-              <Image
-                source={newComics[2]?.image || newComics[0].image}
-                className="w-full h-[170px]"
-                resizeMode="cover"
-              />
-              <LinearGradient
-                colors={["rgba(20,22,25,0.2)", "rgba(20,22,25,0.95)"]}
-                className="absolute inset-0 p-4 justify-end"
-              >
-                <View className="bg-[#D4AF37]/90 self-start px-2 py-0.5 rounded-md mb-1.5 flex-row items-center">
-                  <Ionicons name="flame" size={12} color="#141619" />
-                  <Text className="text-[#141619] text-[10px] font-black uppercase tracking-wider ml-1">
-                    SIÊU PHẨM TUẦN NÀY
+          {/* 3. Bảng Xếp Hạng Tuần Này (Top Views API) */}
+          {topViewsComics.length > 0 && (
+            <View className="mt-7">
+              <View className="flex-row justify-between items-center px-4 mb-3">
+                <View className="flex-row items-center">
+                  <FontAwesome5 name="trophy" size={15} color="#D4AF37" />
+                  <Text className="text-white text-base font-bold tracking-wide ml-2">
+                    Bảng Xếp Hạng Tuần Này
                   </Text>
                 </View>
-                <Text className="text-white font-extrabold text-lg leading-tight">
-                  {newComics[2]?.title || "Chú Thuật Hồi Chiến"}
-                </Text>
-                <Text
-                  className="text-[#D1D5DB] text-xs mt-1 leading-snug"
-                  numberOfLines={2}
-                >
-                  {newComics[2]?.description ||
-                    "Cuộc chiến giữa các chú thuật sư và lời nguyền ngày càng khốc liệt."}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+              </View>
 
-          {/* 6. Truyện Tranh Hệ Thống (Mới Lên Sóng API) */}
+              <FlatList
+                horizontal
+                data={topViewsComics.slice(0, 5)}
+                renderItem={renderRankedCard}
+                keyExtractor={(item) => `rank-${item.seriesId}`}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 16 }}
+              />
+            </View>
+          )}
+
+          {/* 4. Spotlight Banner (Phim / Truyện Hot nhất từ API) */}
+          {spotlightComic && (
+            <View className="px-4 mt-7">
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => openComicDetail(spotlightComic.seriesId)}
+                className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900"
+              >
+                <Image
+                  source={
+                    spotlightComic.bannerUrl || spotlightComic.coverUrl
+                      ? { uri: spotlightComic.bannerUrl || spotlightComic.coverUrl }
+                      : require("@assets/comic4.webp")
+                  }
+                  className="w-full h-[170px]"
+                  resizeMode="cover"
+                />
+                <LinearGradient
+                  colors={["rgba(20,22,25,0.2)", "rgba(20,22,25,0.95)"]}
+                  className="absolute inset-0 p-4 justify-end"
+                >
+                  <View className="bg-[#D4AF37] self-start px-2 py-0.5 rounded-md mb-1.5 flex-row items-center">
+                    <Ionicons name="flame" size={12} color="#141619" />
+                    <Text className="text-[#141619] text-[10px] font-black uppercase tracking-wider ml-1">
+                      SIÊU PHẨM TUẦN NÀY
+                    </Text>
+                  </View>
+                  <Text className="text-white font-extrabold text-lg leading-tight">
+                    {spotlightComic.title}
+                  </Text>
+                  <Text
+                    className="text-[#D1D5DB] text-xs mt-1 leading-snug"
+                    numberOfLines={2}
+                  >
+                    {spotlightComic.description || "Truyện tranh hấp dẫn trên TaleX."}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* 5. Truyện Tranh Mới Cập Nhật */}
           <ComicSection
-            title="Truyện Tranh Mới Lên Sóng"
+            title="Truyện Tranh Mới Cập Nhật"
             icon={<Ionicons name="flash" size={16} color="#D4AF37" />}
             loading={loading}
-            data={apiComics.map((item) => ({
-              id: item.seriesId || item.id,
-              title: item.title,
-              image: item.coverUrl
-                ? { uri: item.coverUrl }
-                : require("@assets/comic1.webp"),
-              category: "Tất cả",
-              author: item.author || "TaleX Creator",
-              status:
-                item.status === "PUBLISHED" ? "Đã xuất bản" : "Đang tiến hành",
-              views: item.analyticData?.views ?? item.totalViews ?? item.views ?? 0,
-              analyticData: item.analyticData,
-              averageRating: item.averageRating,
-              totalViews: item.totalViews,
-              rating: item.rating || "10.0",
-              ageRating: item.ageRating || item.targetAudience || item.contentRating,
-              chapters: [],
-              description: item.description || "",
-            }))}
+            data={latestComics}
             renderItem={renderComicCard}
-            emptyText="Chưa có truyện tranh hệ thống nào"
-            onSeeMore={() => navigateTo("Search")}
+            emptyText="Chưa có truyện tranh nào"
           />
 
-          {/* 7. Nội Dung Mới */}
+          {/* 6. Truyện Được Đánh Giá Cao */}
           <ComicSection
-            title="Nội Dung Mới - Xem Ngay"
-            icon={<Ionicons name="sparkles" size={16} color="#D4AF37" />}
-            data={newComics}
+            title="Truyện Được Đánh Giá Cao"
+            icon={<Ionicons name="star" size={16} color="#D4AF37" />}
+            loading={loading}
+            data={topRatedComics}
             renderItem={renderComicCard}
-            emptyText="Chưa có truyện mới"
-            onSeeMore={() => navigateTo("Search")}
+            emptyText="Chưa có dữ liệu đánh giá"
           />
 
-          {/* 8. Đề Xuất Cho Bạn */}
+          {/* 7. Truyện Được Yêu Thích */}
           <ComicSection
-            title="Đề Xuất Dành Cho Bạn"
-            icon={<FontAwesome5 name="bullseye" size={15} color="#D4AF37" />}
-            data={recommendedComics}
+            title="Truyện Được Yêu Thích Nhất"
+            icon={<MaterialCommunityIcons name="heart" size={16} color="#D4AF37" />}
+            loading={loading}
+            data={topLikedComics}
             renderItem={renderComicCard}
-            emptyText="Chưa có đề xuất"
-            onSeeMore={() => navigateTo("Search")}
-          />
-
-          {/* 9. Combo Siêu Tiết Kiệm */}
-          <ComicSection
-            title="Combo Siêu Tiết Kiệm"
-            icon={<MaterialCommunityIcons name="diamond-stone" size={16} color="#D4AF37" />}
-            data={comboComics}
-            renderItem={renderComicCard}
-            emptyText="Không có gói combo nào"
+            emptyText="Chưa có truyện yêu thích"
             highlighted
-            onSeeMore={() => navigateTo("Search")}
           />
         </ScrollView>
       </CinematicBackground>
@@ -421,16 +451,14 @@ function ComicSection({
   renderItem,
   emptyText,
   highlighted,
-  onSeeMore,
   loading,
 }: {
   title: string;
   icon?: React.ReactNode;
-  data: ComicItem[];
-  renderItem: ({ item }: { item: ComicItem }) => React.ReactElement;
+  data: SearchSeriesItem[];
+  renderItem: ({ item }: { item: SearchSeriesItem }) => React.ReactElement;
   emptyText: string;
   highlighted?: boolean;
-  onSeeMore?: () => void;
   loading?: boolean;
 }) {
   return (
@@ -474,7 +502,7 @@ function ComicSection({
           horizontal
           data={data}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.seriesId}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           ListEmptyComponent={
@@ -487,6 +515,3 @@ function ComicSection({
     </View>
   );
 }
-
-
-

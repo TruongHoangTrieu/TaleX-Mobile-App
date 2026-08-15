@@ -11,7 +11,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
-import AdRewardModal from "@/components/rewards/AdRewardModal";
 import { useReward } from "@/context/RewardContext";
 import {
   getCheckInStatus,
@@ -29,10 +28,8 @@ const COIN_CENTER_SYNC_INTERVAL_MS = 60_000;
 
 function MissionCard({
   mission,
-  onPressAd,
 }: {
   mission: MissionData;
-  onPressAd?: () => void;
 }) {
   const progress =
     mission.targetValue > 0
@@ -42,7 +39,6 @@ function MissionCard({
         )
       : 0;
   const isOnlineMission = mission.code.startsWith("ONLINE_");
-  const isAdMission = mission.code.startsWith("WATCH_AD_");
 
   return (
     <View className="mb-4 rounded-2xl border border-white/5 bg-[#1C1A18] p-4">
@@ -83,16 +79,6 @@ function MissionCard({
             Đang Online • Tự Động Nhận Thưởng
           </Text>
         </View>
-      ) : isAdMission ? (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={onPressAd}
-          className="mt-4 h-11 items-center justify-center rounded-xl bg-[#8F191D]"
-        >
-          <Text className="text-xs font-black uppercase tracking-wide text-white">
-            Xem Quảng Cáo
-          </Text>
-        </TouchableOpacity>
       ) : null}
     </View>
   );
@@ -105,7 +91,9 @@ export default function CoinCenterScreen() {
     INITIAL_CHECK_IN_STATUS,
   );
   const [isCheckingIn, setIsCheckingIn] = useState(false);
-  const [activeAdMission, setActiveAdMission] = useState<string | null>(null);
+  const visibleMissions = missions.filter(
+    (mission) => !mission.code.startsWith("WATCH_AD_"),
+  );
   const hasPendingOnlineMission = missions.some(
     (mission) => mission.code.startsWith("ONLINE_") && !mission.isCompleted,
   );
@@ -250,18 +238,18 @@ export default function CoinCenterScreen() {
             Nhiệm Vụ Hôm Nay
           </Text>
           <Text className="text-xs font-bold text-[#7C766B]">
-            {missions.length} nhiệm vụ
+            {visibleMissions.length} nhiệm vụ
           </Text>
         </View>
 
-        {isLoading && missions.length === 0 ? (
+        {isLoading && visibleMissions.length === 0 ? (
           <View className="items-center py-16">
             <ActivityIndicator size="large" color="#D4AF37" />
             <Text className="mt-3 text-sm text-[#A19E95]">
               Đang tải nhiệm vụ...
             </Text>
           </View>
-        ) : missions.length === 0 ? (
+        ) : visibleMissions.length === 0 ? (
           <View className="items-center rounded-2xl border border-white/5 bg-[#1C1A18] px-5 py-12">
             <FontAwesome5 name="tasks" size={28} color="#7C766B" />
             <Text className="mt-3 text-center text-sm font-semibold text-[#A19E95]">
@@ -269,21 +257,14 @@ export default function CoinCenterScreen() {
             </Text>
           </View>
         ) : (
-          missions.map((mission) => (
+          visibleMissions.map((mission) => (
             <MissionCard
               key={mission.missionId}
               mission={mission}
-              onPressAd={() => setActiveAdMission(mission.code)}
             />
           ))
         )}
       </ScrollView>
-
-      <AdRewardModal
-        visible={!!activeAdMission}
-        missionCode={activeAdMission || ""}
-        onClose={() => setActiveAdMission(null)}
-      />
     </SafeAreaView>
   );
 }

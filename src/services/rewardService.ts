@@ -1,7 +1,6 @@
 import { BASE_URL } from "@/config";
 import { authFetch } from "@/services/auth";
 import type {
-  AdSessionData,
   BaseResponse,
   CheckInStatus,
   MissionData,
@@ -99,20 +98,4 @@ export function getMissions(): Promise<MissionData[]> {
 
 export function sendOnlineHeartbeat(): Promise<void> {
   return requestData<void>("/api/v1/missions/heartbeat", { method: "POST" });
-}
-
-export function startAdSession(missionCode: string): Promise<AdSessionData> {
-  return requestData<AdSessionData>("/api/v1/missions/ads/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ missionCode }),
-  });
-}
-
-export function completeAdSession(sessionId: string): Promise<void> {
-  return requestData<void>("/api/v1/missions/ads/complete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId }),
-  });
 }

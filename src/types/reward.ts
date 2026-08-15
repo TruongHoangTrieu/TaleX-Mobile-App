@@ -20,11 +20,6 @@ export interface MissionData {
   isCompleted: boolean;
 }
 
-export interface AdSessionData {
-  sessionId: string;
-  expiresInSeconds: number;
-}
-
 export interface BaseResponse<T> {
   success?: boolean;
   code?: number | string;

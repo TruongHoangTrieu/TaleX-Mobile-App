@@ -20,11 +20,24 @@ export interface MissionData {
   isCompleted: boolean;
 }
 
+export interface AdSessionData {
+  sessionId: string;
+  expiresInSeconds: number;
+}
+
+export interface AdCampaignData {
+  campaignId: string;
+  title: string;
+  mediaUrl: string;
+  targetUrl?: string;
+  mediaType: "VIDEO" | "IMAGE" | string;
+}
+
 export interface BaseResponse<T> {
   success?: boolean;
   code?: number | string;
   statusCode?: number | string;
   message?: string;
-  data: T;
+  data?: T;
   timestamp?: string;
 }

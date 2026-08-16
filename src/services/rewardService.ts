@@ -1,6 +1,8 @@
 import { BASE_URL } from "@/config";
 import { authFetch } from "@/services/auth";
 import type {
+  AdCampaignData,
+  AdSessionData,
   BaseResponse,
   CheckInStatus,
   MissionData,
@@ -12,6 +14,10 @@ const apiUrl = (path: string) => `${BASE_URL.replace(/\/$/, "")}${path}`;
 type RewardRequestOptions = Omit<RequestInit, "headers"> & {
   headers?: Record<string, string>;
 };
+
+const WATCH_AD_MISSION_CODE = "WATCH_AD";
+const MISSION_AD_SLOT_CODES = ["IN_VIDEO", "POPUP_OVERLAY"] as const;
+const MISSION_AD_SOURCE = "MISSION";
 
 export class RewardApiError extends Error {
   code?: number | string;
@@ -25,7 +31,11 @@ export class RewardApiError extends Error {
   }
 }
 
-async function parseData<T>(response: Response, url: string): Promise<T> {
+async function parsePayload<T>(
+  response: Response,
+  url: string,
+  options?: { requireData?: boolean },
+): Promise<T | undefined> {
   const text = await response.text();
   let payload: BaseResponse<T>;
 
@@ -33,7 +43,7 @@ async function parseData<T>(response: Response, url: string): Promise<T> {
     payload = text ? JSON.parse(text) : ({} as BaseResponse<T>);
   } catch {
     throw new RewardApiError(
-      `Phản hồi không hợp lệ từ ${url}`,
+      `Invalid JSON response from ${url}`,
       undefined,
       response.status,
     );
@@ -44,18 +54,21 @@ async function parseData<T>(response: Response, url: string): Promise<T> {
 
   if (!response.ok || payload.success === false || hasErrorCode) {
     throw new RewardApiError(
-      payload.message || `Yêu cầu thất bại với mã HTTP ${response.status}`,
+      payload.message || `Request failed with HTTP ${response.status}`,
       payload.code ?? payload.statusCode,
       response.status,
     );
   }
 
   if (!("data" in payload)) {
-    throw new RewardApiError(
-      `Phản hồi từ ${url} không chứa trường data`,
-      undefined,
-      response.status,
-    );
+    if (options?.requireData) {
+      throw new RewardApiError(
+        `Response from ${url} does not contain data`,
+        undefined,
+        response.status,
+      );
+    }
+    return undefined;
   }
 
   return payload.data;
@@ -69,11 +82,76 @@ async function requestData<T>(
 
   try {
     const response = await authFetch(url, options);
-    return await parseData<T>(response, url);
+    const data = await parsePayload<T>(response, url, { requireData: true });
+    return data as T;
   } catch (error) {
     if (error instanceof RewardApiError) throw error;
     const message =
-      error instanceof Error ? error.message : "Không thể kết nối đến máy chủ";
+      error instanceof Error ? error.message : "Cannot connect to server";
+    throw new RewardApiError(message);
+  }
+}
+
+async function requestOptionalData<T>(
+  path: string,
+  options: RewardRequestOptions,
+): Promise<T | undefined> {
+  const url = apiUrl(path);
+
+  try {
+    const response = await authFetch(url, options);
+    return await parsePayload<T>(response, url);
+  } catch (error) {
+    if (error instanceof RewardApiError) throw error;
+    const message =
+      error instanceof Error ? error.message : "Cannot connect to server";
+    throw new RewardApiError(message);
+  }
+}
+
+async function requestPublicData<T>(
+  path: string,
+  options: RewardRequestOptions,
+): Promise<T> {
+  const url = apiUrl(path);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        Accept: "*/*",
+        ...(options.headers || {}),
+      },
+    });
+    const data = await parsePayload<T>(response, url, { requireData: true });
+    return data as T;
+  } catch (error) {
+    if (error instanceof RewardApiError) throw error;
+    const message =
+      error instanceof Error ? error.message : "Cannot connect to server";
+    throw new RewardApiError(message);
+  }
+}
+
+async function requestPublicOptionalData<T>(
+  path: string,
+  options: RewardRequestOptions,
+): Promise<T | undefined> {
+  const url = apiUrl(path);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        Accept: "*/*",
+        ...(options.headers || {}),
+      },
+    });
+    return await parsePayload<T>(response, url);
+  } catch (error) {
+    if (error instanceof RewardApiError) throw error;
+    const message =
+      error instanceof Error ? error.message : "Cannot connect to server";
     throw new RewardApiError(message);
   }
 }
@@ -98,4 +176,69 @@ export function getMissions(): Promise<MissionData[]> {
 
 export function sendOnlineHeartbeat(): Promise<void> {
   return requestData<void>("/api/v1/missions/heartbeat", { method: "POST" });
+}
+
+export function startAdMissionSession(
+  missionCode = WATCH_AD_MISSION_CODE,
+): Promise<AdSessionData> {
+  return requestData<AdSessionData>("/api/v1/missions/ads/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ missionCode }),
+  });
+}
+
+export async function getMissionAds(): Promise<AdCampaignData[]> {
+  let lastError: unknown;
+
+  for (const slotCode of MISSION_AD_SLOT_CODES) {
+    try {
+      const ads = await requestPublicData<AdCampaignData[]>(
+        `/api/v1/ads/serve/all?slotCode=${encodeURIComponent(slotCode)}`,
+        { method: "GET" },
+      );
+
+      const videoAds = ads.filter(
+        (ad) => ad.mediaUrl && ad.mediaType?.toUpperCase() === "VIDEO",
+      );
+
+      if (videoAds.length > 0) return videoAds;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) throw lastError;
+  return [];
+}
+
+export async function trackMissionAdImpression(
+  campaignId: string,
+): Promise<void> {
+  await requestPublicOptionalData<void>("/api/v1/ads/track/impression", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      campaignId,
+      source: MISSION_AD_SOURCE,
+    }),
+  });
+}
+
+export async function trackMissionAdClick(campaignId: string): Promise<void> {
+  await requestPublicOptionalData<void>("/api/v1/ads/track/click", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ campaignId }),
+  });
+}
+
+export async function completeAdMissionSession(
+  sessionId: string,
+): Promise<void> {
+  await requestOptionalData<void>("/api/v1/missions/ads/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
 }

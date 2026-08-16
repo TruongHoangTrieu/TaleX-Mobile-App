@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
+import AdMissionModal from "@/components/rewards/AdMissionModal";
 import { useReward } from "@/context/RewardContext";
 import {
   getCheckInStatus,
@@ -28,8 +29,10 @@ const COIN_CENTER_SYNC_INTERVAL_MS = 60_000;
 
 function MissionCard({
   mission,
+  onPressAd,
 }: {
   mission: MissionData;
+  onPressAd?: () => void;
 }) {
   const progress =
     mission.targetValue > 0
@@ -39,6 +42,8 @@ function MissionCard({
         )
       : 0;
   const isOnlineMission = mission.code.startsWith("ONLINE_");
+  const isAdMission =
+    mission.code === "WATCH_AD" || mission.code.startsWith("WATCH_AD_");
 
   return (
     <View className="mb-4 rounded-2xl border border-white/5 bg-[#1C1A18] p-4">
@@ -79,6 +84,16 @@ function MissionCard({
             Đang Online • Tự Động Nhận Thưởng
           </Text>
         </View>
+      ) : isAdMission ? (
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={onPressAd}
+          className="mt-4 h-11 items-center justify-center rounded-xl bg-[#8F191D]"
+        >
+          <Text className="text-xs font-black uppercase tracking-wide text-white">
+            Xem Quảng Cáo
+          </Text>
+        </TouchableOpacity>
       ) : null}
     </View>
   );
@@ -91,9 +106,10 @@ export default function CoinCenterScreen() {
     INITIAL_CHECK_IN_STATUS,
   );
   const [isCheckingIn, setIsCheckingIn] = useState(false);
-  const visibleMissions = missions.filter(
-    (mission) => !mission.code.startsWith("WATCH_AD_"),
+  const [activeAdMission, setActiveAdMission] = useState<MissionData | null>(
+    null,
   );
+  const visibleMissions = missions;
   const hasPendingOnlineMission = missions.some(
     (mission) => mission.code.startsWith("ONLINE_") && !mission.isCompleted,
   );
@@ -261,10 +277,17 @@ export default function CoinCenterScreen() {
             <MissionCard
               key={mission.missionId}
               mission={mission}
+              onPressAd={() => setActiveAdMission(mission)}
             />
           ))
         )}
       </ScrollView>
+      <AdMissionModal
+        visible={!!activeAdMission}
+        missionCode={activeAdMission?.code || ""}
+        rewardAmount={activeAdMission?.rewardAmount}
+        onClose={() => setActiveAdMission(null)}
+      />
     </SafeAreaView>
   );
 }

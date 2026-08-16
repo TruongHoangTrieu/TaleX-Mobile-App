@@ -25,6 +25,7 @@ import CheckoutScreen from "@/screens/checkout/CheckoutScreen";
 import UploadMovieScreen from "@/screens/creator/UploadMovieScreen";
 import UploadComicScreen from "@/screens/creator/UploadComicScreen";
 import CoinCenterScreen from "@/screens/rewards/CoinCenterScreen";
+import NotificationsScreen from "@/screens/notifications/NotificationsScreen";
 import LikedScreen from "@/screens/profile/LikedScreen";
 import SubscriptionsScreen from "@/screens/profile/SubscriptionsScreen";
 import BookmarkedScreen from "@/screens/profile/BookmarkedScreen";
@@ -95,6 +96,7 @@ export type RootStackParamList = {
   CreatorMonetization: undefined;
   SubscriptionPlans: undefined;
   CoinCenter: undefined;
+  Notifications: undefined;
   UploadMovie: undefined;
   UploadComic: undefined;
   /** Coin-only checkout for Episode/Combo. Premium and fiat purchases redirect to the website instead. */
@@ -167,6 +169,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="CoinCenter"
           component={CoinCenterScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Notifications"
+          component={NotificationsScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

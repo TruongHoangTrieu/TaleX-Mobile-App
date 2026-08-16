@@ -4,6 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { navigate as safeNavigateRef } from "@/navigation/navigationRef";
+import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 
 export interface HeaderProps {
   greetingText?: string;
@@ -23,10 +25,15 @@ export interface HeaderProps {
 }
 
 export default function Header({
-  hasUnreadNotification = true,
+  hasUnreadNotification,
   onBellPress,
   onSearchPress,
 }: HeaderProps) {
+  const { isAuthenticated } = useAuth();
+  const { unreadCount } = useNotifications();
+  const showUnreadNotification =
+    hasUnreadNotification ?? (isAuthenticated && unreadCount > 0);
+
   // An toàn khi gọi navigation dù ở bất kỳ vị trí nào
   let navigation: any = null;
   try {
@@ -49,7 +56,16 @@ export default function Header({
   };
 
   const handleBell = () => {
-    if (onBellPress) onBellPress();
+    if (onBellPress) {
+      onBellPress();
+      return;
+    }
+
+    if (isAuthenticated) {
+      navigateTo("Notifications");
+    } else {
+      navigateTo("LoginScreen");
+    }
   };
 
   return (
@@ -95,7 +111,7 @@ export default function Header({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather name="bell" size={20} color="#FFFFFF" />
-            {hasUnreadNotification && (
+            {showUnreadNotification && (
               <View className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] absolute top-2 right-2 border border-[#141619]" />
             )}
           </TouchableOpacity>

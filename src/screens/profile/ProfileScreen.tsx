@@ -19,6 +19,7 @@ import {
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { useReward } from "@/context/RewardContext";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootNavigator";
@@ -33,6 +34,7 @@ export default function ProfileScreen() {
   const scrollViewRef = React.useRef<ScrollView>(null);
 
   const { user, isAuthenticated, loading, refreshProfile, logout } = useAuth();
+  const { unreadCount, refreshUnreadCount } = useNotifications();
   const { balance, isLoading: isWalletLoading } = useReward();
   const {
     profile: userFeatureProfile,
@@ -49,6 +51,7 @@ export default function ProfileScreen() {
 
       if (isAuthenticated) {
         refreshProfile();
+        void refreshUnreadCount({ silent: true });
         refetchUserFeature();
 
         getOwnCreator()
@@ -65,7 +68,12 @@ export default function ProfileScreen() {
       } else {
         setIsCreator(false);
       }
-    }, [refreshProfile, refetchUserFeature, isAuthenticated]),
+    }, [
+      refreshProfile,
+      refreshUnreadCount,
+      refetchUserFeature,
+      isAuthenticated,
+    ]),
   );
 
   const renderMenuItem = (
@@ -149,12 +157,28 @@ export default function ProfileScreen() {
 
             {/* Right Action Icons */}
             <View className="flex-row items-center z-10">
-              <TouchableOpacity className="p-1 mr-2 active:opacity-70">
+              <TouchableOpacity
+                className="relative p-1 mr-2 active:opacity-70"
+                onPress={() => {
+                  if (isAuthenticated) {
+                    navigation.navigate("Notifications");
+                  } else {
+                    navigation.navigate("LoginScreen");
+                  }
+                }}
+              >
                 <Ionicons
                   name="notifications-outline"
                   size={22}
                   color="#FFFFFF"
                 />
+                {isAuthenticated && unreadCount > 0 && (
+                  <View className="absolute -right-1 -top-1 min-w-[17px] h-[17px] items-center justify-center rounded-full bg-[#D4AF37] px-1 border border-[#161618]">
+                    <Text className="text-[9px] font-black text-[#141210]">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
               <TouchableOpacity className="p-1 active:opacity-70">
                 <Ionicons name="settings-outline" size={22} color="#FFFFFF" />

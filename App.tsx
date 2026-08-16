@@ -1,6 +1,7 @@
 import RootNavigator from "./src/navigation/RootNavigator";
 import "./global.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import { RewardProvider } from "@/context/RewardContext";
 import { configureReanimatedLogger, ReanimatedLogLevel } from "react-native-reanimated";
 
@@ -13,9 +14,11 @@ configureReanimatedLogger({
 export default function App() {
   return (
     <AuthProvider>
-      <RewardProvider>
-        <RootNavigator />
-      </RewardProvider>
+      <NotificationProvider>
+        <RewardProvider>
+          <RootNavigator />
+        </RewardProvider>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

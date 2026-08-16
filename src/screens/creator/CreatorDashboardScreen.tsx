@@ -17,6 +17,7 @@ import {
 } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { LinearGradient } from "expo-linear-gradient";
 import { navigationRef } from "@/navigation/navigationRef";
 import { InteractiveStarRating } from "@/components/InteractiveStarRating";
@@ -362,6 +363,7 @@ export default function CreatorDashboardScreen({ navigation: propNav }: { naviga
   };
 
   const { user } = useAuth();
+  const { unreadCount } = useNotifications();
 
   const [activeTab, setActiveTab] = useState<"overview" | "content" | "comments" | "revenue">(
     "overview"
@@ -629,8 +631,18 @@ export default function CreatorDashboardScreen({ navigation: propNav }: { naviga
         </View>
 
         <View className="flex-row items-center">
-          <TouchableOpacity className="p-2 active:opacity-60">
+          <TouchableOpacity
+            className="relative p-2 active:opacity-60"
+            onPress={() => safeNavigate("Notifications")}
+          >
             <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+            {unreadCount > 0 && (
+              <View className="absolute right-0 top-0 min-w-[17px] h-[17px] items-center justify-center rounded-full bg-[#D4AF37] px-1 border border-[#141416]">
+                <Text className="text-[9px] font-black text-[#141210]">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>

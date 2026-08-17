@@ -6,6 +6,7 @@ import { CommonActions, useNavigation, useRoute } from "@react-navigation/native
 import Toast from "react-native-toast-message";
 import { cancelOrder, confirmCoinPayment, type OrderResponseDto } from "@/services/order";
 import { getWallet } from "@/services/rewardService";
+import { useReward } from "@/context/RewardContext";
 import { useContentOrderCreation } from "@/hooks/useContentOrderCreation";
 import { buildComboWebUrl, buildEpisodeWebUrl } from "@/utils/web-checkout-links";
 import CoinConfirmPanel from "@/components/checkout/CoinConfirmPanel";
@@ -32,6 +33,7 @@ export default function CheckoutScreen() {
     seriesId,
   } = params;
 
+  const { refreshRewardData } = useReward();
   const { order, creating, error, create } = useContentOrderCreation(itemId, itemType);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -73,6 +75,7 @@ export default function CheckoutScreen() {
     if (result.success && result.data) {
       finalizedRef.current = true;
       setCompletedOrder(result.data);
+      void refreshRewardData({ silent: true });
     } else {
       Toast.show({ type: "error", text1: result.message || "Xác nhận thất bại." });
     }

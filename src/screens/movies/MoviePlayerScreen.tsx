@@ -32,10 +32,12 @@ import {
   getSeasonEpisodes,
   getSeriesSeasons,
   getPublicSeriesDetail,
+  getPublicSeries,
   formatWatchTime,
   formatAnalyticNumber,
   EpisodeItem,
 } from "@/services/series";
+import { getRecommendationFeed, HomeFeedSeries } from "@/services/recommendations";
 import { useAuth } from "@/context/AuthContext";
 import { useEpisodeLikes } from "@/hooks/useEpisodeLikes";
 import { useEpisodeBookmarks } from "@/hooks/useEpisodeBookmarks";
@@ -660,6 +662,41 @@ export default function MoviePlayerScreen() {
     setPlaybackSpeed(speeds[nextIdx]);
   };
 
+  const [feedRecommendations, setFeedRecommendations] = useState<HomeFeedSeries[]>([]);
+  const [loadingFeedRecs, setLoadingFeedRecs] = useState<boolean>(false);
+
+  const loadFeedRecommendations = useCallback(async () => {
+    setLoadingFeedRecs(true);
+    try {
+      const feed = await getRecommendationFeed({ pageType: "WATCH", limit: 12 });
+      if (feed && feed.length > 0) {
+        const filtered = feed.filter(
+          (item) => String(item.seriesId || (item as any).id) !== String(movieId)
+        );
+        if (filtered.length > 0) {
+          setFeedRecommendations(filtered);
+          return;
+        }
+      }
+      // Fallback to public series list if feed is empty
+      const fallbackRes = await getPublicSeries(1, 10, "VIDEO");
+      if (fallbackRes?.data?.content) {
+        const filtered = fallbackRes.data.content.filter(
+          (item: any) => String(item.seriesId || item.id) !== String(movieId)
+        );
+        setFeedRecommendations(filtered as any);
+      }
+    } catch (err) {
+      console.warn("loadFeedRecommendations error:", err);
+    } finally {
+      setLoadingFeedRecs(false);
+    }
+  }, [movieId]);
+
+  useEffect(() => {
+    loadFeedRecommendations();
+  }, [loadFeedRecommendations]);
+
   const recommendations = allMovies.slice(0, 5);
 
   return (
@@ -767,20 +804,12 @@ export default function MoviePlayerScreen() {
 
           <View className="flex-row items-center flex-wrap gap-1.5 mt-1.5">
             <Text className="text-zinc-400 text-xs">
-              {formatAnalyticNumber(currentEp?.analyticData?.views ?? currentEp?.views ?? 12500)} lượt xem
+              {formatAnalyticNumber(currentEp?.analyticData?.views ?? currentEp?.views ?? 0)} lượt xem
             </Text>
             <Text className="text-zinc-500 text-xs">·</Text>
             <Text className="text-zinc-300 text-xs font-semibold">
               {formatAnalyticNumber(currentEp?.analyticData?.likes ?? likeCount ?? 1200)} lượt thích
             </Text>
-            {currentEp?.analyticData?.watchTime ? (
-              <>
-                <Text className="text-zinc-500 text-xs">·</Text>
-                <Text className="text-zinc-400 text-xs">
-                  ⏱️ {formatWatchTime(currentEp.analyticData.watchTime)}
-                </Text>
-              </>
-            ) : null}
             {currentEp?.averageRating ? (
               <>
                 <Text className="text-zinc-500 text-xs">·</Text>
@@ -954,55 +983,115 @@ export default function MoviePlayerScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* TAB 1: ĐỀ XUẤT */}
+        {/* TAB 1: ĐỀ XUẤT (GỌI GET /api/v1/recommendations/feed?pageType=WATCH) */}
         {activeTab === "recommend" && (
           <View className="px-4">
-            <View className="space-y-3">
-              {recommendations.map((rec) => (
-                <TouchableOpacity
-                  key={rec.id}
-                  onPress={() => {
-                    navigation.replace("MovieDetailScreen", {
-                      movieId: rec.id,
-                    });
-                  }}
-                  className="flex-row space-x-3 mb-3"
-                  activeOpacity={0.85}
-                >
-                  {/* 16:9 Thumbnail */}
-                  <View className="w-[135px] h-[80px] rounded-xl overflow-hidden bg-zinc-800 relative border border-white/10">
-                    <Image
-                      source={rec.image}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
-                    <View className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded">
-                      <Text className="text-white text-[9px] font-bold">
-                        45:00
-                      </Text>
-                    </View>
-                  </View>
+            {loadingFeedRecs && feedRecommendations.length === 0 ? (
+              <View className="py-8 items-center justify-center">
+                <ActivityIndicator size="small" color="#D4AF37" />
+                <Text className="text-zinc-400 text-xs mt-2 font-medium">
+                  Đang tải danh sách đề xuất...
+                </Text>
+              </View>
+            ) : feedRecommendations.length > 0 ? (
+              <View className="space-y-3">
+                {feedRecommendations.map((rec) => {
+                  const recId = rec.seriesId || (rec as any).id;
+                  const recImg = rec.coverUrl || rec.bannerUrl || (rec as any).thumbnailUrl;
+                  const recRating = rec.averageRating ?? (rec as any).rating ?? 5.0;
+                  const recViews = rec.views ?? rec.totalViews ?? 0;
+                  const recCreator = rec.creatorName || creatorInfo.name || "Tác giả TaleX";
 
-                  {/* Details */}
-                  <View className="flex-1 ml-2.5 justify-between py-0.5">
-                    <View>
+                  return (
+                    <TouchableOpacity
+                      key={recId}
+                      onPress={() => {
+                        navigation.replace("MovieDetailScreen", {
+                          movieId: recId,
+                          seriesItem: rec,
+                        });
+                      }}
+                      className="flex-row space-x-3 mb-3"
+                      activeOpacity={0.85}
+                    >
+                      {/* 16:9 Thumbnail */}
+                      <View className="w-[135px] h-[80px] rounded-xl overflow-hidden bg-zinc-800 relative border border-white/10">
+                        {recImg ? (
+                          <Image
+                            source={{ uri: recImg }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Image
+                            source={require("@assets/movie2.jpg")}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        )}
+                        <View className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded">
+                          <Text className="text-white text-[9px] font-bold">
+                            HD
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Details */}
+                      <View className="flex-1 ml-2.5 justify-between py-0.5">
+                        <View>
+                          <Text
+                            className="text-white font-bold text-xs leading-snug"
+                            numberOfLines={2}
+                          >
+                            {rec.title}
+                          </Text>
+                          <Text className="text-zinc-400 text-[11px] mt-1" numberOfLines={1}>
+                            {recCreator} · ⭐ {Number(recRating).toFixed(1)}
+                          </Text>
+                          <Text className="text-zinc-500 text-[10px] mt-0.5">
+                            {formatAnalyticNumber(recViews)} lượt xem
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <View className="space-y-3">
+                {recommendations.map((rec) => (
+                  <TouchableOpacity
+                    key={rec.id}
+                    onPress={() => {
+                      navigation.replace("MovieDetailScreen", {
+                        movieId: rec.id,
+                      });
+                    }}
+                    className="flex-row space-x-3 mb-3"
+                    activeOpacity={0.85}
+                  >
+                    <View className="w-[135px] h-[80px] rounded-xl overflow-hidden bg-zinc-800 relative border border-white/10">
+                      <Image
+                        source={rec.image}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    </View>
+                    <View className="flex-1 ml-2.5 justify-between py-0.5">
                       <Text
                         className="text-white font-bold text-xs leading-snug"
                         numberOfLines={2}
                       >
-                        {rec.title} - Tập Đặc Biệt 2026
+                        {rec.title}
                       </Text>
                       <Text className="text-zinc-400 text-[11px] mt-1">
                         {creatorInfo.name || "TaleX Official"} · ⭐ {rec.rating}
                       </Text>
-                      <Text className="text-zinc-500 text-[10px] mt-0.5">
-                        45K lượt xem · 3 ngày trước
-                      </Text>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         )}
 
@@ -1054,9 +1143,6 @@ export default function MoviePlayerScreen() {
                         numberOfLines={1}
                       >
                         Tập {ep.episodeNumber || idx + 1}: {ep.title}
-                      </Text>
-                      <Text className="text-zinc-400 text-[11px] mt-0.5">
-                        45 phút · HD Vietsub
                       </Text>
                     </View>
                   </View>
@@ -1142,9 +1228,6 @@ export default function MoviePlayerScreen() {
                             numberOfLines={1}
                           >
                             Tập {ep.episodeNumber || idx + 1}: {ep.title}
-                          </Text>
-                          <Text className="text-zinc-400 text-[11px] mt-0.5">
-                            45 phút
                           </Text>
                         </View>
                       </View>

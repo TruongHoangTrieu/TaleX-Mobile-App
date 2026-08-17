@@ -53,6 +53,8 @@ import { FollowersModal } from "@/components/FollowersModal";
 import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
 import { getCategories, getTags } from "@/services/creatorContent";
 import { useContentPurchase } from "@/hooks/useContentPurchase";
+import { useContentEntitlement } from "@/hooks/useContentEntitlement";
+import { getRecommendationFeed } from "@/services/recommendations";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -204,6 +206,27 @@ export default function MovieDetailScreen() {
     async (pageToFetch = 1) => {
       setLoadingRecs(true);
       try {
+        const feed = await getRecommendationFeed({
+          pageType: "WATCH",
+          limit: 12,
+          offset: (pageToFetch - 1) * 12,
+        });
+
+        if (feed && feed.length > 0) {
+          const filtered = feed.filter(
+            (item: any) =>
+              (item.seriesId || item.id) !== movieId &&
+              (item.contentType?.toUpperCase() === "VIDEO" ||
+                item.contentType?.toUpperCase() === "MOVIE" ||
+                !item.contentType)
+          );
+          if (filtered.length > 0) {
+            setRealRecommendations(filtered.slice(0, 6) as any);
+            return;
+          }
+        }
+
+        // Fallback to public series list if feed is empty
         const res = await getPublicSeries(pageToFetch, 20, "VIDEO");
         if (res?.data?.content) {
           const filtered = res.data.content.filter(
@@ -346,11 +369,10 @@ export default function MovieDetailScreen() {
   const activeSeasonId =
     selectedSeasonId ||
     (sortedSeasons.length > 0 ? sortedSeasons[0].seasonId : null);
-  const currentEpisodes: EpisodeItem[] = activeSeasonId
-    ? (episodesMap[activeSeasonId] || [])
-        .slice()
-        .sort((a, b) => a.episodeNumber - b.episodeNumber)
-    : [];
+  const currentEpisodes: EpisodeItem[] = useMemo(() => {
+    if (!activeSeasonId || !episodesMap[activeSeasonId]) return [];
+    return [...episodesMap[activeSeasonId]].sort((a, b) => a.episodeNumber - b.episodeNumber);
+  }, [activeSeasonId, episodesMap]);
 
   const firstEpisode = currentEpisodes.length > 0 ? currentEpisodes[0] : null;
 
@@ -367,6 +389,12 @@ export default function MovieDetailScreen() {
   }, [combos, seasons, movie]);
 
   const { buy } = useContentPurchase();
+  const { isEpisodeUnlocked, refreshEntitlements } = useContentEntitlement({
+    contentType: "VIDEO",
+    creatorAccountId,
+    combos: seriesCombos,
+    episodes: currentEpisodes,
+  });
 
   const displayEpisodes = useMemo(() => {
     const list = Array.isArray(currentEpisodes) ? [...currentEpisodes] : [];
@@ -538,13 +566,15 @@ export default function MovieDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData(true);
-    }, [loadData]),
+      refreshEntitlements();
+    }, [loadData, refreshEntitlements]),
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadData(true);
-  }, [loadData]);
+    refreshEntitlements();
+  }, [loadData, refreshEntitlements]);
 
   const handlePlayEpisode = (ep?: EpisodeItem | null, index: number = 0) => {
     const targetEp =
@@ -965,23 +995,29 @@ export default function MovieDetailScreen() {
                 </View>
               ) : (
                 <View className="flex-row flex-wrap gap-2.5">
-                  {displayEpisodes.map((ep, idx) => (
-                    <TouchableOpacity
-                      key={ep.episodeId || idx}
-                      onPress={() => handlePlayEpisode(ep, idx)}
-                      activeOpacity={0.8}
-                      className="w-[31%] h-11 bg-[#282A2F] border border-white/15 rounded-xl items-center justify-center shadow-md relative"
-                    >
-                      <Text className="text-white text-xs font-bold" numberOfLines={1}>
-                        Tập {ep.episodeNumber || idx + 1}
-                      </Text>
-                      {ep.unlockType === "PAID" && (
-                        <View className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-amber-500/25 border border-amber-500/50 items-center justify-center">
-                          <Feather name="lock" size={7} color="#fbbf24" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  ))}
+                  {displayEpisodes.map((ep, idx) => {
+                    const isPaid = ep.unlockType === "PAID";
+                    const isUnlocked = isEpisodeUnlocked(ep);
+                    const showLock = isPaid && !isUnlocked;
+
+                    return (
+                      <TouchableOpacity
+                        key={ep.episodeId || idx}
+                        onPress={() => handlePlayEpisode(ep, idx)}
+                        activeOpacity={0.8}
+                        className="w-[31%] h-11 bg-[#282A2F] border border-white/15 rounded-xl items-center justify-center shadow-md relative"
+                      >
+                        <Text className="text-white text-xs font-bold" numberOfLines={1}>
+                          Tập {ep.episodeNumber || idx + 1}
+                        </Text>
+                        {showLock && (
+                          <View className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-amber-500/25 border border-amber-500/50 items-center justify-center">
+                            <Feather name="lock" size={7} color="#fbbf24" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               )}
             </View>

@@ -15,6 +15,7 @@ import {
   type OrderResponseDto,
 } from "@/services/order";
 import { getWallet } from "@/services/rewardService";
+import { useReward } from "@/context/RewardContext";
 import { formatVnd } from "./format-vnd";
 
 interface QuickUnlockModalProps {
@@ -34,6 +35,7 @@ export default function QuickUnlockModal({
   comicTitle,
   onSuccess,
 }: QuickUnlockModalProps) {
+  const { refreshRewardData } = useReward();
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -131,6 +133,7 @@ export default function QuickUnlockModal({
       const result = await confirmCoinPayment(order.orderId);
       if (result.success && result.data) {
         finalizedRef.current = true;
+        void refreshRewardData({ silent: true });
         Toast.show({
           type: "success",
           text1: "Mở khóa thành công!",

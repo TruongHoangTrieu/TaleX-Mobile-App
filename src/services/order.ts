@@ -107,24 +107,41 @@ export const confirmCoinPayment = (
   postForResult<OrderResponseDto>(`/${orderId}/confirm-coin-payment`);
 
 export const getOrderHistory = async (
-  page = 1,
-  pageSize = 20,
+  page = 0,
+  pageSize = 100,
 ): Promise<OrderResult<OrderHistoryPageData>> => {
   try {
     const response = await authFetch(
       orderUrl(`/history?page=${page}&pageSize=${pageSize}`),
       { method: "GET" },
     );
-    const payload = (await response.json()) as OrderApiEnvelope<OrderHistoryPageData>;
+    const payload = (await response.json()) as any;
 
-    if (!response.ok || payload.code >= 400) {
+    if (!response.ok || (payload && payload.code >= 400)) {
       return {
         success: false,
-        message: payload.message || `Request failed with status ${response.status}`,
+        message: payload?.message || `Request failed with status ${response.status}`,
       };
     }
 
-    return { success: true, data: payload.data, message: payload.message };
+    const payloadData = payload?.data !== undefined ? payload.data : payload;
+    const content = Array.isArray(payloadData)
+      ? payloadData
+      : Array.isArray(payloadData?.content)
+      ? payloadData.content
+      : [];
+
+    return {
+      success: true,
+      data: {
+        content,
+        pageNumber: payloadData?.pageNumber ?? page,
+        pageSize: payloadData?.pageSize ?? pageSize,
+        totalElements: payloadData?.totalElements ?? content.length,
+        totalPages: payloadData?.totalPages ?? 1,
+      },
+      message: payload?.message,
+    };
   } catch (error) {
     return {
       success: false,

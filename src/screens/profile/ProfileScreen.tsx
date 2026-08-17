@@ -35,7 +35,7 @@ export default function ProfileScreen() {
 
   const { user, isAuthenticated, loading, refreshProfile, logout } = useAuth();
   const { unreadCount, refreshUnreadCount } = useNotifications();
-  const { balance, isLoading: isWalletLoading } = useReward();
+  const { balance, isLoading: isWalletLoading, refreshRewardData } = useReward();
   const {
     profile: userFeatureProfile,
     isMissingProfile,
@@ -52,6 +52,7 @@ export default function ProfileScreen() {
       if (isAuthenticated) {
         refreshProfile();
         void refreshUnreadCount({ silent: true });
+        void refreshRewardData({ silent: true });
         refetchUserFeature();
 
         getOwnCreator()
@@ -71,6 +72,7 @@ export default function ProfileScreen() {
     }, [
       refreshProfile,
       refreshUnreadCount,
+      refreshRewardData,
       refetchUserFeature,
       isAuthenticated,
     ]),

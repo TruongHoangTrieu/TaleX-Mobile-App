@@ -95,3 +95,57 @@ export async function getHomeFeed(params: HomeFeedParams = {}): Promise<HomeFeed
 
   return res.json();
 }
+
+export interface RecommendationFeedParams {
+  sessionId?: string;
+  pageType?: "WATCH" | "MOVIES" | "COMICS" | "HOME" | string;
+  limit?: number;
+  offset?: number;
+}
+
+export function generateSessionId(prefix = "sess"): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/**
+ * Fetch infinite recommendation feed for watch page or other pages.
+ * GET /api/v1/recommendations/feed
+ */
+export async function getRecommendationFeed(
+  params: RecommendationFeedParams = {}
+): Promise<HomeFeedSeries[]> {
+  const sessionId = params.sessionId || generateSessionId("sess_watch");
+  const queryParams = new URLSearchParams({
+    sessionId,
+    pageType: params.pageType || "WATCH",
+    limit: String(params.limit ?? 10),
+    ...(params.offset !== undefined ? { offset: String(params.offset) } : {}),
+  });
+
+  const baseUrlClean = BASE_URL.replace(/\/$/, "");
+  const url = `${baseUrlClean}/api/v1/recommendations/feed?${queryParams.toString()}`;
+
+  try {
+    const res = await authFetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "*/*",
+      },
+    });
+
+    if (!res.ok) {
+      return [];
+    }
+
+    const json = await res.json();
+    const rawData = json?.data !== undefined ? json.data : json;
+    if (Array.isArray(rawData)) return rawData;
+    if (Array.isArray(rawData?.content)) return rawData.content;
+    if (Array.isArray(rawData?.items)) return rawData.items;
+    return [];
+  } catch (err) {
+    console.warn("getRecommendationFeed error:", err);
+    return [];
+  }
+}
+

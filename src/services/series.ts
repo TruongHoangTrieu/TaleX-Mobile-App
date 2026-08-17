@@ -183,7 +183,7 @@ export async function getSeriesSeasons(seriesId: string): Promise<SeasonListResp
     return { code: 200, message: "OK", data: [] };
   }
   const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/series/${seriesId}/seasons`;
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     method: "GET",
     headers: {
       Accept: "*/*",
@@ -212,7 +212,7 @@ export async function getSeasonEpisodes(seasonId: string): Promise<EpisodeListRe
     return { code: 200, message: "OK", data: [] };
   }
   const url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/seasons/${seasonId}/episodes`;
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     method: "GET",
     headers: {
       Accept: "*/*",

@@ -74,3 +74,42 @@ export const getSubscriptions = async (): Promise<GetSubscriptionsResult> => {
     };
   }
 };
+
+export interface AccountSubscription {
+  accountSubscriptionId: string;
+  accountId: string;
+  subscriptionId: string;
+  startTime: string;
+  endTime: string;
+  updatedAt: string;
+  cancelledAt: string | null;
+  invoiceUrl?: string | null;
+  isAdBlocked: boolean;
+  isMovieUnlocked: boolean;
+  isStoryUnlocked: boolean;
+  isCancelled: boolean;
+}
+
+export const getActiveSubscription = async (): Promise<AccountSubscription | null> => {
+  const url = `${BASE_URL.replace(
+    /\/$/,
+    "",
+  )}/api/v1/account-subscriptions/own?page=1&pageSize=1&sortBy=endTime&sortDirection=DESC`;
+
+  try {
+    const response = await authFetch(url, { method: "GET" });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const list = payload?.data?.content || payload?.data || [];
+    const latest: AccountSubscription | undefined = list[0];
+    if (!latest || latest.isCancelled) return null;
+    const end = new Date(latest.endTime).getTime();
+    if (end > Date.now()) {
+      return latest;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+

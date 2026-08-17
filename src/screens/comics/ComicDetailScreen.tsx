@@ -42,6 +42,7 @@ import { BookmarkButton } from "@/components/BookmarkButton";
 import { ShareButton } from "@/components/ShareButton";
 import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
 import { useContentPurchase } from "@/hooks/useContentPurchase";
+import { useContentEntitlement } from "@/hooks/useContentEntitlement";
 
 const { width } = Dimensions.get("window");
 
@@ -246,7 +247,8 @@ export default function ComicDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData(true);
-    }, [loadData]),
+      refreshEntitlements();
+    }, [loadData, refreshEntitlements]),
   );
 
   useEffect(() => {
@@ -256,6 +258,7 @@ export default function ComicDetailScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     loadData(true);
+    refreshEntitlements();
   };
 
   const handleSeasonSelect = async (seasonId: string) => {
@@ -276,9 +279,12 @@ export default function ComicDetailScreen() {
   const activeSeasonId =
     selectedSeasonId || (seasons.length > 0 ? seasons[0].seasonId : null);
 
-  const currentEpisodes: EpisodeItem[] = activeSeasonId
-    ? (episodesMap[activeSeasonId] || []).slice().sort((a, b) => a.episodeNumber - b.episodeNumber)
-    : comic?.chapters || [];
+  const currentEpisodes: EpisodeItem[] = useMemo(() => {
+    if (activeSeasonId && episodesMap[activeSeasonId]) {
+      return [...episodesMap[activeSeasonId]].sort((a, b) => a.episodeNumber - b.episodeNumber);
+    }
+    return comic?.chapters || [];
+  }, [activeSeasonId, episodesMap, comic?.chapters]);
 
   const firstEpisode = currentEpisodes.length > 0 ? currentEpisodes[0] : null;
 
@@ -295,6 +301,12 @@ export default function ComicDetailScreen() {
   }, [combos, seasons, comic]);
 
   const { buy } = useContentPurchase();
+  const { isEpisodeUnlocked, refreshEntitlements } = useContentEntitlement({
+    contentType: "COMIC",
+    creatorAccountId,
+    combos: seriesCombos,
+    episodes: currentEpisodes,
+  });
 
   const displayEpisodes = useMemo(() => {
     const list = Array.isArray(currentEpisodes) ? [...currentEpisodes] : [];
@@ -771,23 +783,29 @@ export default function ComicDetailScreen() {
                 </View>
               ) : (
                 <View className="flex-row flex-wrap gap-2.5">
-                  {displayEpisodes.map((ep, idx) => (
-                    <TouchableOpacity
-                      key={ep.episodeId || idx}
-                      onPress={() => handleReadEpisode(ep, idx)}
-                      activeOpacity={0.8}
-                      className="w-[31%] h-11 bg-[#282A2F] border border-white/15 rounded-xl items-center justify-center shadow-md relative"
-                    >
-                      <Text className="text-white text-xs font-bold" numberOfLines={1}>
-                        Tập {ep.episodeNumber || idx + 1}
-                      </Text>
-                      {ep.unlockType === "PAID" && (
-                        <View className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-amber-500/25 border border-amber-500/50 items-center justify-center">
-                          <Feather name="lock" size={7} color="#fbbf24" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  ))}
+                  {displayEpisodes.map((ep, idx) => {
+                    const isPaid = ep.unlockType === "PAID";
+                    const isUnlocked = isEpisodeUnlocked(ep);
+                    const showLock = isPaid && !isUnlocked;
+
+                    return (
+                      <TouchableOpacity
+                        key={ep.episodeId || idx}
+                        onPress={() => handleReadEpisode(ep, idx)}
+                        activeOpacity={0.8}
+                        className="w-[31%] h-11 bg-[#282A2F] border border-white/15 rounded-xl items-center justify-center shadow-md relative"
+                      >
+                        <Text className="text-white text-xs font-bold" numberOfLines={1}>
+                          Tập {ep.episodeNumber || idx + 1}
+                        </Text>
+                        {showLock && (
+                          <View className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-amber-500/25 border border-amber-500/50 items-center justify-center">
+                            <Feather name="lock" size={7} color="#fbbf24" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               )}
             </View>

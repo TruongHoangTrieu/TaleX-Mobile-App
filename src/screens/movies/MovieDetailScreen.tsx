@@ -51,9 +51,9 @@ import { ShareButton } from "@/components/ShareButton";
 import { FollowersModal } from "@/components/FollowersModal";
 import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
 import { getCategories, getTags } from "@/services/creatorContent";
-import { useContentPurchase } from "@/hooks/useContentPurchase";
 import { useContentEntitlement } from "@/hooks/useContentEntitlement";
 import { getRecommendationFeed } from "@/services/recommendations";
+import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -318,6 +318,17 @@ export default function MovieDetailScreen() {
     null,
   );
   const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [unlockModalConfig, setUnlockModalConfig] = useState<{
+    visible: boolean;
+    itemId?: string | null;
+    itemType: "EPISODE" | "COMBO";
+    itemTitle?: string;
+  }>({
+    visible: false,
+    itemId: null,
+    itemType: "COMBO",
+    itemTitle: "",
+  });
 
   const creatorAccountId = movie?.creatorAccountId || movie?.authorAccountId;
 
@@ -387,7 +398,6 @@ export default function MovieDetailScreen() {
     });
   }, [combos, seasons, movie]);
 
-  const { buy } = useContentPurchase();
   const { isEpisodeUnlocked, refreshEntitlements } = useContentEntitlement({
     contentType: "VIDEO",
     creatorAccountId,
@@ -903,15 +913,18 @@ export default function MovieDetailScreen() {
                       <TouchableOpacity
                         className="mt-3 h-[40px] bg-[#D4AF37] rounded-xl items-center justify-center"
                         activeOpacity={0.8}
-                        onPress={() =>
-                          buy({
+                        onPress={() => {
+                          if (!user) {
+                            navigation.navigate("LoginScreen");
+                            return;
+                          }
+                          setUnlockModalConfig({
+                            visible: true,
                             itemId: combo.comboId,
                             itemType: "COMBO",
-                            title: combo.title,
-                            returnScreen: "MovieDetailScreen",
-                            seriesId: movieId,
-                          })
-                        }
+                            itemTitle: combo.title,
+                          });
+                        }}
                       >
                         <Text className="text-black font-bold text-[13px]">Mua Gói Ngay</Text>
                       </TouchableOpacity>
@@ -1094,6 +1107,24 @@ export default function MovieDetailScreen() {
           onClose={() => setShowFollowersModal(false)}
         />
       )}
+
+      {/* Quick Unlock Modal for Combo / Episodes */}
+      <QuickUnlockModal
+        visible={unlockModalConfig.visible}
+        itemId={unlockModalConfig.itemId}
+        itemType={unlockModalConfig.itemType}
+        itemTitle={unlockModalConfig.itemTitle}
+        seriesTitle={movie?.title}
+        seriesId={movieId}
+        contentKind="VIDEO"
+        onClose={() =>
+          setUnlockModalConfig((prev) => ({ ...prev, visible: false }))
+        }
+        onSuccess={() => {
+          refreshEntitlements();
+          loadData(true);
+        }}
+      />
     </View>
   );
 }

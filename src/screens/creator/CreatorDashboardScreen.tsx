@@ -408,8 +408,20 @@ export default function CreatorDashboardScreen({ navigation: propNav }: { naviga
           setLogs([]);
         }
 
-        if (seriesRes.status === "fulfilled" && seriesRes.value?.content) {
-          setSeriesList(seriesRes.value.content);
+        if (seriesRes.status === "fulfilled" && seriesRes.value) {
+          const val = seriesRes.value as any;
+          const list = Array.isArray(val)
+            ? val
+            : Array.isArray(val?.content)
+            ? val.content
+            : Array.isArray(val?.items)
+            ? val.items
+            : Array.isArray(val?.data)
+            ? val.data
+            : Array.isArray(val?.data?.content)
+            ? val.data.content
+            : [];
+          setSeriesList(list);
         } else {
           setSeriesList([]);
         }
@@ -567,43 +579,55 @@ export default function CreatorDashboardScreen({ navigation: propNav }: { naviga
   const topSeriesList = useMemo(() => {
     if (!seriesList || seriesList.length === 0) return [];
     return [...seriesList]
-      .sort((a, b) => (b.totalViews || 0) - (a.totalViews || 0))
+      .sort((a, b) => ((b as any).totalViews || (b as any).views || 0) - ((a as any).totalViews || (a as any).views || 0))
       .slice(0, 5)
-      .map((s, idx) => ({
-        id: s.seriesId || String(idx),
+      .map((s: any, idx) => ({
+        id: s.seriesId || s.id || String(idx),
         title: s.title,
-        category: s.contentType === "VIDEO" ? "Video / Animation" : "Truyện tranh",
-        views: s.totalViews || 0,
-        subs: s.totalSubscriptions || 0,
-        coverUrl: s.coverUrl,
-        averageRating: (s as any).averageRating || (s as any).rating || 5.0,
-        totalRatingsCount: (s as any).totalRatingsCount || (s as any).ratingCount || s.totalSubscriptions || 0,
+        category: s.contentType === "VIDEO" ? "Video / Phim" : "Truyện tranh",
+        views: s.totalViews ?? s.views ?? (s.analyticData?.views || 0),
+        subs: s.totalSubscriptions ?? s.subscriptions ?? s.followersCount ?? 0,
+        coverUrl: s.coverUrl || s.bannerUrl,
+        averageRating: Number(s.averageRating ?? s.rating ?? 5.0),
+        totalRatingsCount: s.totalRatingsCount ?? s.ratingCount ?? s.totalSubscriptions ?? 0,
         coverColor: s.contentType === "VIDEO" ? "#3B82F6" : "#10B981",
       }));
   }, [seriesList]);
 
-  // Dynamic Recent Content from real API seriesList
+  // Dynamic Recent Content from real API seriesList with 100% Real Metrics
   const recentContent = useMemo(() => {
     if (!seriesList || seriesList.length === 0) return [];
-    return seriesList.slice(0, 10).map((s) => ({
-      id: s.seriesId,
-      title: s.title,
-      type: s.contentType === "VIDEO" ? "video" : "comic",
-      views: formatNum(s.totalViews || 0),
-      status: s.status,
-      coverUrl: s.coverUrl,
-      averageRating: (s as any).averageRating || (s as any).rating || 5.0,
-      totalRatingsCount: (s as any).totalRatingsCount || (s as any).ratingCount || 0,
-      statusText:
-        s.status === "PUBLISHED"
-          ? "Đã xuất bản"
-          : s.status === "DRAFT"
-          ? "Bản nháp"
-          : "Đang ẩn",
-      date: s.createdAt
-        ? new Date(s.createdAt).toLocaleDateString("vi-VN")
-        : "Gần đây",
-    }));
+    return seriesList.map((s: any) => {
+      const views = s.totalViews ?? s.views ?? (s.analyticData?.views || 0);
+      const subs = s.totalSubscriptions ?? s.subscriptions ?? s.followersCount ?? 0;
+      const avgRating = Number(s.averageRating ?? s.rating ?? 5.0);
+      const ratingCount = s.totalRatingsCount ?? s.ratingCount ?? 0;
+
+      return {
+        id: s.seriesId || s.id,
+        title: s.title,
+        type: s.contentType === "VIDEO" ? "video" : "comic",
+        category: s.contentType === "VIDEO" ? "Video / Phim" : "Truyện tranh",
+        views: views,
+        formattedViews: formatNum(views),
+        subs: subs,
+        formattedSubs: formatNum(subs),
+        status: s.status || "PUBLISHED",
+        coverUrl: s.coverUrl || s.bannerUrl,
+        averageRating: avgRating,
+        totalRatingsCount: ratingCount,
+        statusText:
+          s.status === "PUBLISHED"
+            ? "Đã xuất bản"
+            : s.status === "DRAFT"
+            ? "Bản nháp"
+            : "Đang ẩn",
+        date: s.createdAt
+          ? new Date(s.createdAt).toLocaleDateString("vi-VN")
+          : "Gần đây",
+        raw: s,
+      };
+    });
   }, [seriesList]);
 
   const totalEngagement =
@@ -1111,48 +1135,18 @@ export default function CreatorDashboardScreen({ navigation: propNav }: { naviga
               )}
             </View>
 
-            {/* ================= 6. VÍ CREATOR & DOANH THU (WALLET & REVENUE OVERVIEW) ================= */}
-            <LinearGradient
-              colors={["#241E15", "#18181B"]}
-              className="mt-5 border border-[#D4AF37]/40 rounded-3xl p-5 shadow-xl shadow-yellow-500/10"
-            >
-              <View className="flex-row items-center justify-between">
-                <Text className="text-zinc-400 text-xs font-bold uppercase tracking-wider">
-                  Ví Creator & Coin Hệ Thống
-                </Text>
-                <View className="bg-[#D4AF37]/20 border border-[#D4AF37]/40 px-2 py-0.5 rounded-full">
-                  <Text className="text-[#D4AF37] text-[9px] font-black uppercase">Ví thực tế</Text>
-                </View>
-              </View>
-
-              <View className="flex-row items-baseline mt-2">
-                <Text className="text-[#D4AF37] text-3xl font-black">
-                  {formatNum(wallet.balance || 0)} Coins
-                </Text>
-              </View>
-              <Text className="text-zinc-500 text-[10px] font-semibold mt-1">
-                Tổng thu nhập đã kiếm: {formatNum(wallet.totalEarned || 0)} Coins
-              </Text>
-
-              <TouchableOpacity
-                onPress={() => safeNavigate("CreatorMonetization")}
-                className="bg-[#D4AF37] h-11 justify-center items-center rounded-2xl mt-4 shadow-md shadow-yellow-500/20 active:opacity-90"
-              >
-                <Text className="text-zinc-950 font-black text-xs uppercase tracking-wide">
-                  Chi Tiết Rút Tiền & Báo Cáo
-                </Text>
-              </TouchableOpacity>
-            </LinearGradient>
-
           </View>
         )}
 
         {/* ================= 7. DANH SÁCH NỘI DUNG (CONTENT TAB) ================= */}
-        {(activeTab === "content" || activeTab === "overview") && activeTab !== "overview" && (
+        {activeTab === "content" && (
           <View className="px-4 mt-5">
-            <View className="flex-row justify-between items-center mb-4">
+            <View className="mb-4">
               <Text className="text-white text-base font-black tracking-wide">
-                Nội Dung Đã Xuất Bản
+                Nội Dung Đã Xuất Bản ({recentContent.length})
+              </Text>
+              <Text className="text-zinc-500 text-xs font-medium mt-0.5">
+                Tất cả phim & truyện tranh do bạn phát hành
               </Text>
             </View>
 
@@ -1160,36 +1154,44 @@ export default function CreatorDashboardScreen({ navigation: propNav }: { naviga
               <View className="p-8 items-center justify-center border border-dashed border-zinc-800 rounded-2xl">
                 <Feather name="inbox" size={28} color="#52525B" />
                 <Text className="text-zinc-400 text-xs font-bold mt-2">
-                  Bạn chưa xuất bản bài viết hoặc truyện/phim nào
+                  Bạn chưa xuất bản tác phẩm nào
                 </Text>
               </View>
             ) : (
               recentContent.map((item) => (
-                <View
+                <TouchableOpacity
                   key={item.id}
-                  className="bg-[#17171A] border border-zinc-800 rounded-2xl p-3.5 mb-3"
+                  activeOpacity={0.85}
+                  onPress={() => safeNavigate("CreatorChannel")}
+                  className="bg-[#17171A] border border-zinc-800 rounded-2xl p-3.5 mb-3.5 shadow-sm"
                 >
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center flex-1 pr-3">
-                      {/* Series Cover Thumbnail */}
-                      <View className="w-14 h-16 rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700/60 mr-3 items-center justify-center">
-                        {item.coverUrl ? (
-                          <Image
-                            source={{ uri: item.coverUrl }}
-                            className="w-full h-full"
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <View className="w-full h-full items-center justify-center bg-zinc-800">
-                            <Feather name="image" size={18} color="#71717A" />
-                          </View>
-                        )}
-                      </View>
+                  {/* Top Row: Fixed size thumbnail + Content info */}
+                  <View className="flex-row items-start">
+                    {/* Fixed Size Thumbnail */}
+                    <View
+                      style={{ width: 64, height: 86, borderRadius: 12, overflow: "hidden" }}
+                      className="bg-zinc-800 border border-zinc-700/60 mr-3 items-center justify-center flex-shrink-0"
+                    >
+                      {item.coverUrl ? (
+                        <Image
+                          source={{ uri: item.coverUrl }}
+                          style={{ width: "100%", height: "100%" }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View className="w-full h-full items-center justify-center bg-zinc-800">
+                          <Feather name="image" size={20} color="#71717A" />
+                        </View>
+                      )}
+                    </View>
 
-                      <View className="flex-1">
-                        <View className="flex-row items-center mb-1">
+                    {/* Right Content Column */}
+                    <View className="flex-1 justify-between" style={{ minHeight: 86 }}>
+                      <View>
+                        {/* Status Badge, Category & Date */}
+                        <View className="flex-row items-center mb-1.5 flex-wrap">
                           <View
-                            className={`px-2 py-0.5 rounded border mr-2 ${
+                            className={`px-2 py-0.5 rounded border mr-1.5 ${
                               item.status === "PUBLISHED"
                                 ? "bg-emerald-500/10 border-emerald-500/20"
                                 : "bg-amber-500/10 border-amber-500/20"
@@ -1203,42 +1205,49 @@ export default function CreatorDashboardScreen({ navigation: propNav }: { naviga
                               {item.statusText}
                             </Text>
                           </View>
-                          <Text className="text-zinc-500 text-[10px] font-bold">{item.date}</Text>
+                          <View className="bg-zinc-800 px-1.5 py-0.5 rounded mr-1.5">
+                            <Text className="text-zinc-400 text-[9px] font-bold">
+                              {item.category}
+                            </Text>
+                          </View>
+                          <Text className="text-zinc-500 text-[10px] font-medium">{item.date}</Text>
                         </View>
 
-                        <Text className="text-white text-sm font-bold mt-0.5" numberOfLines={2}>
+                        {/* Series Title */}
+                        <Text className="text-white text-sm font-bold leading-snug" numberOfLines={2}>
                           {item.title}
                         </Text>
                       </View>
-                    </View>
 
-                    <TouchableOpacity className="p-1">
-                      <Feather name="more-vertical" size={18} color="#71717A" />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Metrics footer */}
-                  <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-zinc-800/80">
-                    <View className="flex-row items-center space-x-3">
-                      <View className="flex-row items-center mr-2">
-                        <Feather name="eye" size={12} color="#71717A" />
-                        <Text className="text-zinc-300 text-xs font-semibold ml-1.5">
-                          {item.views}
+                      {/* Real Views */}
+                      <View className="flex-row items-center mt-2">
+                        <Feather name="eye" size={12} color="#D4AF37" />
+                        <Text className="text-[#D4AF37] text-xs font-bold ml-1.5">
+                          {item.formattedViews} lượt xem
                         </Text>
                       </View>
-                      <InteractiveStarRating
-                        seriesId={item.id}
-                        seriesTitle={item.title}
-                        averageRating={item.averageRating}
-                        totalRatingsCount={item.totalRatingsCount}
-                      />
                     </View>
 
-                    <TouchableOpacity className="bg-zinc-800 px-3 py-1 rounded-xl">
-                      <Text className="text-[#D4AF37] text-xs font-bold">Chỉnh sửa</Text>
-                    </TouchableOpacity>
+                    {/* Arrow Right Action */}
+                    <View className="p-1 pl-1">
+                      <Feather name="chevron-right" size={18} color="#71717A" />
+                    </View>
                   </View>
-                </View>
+
+                  {/* Bottom Row: Rating */}
+                  <View className="flex-row items-center justify-between mt-3 pt-2.5 border-t border-zinc-800/80">
+                    <InteractiveStarRating
+                      seriesId={item.id}
+                      seriesTitle={item.title}
+                      averageRating={item.averageRating}
+                      totalRatingsCount={item.totalRatingsCount}
+                    />
+
+                    <Text className="text-zinc-500 text-[11px] font-semibold">
+                      Chạm để xem chi tiết
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               ))
             )}
           </View>

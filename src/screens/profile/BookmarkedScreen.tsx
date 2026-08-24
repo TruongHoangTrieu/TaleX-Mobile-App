@@ -226,6 +226,10 @@ export default function BookmarkedScreen({ navigation }: any) {
         <FlatList
           data={filteredList}
           keyExtractor={(item, index) => `${item.episodeId}-${index}`}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews={true}
           refreshing={refreshing}
           onRefresh={handleRefresh}
           contentContainerStyle={{ padding: 16 }}

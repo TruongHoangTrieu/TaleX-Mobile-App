@@ -218,6 +218,10 @@ export default function MovieCarousel() {
         data={bannerData}
         horizontal
         pagingEnabled
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        removeClippedSubviews={true}
         showsHorizontalScrollIndicator={false}
         renderItem={renderItem}
         keyExtractor={(item) => item.seriesId}

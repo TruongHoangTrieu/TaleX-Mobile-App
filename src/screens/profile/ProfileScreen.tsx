@@ -150,17 +150,17 @@ export default function ProfileScreen() {
               />
             </View>
 
-            {/* Title "Profile" Centered */}
+            {/* Title "Tài Khoản" Centered */}
             <View className="absolute left-0 right-0 items-center pointer-events-none">
               <Text className="text-white text-xl font-bold tracking-wider">
-                Profile
+                Tài Khoản
               </Text>
             </View>
 
             {/* Right Action Icons */}
             <View className="flex-row items-center z-10">
               <TouchableOpacity
-                className="relative p-1 mr-2 active:opacity-70"
+                className="relative p-1 active:opacity-70"
                 onPress={() => {
                   if (isAuthenticated) {
                     navigation.navigate("Notifications");
@@ -181,9 +181,6 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity className="p-1 active:opacity-70">
-                <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </View>
@@ -213,7 +210,7 @@ export default function ProfileScreen() {
           <Text className="text-white text-2xl font-bold tracking-wide text-center z-10">
             {isAuthenticated
               ? user?.username || user?.fullName || "Dima"
-              : "Khách (TaleX User)"}
+              : "Khách "}
           </Text>
 
           {/* User Email */}
@@ -240,25 +237,27 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Subscribe Now Pill Button - Synchronized to TaleX Brand Gold Theme (#D4AF37) */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate("SubscriptionPlans")}
-            className="mt-5 w-full h-[52px] rounded-full border-2 border-[#D4AF37] bg-[#D4AF37]/15 flex-row items-center justify-center active:bg-[#D4AF37]/30 z-10"
-          >
-            <FontAwesome5 name="crown" size={15} color="#D4AF37" />
-            <Text className="text-[#D4AF37] font-bold text-[17px] ml-3 tracking-wide">
-              Subscribe Now
-            </Text>
-          </TouchableOpacity>
+          {/* Subscribe Pill Button - Chỉ hiện khi đã đăng nhập */}
+          {isAuthenticated && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate("SubscriptionPlans")}
+              className="mt-5 w-full h-[52px] rounded-full border-2 border-[#D4AF37] bg-[#D4AF37]/15 flex-row items-center justify-center active:bg-[#D4AF37]/30 z-10"
+            >
+              <FontAwesome5 name="crown" size={15} color="#D4AF37" />
+              <Text className="text-[#D4AF37] font-bold text-[17px] ml-3 tracking-wide">
+                Đăng Ký Hội Viên
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* ================= GIỮ NGUYÊN TOÀN BỘ CÁC KHỐI MENU TALEX Ở PHẦN DƯỚI ================= */}
-        <View className="px-4">
-          {/* ================= BIẾN ĐỔI KHỐI VÍ XU / REWARD ================= */}
-          {isAuthenticated && (
-            /* CÓ VÍ XU KHI ĐÃ LOGGED IN */
-            <View className="w-full mb-6 p-4 bg-[#161618] rounded-2xl border border-white/5 flex-row items-center justify-between shadow-sm">
+        {/* ================= NỘI DUNG MENU CÁC TÍNH NĂNG HOẠT ĐỘNG ================= */}
+        {isAuthenticated ? (
+          /* ===== GIAO DIỆN KHI ĐÃ ĐĂNG NHẬP (LOGGED IN USER) ===== */
+          <View className="px-4">
+            {/* ================= KHỐI VÍ XU / REWARD ================= */}
+            <View className="w-full mb-4 p-4 bg-[#161618] rounded-2xl border border-white/5 flex-row items-center justify-between shadow-sm">
               <View className="flex-row items-center">
                 <View className="w-10 h-10 bg-[#D4AF37]/10 rounded-xl items-center justify-center mr-3.5">
                   <FontAwesome5 name="coins" size={16} color="#D4AF37" />
@@ -305,10 +304,8 @@ export default function ProfileScreen() {
                 </LinearGradient>
               </TouchableOpacity>
             </View>
-          )}
 
-          {/* ================= CARD 2.5: CREATOR STUDIO ================= */}
-          {isAuthenticated && (
+            {/* ================= CARD 2: CREATOR STUDIO ================= */}
             <View className="w-full bg-[#161618] rounded-[16px] overflow-hidden mb-4 border border-[#D4AF37]/20 shadow-lg shadow-yellow-500/5">
               <View className="p-4 flex-row justify-between items-center bg-[#D4AF37]/5 border-b border-[#D4AF37]/10">
                 <View className="flex-row items-center">
@@ -337,38 +334,31 @@ export default function ProfileScreen() {
                 () => navigation.navigate("CreatorDashboard"),
               )}
             </View>
-          )}
 
-          {/* ================= CARD 3: QUYỀN LỢI ================= */}
-          <View className="w-full bg-[#161618] rounded-[16px] overflow-hidden mb-4 border border-white/5">
-            <Text className="text-white font-black text-[14px] tracking-wide ml-4 mt-3.5 mb-1">
-              Quyền Lợi
-            </Text>
-            {renderMenuItem(
-              <FontAwesome5 name="crown" size={14} color="#D4AF37" />,
-              "Gói hội viên VIP",
-            )}
-            <View className="h-[1px] bg-zinc-800/40 mx-4" />
-            {renderMenuItem(
-              <MaterialCommunityIcons
-                name="history"
-                size={18}
-                color="#A19E95"
-              />,
-              "Lịch sử giao dịch",
-              () => {
-                if (isAuthenticated) {
-                  navigation.navigate("TransactionHistoryScreen");
-                } else {
-                  navigation.navigate("LoginScreen");
-                }
-              },
-            )}
-          </View>
-
-          {/* ================= CARD 4: CÁ NHÂN ================= */}
-          {isAuthenticated && (
+            {/* ================= CARD 3: QUYỀN LỢI ================= */}
             <View className="w-full bg-[#161618] rounded-[16px] overflow-hidden mb-4 border border-white/5">
+              <Text className="text-white font-black text-[14px] tracking-wide ml-4 mt-3.5 mb-1">
+                Quyền Lợi & Giao Dịch
+              </Text>
+              {renderMenuItem(
+                <FontAwesome5 name="crown" size={14} color="#D4AF37" />,
+                "Gói hội viên VIP",
+                () => navigation.navigate("SubscriptionPlans"),
+              )}
+              <View className="h-[1px] bg-zinc-800/40 mx-4" />
+              {renderMenuItem(
+                <MaterialCommunityIcons
+                  name="history"
+                  size={18}
+                  color="#A19E95"
+                />,
+                "Lịch sử giao dịch",
+                () => navigation.navigate("TransactionHistoryScreen"),
+              )}
+            </View>
+
+            {/* ================= CARD 4: CÁ NHÂN & BẢO MẬT ================= */}
+            <View className="w-full bg-[#161618] rounded-[16px] overflow-hidden mb-5 border border-white/5">
               <Text className="text-[#D4AF37] font-black text-[14px] tracking-wide ml-4 mt-3.5 mb-1">
                 Cá Nhân & Yêu Thích
               </Text>
@@ -403,81 +393,112 @@ export default function ProfileScreen() {
               )}
               <View className="h-[1px] bg-zinc-800/40 mx-4" />
               {renderMenuItem(
-                <MaterialCommunityIcons
-                  name="comment-text-outline"
-                  size={16}
-                  color="#A19E95"
-                />,
-                "Bình luận của tôi",
+                <SimpleLineIcons name="lock" size={14} color="#A19E95" />,
+                "Đổi mật khẩu tài khoản",
+                () => navigation.navigate("ChangePasswordScreen"),
               )}
             </View>
-          )}
 
-          {/* ================= CARD 5: HỖ TRỢ & PHÁP LÝ ================= */}
-          <View className="w-full bg-[#161618] rounded-[16px] overflow-hidden mb-6 border border-white/5">
-            <Text className="text-white font-black text-[14px] tracking-wide ml-4 mt-3.5 mb-1">
-              Hỗ Trợ
-            </Text>
-            {isAuthenticated && (
-              <>
-                {renderMenuItem(
-                  <SimpleLineIcons name="lock" size={14} color="#A19E95" />,
-                  "Đổi mật khẩu tài khoản",
-                  () => navigation.navigate("ChangePasswordScreen"),
-                )}
-                <View className="h-[1px] bg-zinc-800/40 mx-4" />
-              </>
-            )}
-            {renderMenuItem(
-              <Ionicons name="help-circle-outline" size={18} color="#A19E95" />,
-              "Phản hồi và Hỗ trợ",
-            )}
-            <View className="h-[1px] bg-zinc-800/40 mx-4" />
-            {renderMenuItem(
-              <Feather name="shield" size={16} color="#A19E95" />,
-              "Chính sách bảo mật",
-            )}
-            <View className="h-[1px] bg-zinc-800/40 mx-4" />
-            {renderMenuItem(
-              <Feather name="info" size={16} color="#A19E95" />,
-              "Giới thiệu chúng tôi",
-            )}
-          </View>
-
-          {/* ================= NÚT ĐĂNG XUẤT / ĐĂNG NHẬP DƯỚI ĐÁY ================= */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            className="w-full h-12 bg-[#262628] rounded-xl flex-row items-center justify-center border border-white/5 active:bg-zinc-800"
-            onPress={async () => {
-              if (isAuthenticated) {
+            {/* ================= NÚT ĐĂNG XUẤT ================= */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              className="w-full h-12 bg-[#262628] rounded-xl flex-row items-center justify-center border border-white/5 active:bg-zinc-800"
+              onPress={async () => {
                 await logout();
                 navigation.navigate("MainTabs", { screen: "Home" });
                 Toast.show({
                   type: "success",
                   text1: "Đăng xuất thành công",
                 });
-              } else {
-                navigation.navigate("LoginScreen");
-              }
-            }}
-          >
-            {isAuthenticated ? (
-              <>
-                <SimpleLineIcons name="logout" size={14} color="#FF5252" />
-                <Text className="text-[#FF5252] font-black text-[15px] ml-2 tracking-wide">
-                  Đăng Xuất
+              }}
+            >
+              <SimpleLineIcons name="logout" size={14} color="#FF5252" />
+              <Text className="text-[#FF5252] font-black text-[15px] ml-2 tracking-wide">
+                Đăng Xuất
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* ===== GIAO DIỆN KHÁCH CÂN ĐỐI, ĐẸP MẮT (GUEST STATE) ===== */
+          <View className="px-4">
+            {/* CARD QUYỀN LỢI THÀNH VIÊN TALEX */}
+            <View className="w-full bg-[#161618] rounded-2xl p-5 border border-white/5 mb-5 shadow-sm">
+              <View className="flex-row items-center mb-4">
+                <View className="w-8 h-8 rounded-lg bg-[#D4AF37]/15 items-center justify-center mr-2.5">
+                  <FontAwesome5 name="gem" size={14} color="#D4AF37" />
+                </View>
+                <Text className="text-[#D4AF37] font-black text-[15px] tracking-wide">
+                  Quyền Lợi Thành Viên TaleX
                 </Text>
-              </>
-            ) : (
-              <>
-                <SimpleLineIcons name="login" size={14} color="#D4AF37" />
-                <Text className="text-[#D4AF37] font-black text-[15px] ml-2 tracking-wide">
-                  Đăng Nhập Ngay
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+              </View>
+
+              {/* Lợi ích 1 */}
+              <View className="flex-row items-start mb-3.5">
+                <View className="w-7 h-7 rounded-full bg-white/5 items-center justify-center mr-3 mt-0.5">
+                  <FontAwesome5 name="crown" size={12} color="#D4AF37" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-white font-bold text-xs">
+                    Kho nội dung độc quyền
+                  </Text>
+                  <Text className="text-zinc-400 text-[11px] mt-0.5 leading-relaxed">
+                    Hàng ngàn bộ phim và truyện tranh bản quyền chất lượng .
+                  </Text>
+                </View>
+              </View>
+
+              <View className="h-[1px] bg-zinc-800/40 mb-3.5" />
+
+              {/* Lợi ích 2 */}
+              <View className="flex-row items-start mb-3.5">
+                <View className="w-7 h-7 rounded-full bg-white/5 items-center justify-center mr-3 mt-0.5">
+                  <FontAwesome5 name="coins" size={12} color="#D4AF37" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-white font-bold text-xs">
+                    Tích xu & Nhận thưởng
+                  </Text>
+                  <Text className="text-zinc-400 text-[11px] mt-0.5 leading-relaxed">
+                    Điểm danh nhận xu mỗi ngày để mở khóa tập phim yêu thích.
+                  </Text>
+                </View>
+              </View>
+
+              <View className="h-[1px] bg-zinc-800/40 mb-3.5" />
+
+              {/* Lợi ích 3 */}
+              <View className="flex-row items-start">
+                <View className="w-7 h-7 rounded-full bg-white/5 items-center justify-center mr-3 mt-0.5">
+                  <Ionicons name="bookmark" size={12} color="#D4AF37" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-white font-bold text-xs">
+                    Đồng bộ & Lưu trữ
+                  </Text>
+                  <Text className="text-zinc-400 text-[11px] mt-0.5 leading-relaxed">
+                    Lưu lịch sử xem và danh sách yêu thích trên mọi thiết bị.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* NÚT ĐĂNG NHẬP / ĐĂNG KÝ NỔI BẬT */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate("LoginScreen")}
+              className="w-full h-12 rounded-xl bg-[#D4AF37] flex-row items-center justify-center active:bg-[#c49f2e] shadow-md mb-3"
+            >
+              <SimpleLineIcons name="login" size={15} color="#141210" />
+              <Text className="text-[#141210] font-black text-[15px] ml-2 tracking-wide">
+                Đăng Nhập / Đăng Ký Ngay
+              </Text>
+            </TouchableOpacity>
+
+            <Text className="text-zinc-500 text-[11px] text-center font-medium">
+              Tham gia TaleX để tận hưởng trải nghiệm giải trí đỉnh cao
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

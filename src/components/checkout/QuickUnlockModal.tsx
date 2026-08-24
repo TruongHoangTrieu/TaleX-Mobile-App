@@ -13,19 +13,26 @@ import {
   cancelOrder,
   confirmCoinPayment,
   createContentOrder,
+  type ContentItemType,
   type OrderResponseDto,
 } from "@/services/order";
 import { getWallet } from "@/services/rewardService";
 import { useReward } from "@/context/RewardContext";
-import { buildEpisodeWebUrl } from "@/utils/web-checkout-links";
+import { buildComboWebUrl, buildEpisodeWebUrl } from "@/utils/web-checkout-links";
 import { formatVnd } from "./format-vnd";
 
-interface QuickUnlockModalProps {
+export interface QuickUnlockModalProps {
   visible: boolean;
   onClose: () => void;
-  episodeId: string | null;
+  /** Pass either itemId or episodeId */
+  itemId?: string | null;
+  episodeId?: string | null;
+  itemType?: ContentItemType;
   episodeTitle?: string;
+  itemTitle?: string;
   comicTitle?: string;
+  seriesTitle?: string;
+  seriesId?: string;
   contentKind?: "COMIC" | "VIDEO";
   onSuccess: () => void;
 }
@@ -33,9 +40,14 @@ interface QuickUnlockModalProps {
 export default function QuickUnlockModal({
   visible,
   onClose,
+  itemId,
   episodeId,
+  itemType = "EPISODE",
   episodeTitle,
+  itemTitle,
   comicTitle,
+  seriesTitle,
+  seriesId,
   contentKind = "COMIC",
   onSuccess,
 }: QuickUnlockModalProps) {
@@ -51,8 +63,13 @@ export default function QuickUnlockModal({
   const finalizedRef = useRef(false);
   orderRef.current = order;
 
+  const targetId = itemId || episodeId;
+  const displayItemTitle = itemTitle || episodeTitle;
+  const displaySeriesTitle = seriesTitle || comicTitle;
+  const isCombo = itemType === "COMBO";
+
   useEffect(() => {
-    if (!visible || !episodeId) {
+    if (!visible || !targetId) {
       setLoading(true);
       setOrder(null);
       setInsufficientCoin(false);
@@ -69,7 +86,7 @@ export default function QuickUnlockModal({
     finalizedRef.current = false;
 
     async function initOrder() {
-      if (!episodeId) return;
+      if (!targetId) return;
       try {
         let balance = 0;
         try {
@@ -82,7 +99,7 @@ export default function QuickUnlockModal({
         if (!isMounted) return;
         setWalletBalance(balance);
 
-        const orderResult = await createContentOrder(episodeId, "EPISODE", balance);
+        const orderResult = await createContentOrder(targetId, itemType, balance);
         if (!isMounted) return;
 
         if (orderResult.success && orderResult.data) {
@@ -120,7 +137,7 @@ export default function QuickUnlockModal({
         cancelOrder(pending.orderId).catch(() => {});
       }
     };
-  }, [visible, episodeId]);
+  }, [visible, targetId, itemType]);
 
   const handleClose = () => {
     const pending = orderRef.current;
@@ -148,22 +165,38 @@ export default function QuickUnlockModal({
       } else {
         Toast.show({
           type: "error",
-          text1: "Xác nhận thất bại",
-          text2: result.message || "Không thể hoàn tất thanh toán Coin.",
+          text1: result.message || "Xác nhận mở khóa thất bại.",
         });
       }
     } catch (err: any) {
       Toast.show({
         type: "error",
-        text1: "Lỗi thanh toán",
-        text2: err?.message || "Lỗi xử lý giao dịch.",
+        text1: err?.message || "Lỗi khi xác nhận mở khóa.",
       });
     } finally {
       setConfirming(false);
     }
   };
 
-  if (!visible) return null;
+  const handleOpenWeb = () => {
+    handleClose();
+    if (isCombo && seriesId) {
+      Linking.openURL(buildComboWebUrl(seriesId)).catch((err) => {
+        console.warn("Không thể mở website combo:", err);
+      });
+    } else if (targetId) {
+      const kind = contentKind || (comicTitle ? "COMIC" : "VIDEO");
+      Linking.openURL(buildEpisodeWebUrl(targetId, kind)).catch((err) => {
+        console.warn("Không thể mở website tập:", err);
+      });
+    }
+  };
+
+  const modalTitle = isCombo
+    ? "Mở Khóa Gói Combo"
+    : contentKind === "VIDEO"
+    ? "Mở Khóa Tập Phim"
+    : "Mở Khóa Tập Truyện";
 
   return (
     <Modal
@@ -178,10 +211,14 @@ export default function QuickUnlockModal({
           <View className="flex-row items-center justify-between pb-3 border-b border-white/10">
             <View className="flex-row items-center">
               <View className="mr-2.5 h-8 w-8 items-center justify-center rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40">
-                <Ionicons name="lock-closed" size={16} color="#D4AF37" />
+                <Ionicons
+                  name={isCombo ? "gift-outline" : "lock-closed"}
+                  size={16}
+                  color="#D4AF37"
+                />
               </View>
               <Text className="text-base font-bold text-white tracking-wide">
-                Mở Khóa Tập Truyện
+                {modalTitle}
               </Text>
             </View>
 
@@ -194,17 +231,17 @@ export default function QuickUnlockModal({
             </TouchableOpacity>
           </View>
 
-          {/* Episode Info */}
-          {(episodeTitle || comicTitle) && (
+          {/* Item / Episode / Series Info */}
+          {(displayItemTitle || displaySeriesTitle) && (
             <View className="mt-4 rounded-xl bg-black/30 p-3 border border-white/5">
-              {comicTitle && (
+              {displaySeriesTitle && (
                 <Text className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wider mb-0.5">
-                  {comicTitle}
+                  {displaySeriesTitle}
                 </Text>
               )}
-              {episodeTitle && (
+              {displayItemTitle && (
                 <Text className="text-sm font-bold text-white" numberOfLines={2}>
-                  {episodeTitle}
+                  {displayItemTitle}
                 </Text>
               )}
             </View>
@@ -238,10 +275,12 @@ export default function QuickUnlockModal({
                 <MaterialCommunityIcons name="cash-multiple" size={30} color="#F59E0B" />
               </View>
               <Text className="text-center text-base font-bold text-white">
-                Không đủ Coin
+                Số dư Coin không đủ
               </Text>
               <Text className="mt-1.5 text-center text-xs text-zinc-400 leading-5">
-                Tài khoản của bạn hiện không có đủ Coin để mua tập này.
+                {isCombo
+                  ? "Tài khoản của bạn hiện không có đủ Coin để mua gói combo này."
+                  : "Tài khoản của bạn hiện không có đủ Coin để mua tập này."}
               </Text>
 
               <View className="mt-4 w-full rounded-2xl bg-black/40 p-3.5 border border-white/5 space-y-2">
@@ -252,7 +291,9 @@ export default function QuickUnlockModal({
                   </Text>
                 </View>
                 <View className="flex-row justify-between items-center">
-                  <Text className="text-xs text-zinc-400">Giá tập:</Text>
+                  <Text className="text-xs text-zinc-400">
+                    Giá {isCombo ? "combo" : "tập"}:
+                  </Text>
                   <Text className="text-xs font-bold text-[#D4AF37]">
                     {(order?.totalAmount || 0).toLocaleString("vi-VN")} Coin
                   </Text>
@@ -265,24 +306,15 @@ export default function QuickUnlockModal({
                 </View>
               </View>
 
-              {/* Nút chuyển sang Website để mua/nạp */}
+              {/* Nút chuyển sang Website để mua */}
               <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={() => {
-                  handleClose();
-                  if (episodeId) {
-                    const kind = contentKind || (comicTitle ? "COMIC" : "VIDEO");
-                    const url = buildEpisodeWebUrl(episodeId, kind);
-                    Linking.openURL(url).catch((err) => {
-                      console.warn("Không thể mở website:", err);
-                    });
-                  }
-                }}
+                onPress={handleOpenWeb}
                 className="mt-5 h-12 w-full flex-row items-center justify-center rounded-xl bg-[#D4AF37]"
               >
                 <Feather name="external-link" size={16} color="#141210" style={{ marginRight: 6 }} />
                 <Text className="text-xs font-black uppercase tracking-wide text-[#141210]">
-                  Mua trên Website
+                  MUA TRÊN WEBSITE
                 </Text>
               </TouchableOpacity>
 

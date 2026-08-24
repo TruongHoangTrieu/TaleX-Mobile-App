@@ -1421,28 +1421,32 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
         visible={activeMenuId !== null}
         animationType="slide"
         transparent={true}
+        statusBarTranslucent
         onRequestClose={() => setActiveMenuId(null)}
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setActiveMenuId(null)}
+        <View
           style={{
             flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
             justifyContent: "flex-end",
+            margin: 0,
           }}
         >
           <TouchableOpacity
             activeOpacity={1}
+            onPress={() => setActiveMenuId(null)}
+            style={{ flex: 1 }}
+          />
+          <View
             style={{
               backgroundColor: "#161618",
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               paddingHorizontal: 20,
               paddingTop: 16,
-              paddingBottom: 34,
-              borderWidth: 1,
-              borderColor: "rgba(255, 255, 255, 0.05)",
+              paddingBottom: Math.max(insets.bottom, 24) + 12,
+              borderTopWidth: 1,
+              borderColor: "rgba(255, 255, 255, 0.08)",
             }}
           >
             {/* Grab Bar */}
@@ -1573,8 +1577,8 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
             >
               <Text className="text-stone-300 text-sm font-bold">Hủy bỏ</Text>
             </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* EDIT SERIES MODAL */}

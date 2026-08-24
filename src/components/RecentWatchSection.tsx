@@ -168,6 +168,10 @@ export default function RecentWatchSection({
           data={sessions}
           keyExtractor={(item, idx) => item.id || item.episode?.episodeId || String(idx)}
           showsHorizontalScrollIndicator={false}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item }) => {
             const ep = item.episode;

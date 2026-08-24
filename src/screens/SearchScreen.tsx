@@ -508,6 +508,10 @@ export default function SearchScreen() {
           data={database}
           numColumns={2}
           keyExtractor={(item) => item.id}
+          initialNumToRender={6}
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          removeClippedSubviews={true}
           renderItem={({ item }) => (
             <TouchableOpacity
               activeOpacity={0.85}

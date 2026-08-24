@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
+  Modal,
   ScrollView,
   StatusBar,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -16,7 +15,6 @@ import {
   Feather,
   Ionicons,
   MaterialCommunityIcons,
-  FontAwesome5,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -28,10 +26,12 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { buildPremiumWebUrl } from "@/utils/web-checkout-links";
 
-const formatCurrency = (price: number) =>
-  `${price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}đ`;
+const formatCurrency = (price?: number | null) => {
+  if (price == null || isNaN(Number(price))) return "0đ";
+  return `${Number(price).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}đ`;
+};
 
-const formatDurationUnit = (unit: SubscriptionDurationUnit) => {
+const formatDurationUnit = (unit?: SubscriptionDurationUnit | string) => {
   switch (unit) {
     case "DAYS":
       return "ngày";
@@ -39,6 +39,8 @@ const formatDurationUnit = (unit: SubscriptionDurationUnit) => {
       return "tháng";
     case "YEARS":
       return "năm";
+    default:
+      return "tháng";
   }
 };
 
@@ -49,6 +51,7 @@ export default function SubscriptionPlansScreen() {
   const [error, setError] = useState("");
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [showWebPaymentModal, setShowWebPaymentModal] = useState<boolean>(false);
 
   const loadSubscriptions = useCallback(async () => {
     setLoading(true);
@@ -72,7 +75,7 @@ export default function SubscriptionPlansScreen() {
   }, [loadSubscriptions]);
 
   const selectedPlan = useMemo(
-    () => plans.find((p) => p.subscriptionId === selectedPlanId) || plans[0],
+    () => plans.find((p) => p.subscriptionId === selectedPlanId) || (plans.length > 0 ? plans[0] : null),
     [plans, selectedPlanId],
   );
 
@@ -80,7 +83,7 @@ export default function SubscriptionPlansScreen() {
     <View className="flex-1 bg-[#141210]">
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* ================= PREMIUM BACKGROUND IMAGE FROM ASSETS (CRISP, NO BLUR) ================= */}
+      {/* ================= PREMIUM BACKGROUND IMAGE FROM ASSETS ================= */}
       <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 420 }} pointerEvents="none">
         <Image
           source={require("@assets/premium.jpg")}
@@ -99,7 +102,7 @@ export default function SubscriptionPlansScreen() {
             paddingBottom: 30,
           }}
         >
-          {/* Top Bar with Back Button - Direct clean icon without any dark blur box */}
+          {/* Top Bar with Back Button */}
           <View className="flex-row items-center justify-between w-full h-12 mb-2">
             <TouchableOpacity
               activeOpacity={0.7}
@@ -111,19 +114,19 @@ export default function SubscriptionPlansScreen() {
             <View className="w-10" />
           </View>
 
-          {/* Centered Crown Halo Badge (Gold Theme) */}
+          {/* Centered Crown Halo Badge */}
           <View className="items-center justify-center my-4">
             <View className="w-24 h-24 rounded-full bg-[#D4AF37]/20 items-center justify-center border border-[#D4AF37]/40 shadow-2xl shadow-[#D4AF37]">
               <MaterialCommunityIcons name="crown" size={48} color="#D4AF37" />
             </View>
           </View>
 
-          {/* Subscribe Title (Gold Theme) */}
+          {/* Subscribe Title */}
           <Text className="text-center text-[30px] font-black text-[#D4AF37] tracking-wide mb-6">
             Đăng Ký Gói Premium
           </Text>
 
-          {/* Feature Checkmarks (Gold Theme, Pure Vietnamese, No 4K) */}
+          {/* Feature Checkmarks */}
           <View className="mb-8 px-2">
             {[
               "Xem mượt mà trên tất cả thiết bị",
@@ -179,7 +182,7 @@ export default function SubscriptionPlansScreen() {
               </Text>
             </View>
           ) : (
-            /* Selectable Plan Cards with Radio Buttons (Gold Theme) */
+            /* Selectable Plan Cards */
             <View className="mb-6">
               {plans.map((plan) => {
                 const isSelected = selectedPlanId === plan.subscriptionId;
@@ -210,7 +213,7 @@ export default function SubscriptionPlansScreen() {
                       </View>
                       <View className="flex-1">
                         <Text className="text-white text-lg font-bold">
-                          {plan.tier}
+                          {plan.tier || "Premium"}
                         </Text>
                         <Text className="text-[#A19E95] text-xs font-medium mt-0.5">
                           {plan.duration} {formatDurationUnit(plan.durationUnit)} - Trải nghiệm Premium
@@ -237,7 +240,7 @@ export default function SubscriptionPlansScreen() {
             </View>
           )}
 
-          {/* Action Button: Continue For Payment (Gold Gradient) */}
+          {/* Action Button: Continue For Payment */}
           <TouchableOpacity
             activeOpacity={0.85}
             disabled={!selectedPlan || loading}
@@ -247,19 +250,7 @@ export default function SubscriptionPlansScreen() {
                 navigation.navigate("LoginScreen");
                 return;
               }
-              // Premium chỉ mua được trên website — báo trước cho người dùng
-              // rồi mới chuyển sang trang Premium trên web.
-              Alert.alert(
-                "Thanh toán trên Website",
-                "Ứng dụng di động TaleX hiện chưa hỗ trợ thanh toán trực tiếp. Vui lòng hoàn tất đăng ký gói Premium trên website chính thức của chúng tôi tại talex.pro.vn.",
-                [
-                  { text: "Để sau", style: "cancel" },
-                  {
-                    text: "Đến Website",
-                    onPress: () => Linking.openURL(buildPremiumWebUrl()),
-                  },
-                ],
-              );
+              setShowWebPaymentModal(true);
             }}
             className="mt-2 mb-6"
           >
@@ -289,6 +280,117 @@ export default function SubscriptionPlansScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* ================= CUSTOM DARK GOLD WEB PAYMENT MODAL ================= */}
+      <Modal
+        visible={showWebPaymentModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowWebPaymentModal(false)}
+      >
+        <View className="flex-1 bg-black/80 items-center justify-center p-5">
+          <View className="w-full max-w-sm bg-[#161411] rounded-[28px] p-5 border border-white/10 shadow-2xl">
+            {/* 1. Header with Gold Badge & Close Button */}
+            <View className="flex-row items-center justify-between pb-4 border-b border-white/5">
+              <View className="flex-row items-center space-x-2.5">
+                <View className="w-9 h-9 rounded-full bg-[#D4AF37]/15 items-center justify-center border border-[#D4AF37]/40 mr-2.5">
+                  <Ionicons name="lock-closed" size={17} color="#D4AF37" />
+                </View>
+                <Text className="text-white font-bold text-base">
+                  Thanh Toán Gói Premium
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setShowWebPaymentModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 items-center justify-center active:opacity-75"
+              >
+                <Ionicons name="close" size={18} color="#A1A1AA" />
+              </TouchableOpacity>
+            </View>
+
+            {/* 2. Selected Plan Top Card */}
+            {selectedPlan && (
+              <View className="mt-4 p-3.5 rounded-2xl bg-white/[0.03] border border-white/5">
+                <Text className="text-[#D4AF37] text-[10px] font-black uppercase tracking-wider">
+                  TALEX PREMIUM
+                </Text>
+                <Text className="text-white font-bold text-sm mt-0.5" numberOfLines={1}>
+                  Gói {selectedPlan.duration} {formatDurationUnit(selectedPlan.durationUnit)} ({selectedPlan.tier || "VIP"})
+                </Text>
+              </View>
+            )}
+
+            {/* 3. Center Web Icon & Headline */}
+            <View className="items-center my-4">
+              <View className="w-14 h-14 rounded-full bg-[#D4AF37]/15 items-center justify-center border border-[#D4AF37]/40 mb-3 shadow-md shadow-[#D4AF37]/20">
+                <MaterialCommunityIcons name="credit-card-outline" size={26} color="#D4AF37" />
+              </View>
+
+              <Text className="text-white font-bold text-base text-center">
+                Thanh toán trên Website
+              </Text>
+
+              <Text className="text-zinc-400 text-xs text-center mt-1.5 leading-relaxed font-normal px-2">
+                Ứng dụng di động TaleX hiện chưa hỗ trợ thanh toán trực tiếp. Vui lòng hoàn tất thanh toán trên website chính thức của chúng tôi.
+              </Text>
+            </View>
+
+            {/* 4. Price & Duration Detail Card */}
+            {selectedPlan && (
+              <View className="p-3.5 rounded-2xl bg-[#221B16] border border-[#D4AF37]/20 mb-5 space-y-2">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-zinc-400 text-xs">Gói hội viên:</Text>
+                  <Text className="text-white font-bold text-xs">
+                    {selectedPlan.tier || "Premium"}
+                  </Text>
+                </View>
+
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-zinc-400 text-xs">Giá thanh toán:</Text>
+                  <Text className="text-[#D4AF37] font-black text-xs">
+                    {formatCurrency(selectedPlan.price)}
+                  </Text>
+                </View>
+
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-zinc-400 text-xs">Thời hạn:</Text>
+                  <Text className="text-zinc-300 font-semibold text-xs">
+                    {selectedPlan.duration} {formatDurationUnit(selectedPlan.durationUnit)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* 5. Action Buttons */}
+            <View className="space-y-2.5">
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                  setShowWebPaymentModal(false);
+                  Linking.openURL(buildPremiumWebUrl(selectedPlan?.subscriptionId));
+                }}
+                className="w-full h-12 rounded-2xl bg-[#D4AF37] items-center justify-center flex-row shadow-lg shadow-[#D4AF37]/30 active:scale-[0.98]"
+              >
+                <Feather name="external-link" size={16} color="#000000" style={{ marginRight: 6 }} />
+                <Text className="text-black font-black text-xs uppercase tracking-wider">
+                  MUA TRÊN WEBSITE
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setShowWebPaymentModal(false)}
+                className="w-full h-11 rounded-2xl bg-white/10 items-center justify-center active:opacity-75"
+              >
+                <Text className="text-zinc-300 font-bold text-xs">
+                  Đóng
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

@@ -420,6 +420,10 @@ export default function ComicsScreen() {
                 data={topViewsComics.slice(0, 5)}
                 renderItem={renderRankedCard}
                 keyExtractor={(item) => `rank-${item.seriesId}`}
+                initialNumToRender={4}
+                maxToRenderPerBatch={4}
+                windowSize={3}
+                removeClippedSubviews={true}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 16 }}
               />
@@ -690,6 +694,10 @@ function ComicSection({
           data={data}
           renderItem={renderItem}
           keyExtractor={(item) => item.seriesId}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           ListEmptyComponent={

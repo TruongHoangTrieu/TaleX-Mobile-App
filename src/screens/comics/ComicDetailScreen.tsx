@@ -40,8 +40,8 @@ import { FollowButton } from "@/components/FollowButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { ShareButton } from "@/components/ShareButton";
 import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
-import { useContentPurchase } from "@/hooks/useContentPurchase";
 import { useContentEntitlement } from "@/hooks/useContentEntitlement";
+import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
 
 const { width } = Dimensions.get("window");
 
@@ -153,7 +153,17 @@ export default function ComicDetailScreen() {
     });
   }, [combos, seasons, comic]);
 
-  const { buy } = useContentPurchase();
+  const [unlockModalConfig, setUnlockModalConfig] = useState<{
+    visible: boolean;
+    itemId?: string | null;
+    itemType: "EPISODE" | "COMBO";
+    itemTitle?: string;
+  }>({
+    visible: false,
+    itemId: null,
+    itemType: "COMBO",
+    itemTitle: "",
+  });
   const { isEpisodeUnlocked, refreshEntitlements } = useContentEntitlement({
     contentType: "COMIC",
     creatorAccountId,
@@ -704,15 +714,18 @@ export default function ComicDetailScreen() {
                       <TouchableOpacity
                         className="mt-3 h-[40px] bg-[#D4AF37] rounded-xl items-center justify-center"
                         activeOpacity={0.8}
-                        onPress={() =>
-                          buy({
+                        onPress={() => {
+                          if (!user) {
+                            navigation.navigate("LoginScreen");
+                            return;
+                          }
+                          setUnlockModalConfig({
+                            visible: true,
                             itemId: combo.comboId,
                             itemType: "COMBO",
-                            title: combo.title,
-                            returnScreen: "ComicDetailScreen",
-                            seriesId: comicId,
-                          })
-                        }
+                            itemTitle: combo.title,
+                          });
+                        }}
                       >
                         <Text className="text-black font-bold text-[13px]">Mua Gói Ngay</Text>
                       </TouchableOpacity>
@@ -877,6 +890,23 @@ export default function ComicDetailScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+      {/* Quick Unlock Modal for Combo / Episodes */}
+      <QuickUnlockModal
+        visible={unlockModalConfig.visible}
+        itemId={unlockModalConfig.itemId}
+        itemType={unlockModalConfig.itemType}
+        itemTitle={unlockModalConfig.itemTitle}
+        seriesTitle={comic?.title}
+        seriesId={comicId}
+        contentKind="COMIC"
+        onClose={() =>
+          setUnlockModalConfig((prev) => ({ ...prev, visible: false }))
+        }
+        onSuccess={() => {
+          refreshEntitlements();
+          loadData(true);
+        }}
+      />
     </View>
   );
 }

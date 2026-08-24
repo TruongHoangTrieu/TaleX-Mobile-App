@@ -246,7 +246,11 @@ export default function HistoryScreen() {
       ) : (
         <FlatList
           data={filteredSessions}
-          keyExtractor={(item) => item.id || item.episode?.episodeId || String(Math.random())}
+          keyExtractor={(item, index) => item.id || item.episode?.episodeId || `history-${index}`}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

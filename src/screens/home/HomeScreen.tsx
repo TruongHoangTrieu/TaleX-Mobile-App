@@ -300,6 +300,10 @@ export default function HomeScreen() {
             `trend-${item.seriesId || "item"}-${index}`
           }
           showsHorizontalScrollIndicator={false}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item, index }) => (
             <TouchableOpacity
@@ -380,6 +384,10 @@ export default function HomeScreen() {
             `new-${item.seriesId || "item"}-${index}`
           }
           showsHorizontalScrollIndicator={false}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item }) => (
             <TouchableOpacity
@@ -465,6 +473,10 @@ export default function HomeScreen() {
             `upd-${item.seriesId || "item"}-${index}`
           }
           showsHorizontalScrollIndicator={false}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item }) => (
             <TouchableOpacity
@@ -556,6 +568,10 @@ export default function HomeScreen() {
             `latestcomm-${item.seriesId || "item"}-${index}`
           }
           showsHorizontalScrollIndicator={false}
+          initialNumToRender={3}
+          maxToRenderPerBatch={3}
+          windowSize={3}
+          removeClippedSubviews={true}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item }) => {
             const isComic = item.contentType?.toUpperCase() === "COMIC";
@@ -660,6 +676,10 @@ export default function HomeScreen() {
             `top5comm-${item.seriesId || "item"}-${index}`
           }
           showsHorizontalScrollIndicator={false}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item, index }) => (
             <TouchableOpacity
@@ -746,6 +766,10 @@ export default function HomeScreen() {
             `rand-${item.seriesId || "item"}-${index}`
           }
           showsHorizontalScrollIndicator={false}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item }) => (
             <TouchableOpacity
@@ -835,6 +859,10 @@ export default function HomeScreen() {
             `sub-${item.seriesId || "item"}-${index}`
           }
           showsHorizontalScrollIndicator={false}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item }) => (
             <TouchableOpacity

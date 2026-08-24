@@ -179,6 +179,10 @@ export default function ComicCarousel() {
         keyExtractor={(item) => item.seriesId}
         horizontal
         pagingEnabled
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        removeClippedSubviews={true}
         showsHorizontalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}

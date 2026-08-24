@@ -248,6 +248,10 @@ export default function LikedScreen() {
         <FlatList
           data={filteredList}
           keyExtractor={(item, index) => item.episodeId || index.toString()}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

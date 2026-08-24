@@ -431,6 +431,10 @@ export default function NotificationsScreen() {
         <FlatList
           data={notifications}
           keyExtractor={(item) => item.notificationId}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews={true}
           renderItem={renderItem}
           contentContainerStyle={{ paddingTop: 14, paddingBottom: 28 }}
           refreshControl={

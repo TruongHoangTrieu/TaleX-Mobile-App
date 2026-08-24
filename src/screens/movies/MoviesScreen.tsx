@@ -542,6 +542,10 @@ function MovieSection({
           data={data}
           renderItem={renderItem}
           keyExtractor={(i) => "movie-" + i.seriesId}
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={true}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16 }}
           ListEmptyComponent={

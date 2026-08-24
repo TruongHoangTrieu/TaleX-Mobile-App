@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import Toast from "react-native-toast-message";
 import { useAuth } from "@/context/AuthContext";
 import { signInWithGoogle, isGoogleSignInCancelled } from "@/services/google-sign-in";
 
@@ -56,6 +57,12 @@ export default function LoginScreen({ onLogin }: Props) {
     try {
       await auth.login(email, password);
 
+      Toast.show({
+        type: "success",
+        text1: "Đăng nhập thành công!",
+        text2: "Chào mừng bạn quay trở lại TaleX.",
+      });
+
       // 👉 Chuyển trực tiếp về màn hình Home
       navigation.reset({
         index: 0,
@@ -94,6 +101,12 @@ export default function LoginScreen({ onLogin }: Props) {
         });
         return;
       }
+
+      Toast.show({
+        type: "success",
+        text1: "Đăng nhập Google thành công!",
+        text2: "Chào mừng bạn đến với TaleX.",
+      });
 
       navigation.reset({
         index: 0,

@@ -33,6 +33,28 @@ export interface AdCampaignData {
   mediaType: "VIDEO" | "IMAGE" | string;
 }
 
+export interface CoinTransaction {
+  transactionId: string;
+  amount: number;
+  transactionType: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  referenceType?: string;
+  description?: string;
+  changedAt: string;
+}
+
+export interface CoinTransactionPageResponse {
+  content: CoinTransaction[];
+  totalElements?: number;
+  totalPages?: number;
+  size?: number;
+  number?: number;
+  first?: boolean;
+  last?: boolean;
+  empty?: boolean;
+}
+
 export interface BaseResponse<T> {
   success?: boolean;
   code?: number | string;

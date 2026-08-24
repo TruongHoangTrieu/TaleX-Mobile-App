@@ -356,6 +356,13 @@ export default function ProfileScreen() {
                 color="#A19E95"
               />,
               "Lịch sử giao dịch",
+              () => {
+                if (isAuthenticated) {
+                  navigation.navigate("TransactionHistoryScreen");
+                } else {
+                  navigation.navigate("LoginScreen");
+                }
+              },
             )}
           </View>
 

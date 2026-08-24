@@ -113,3 +113,56 @@ export const getActiveSubscription = async (): Promise<AccountSubscription | nul
   }
 };
 
+export interface SubscriptionHistoryPageData {
+  content: AccountSubscription[];
+  pageNumber?: number;
+  pageSize?: number;
+  totalElements?: number;
+  totalPages?: number;
+}
+
+export const getSubscriptionHistory = async (
+  page = 1,
+  pageSize = 20,
+): Promise<{ success: boolean; data?: SubscriptionHistoryPageData; message?: string }> => {
+  const url = `${BASE_URL.replace(
+    /\/$/,
+    "",
+  )}/api/v1/account-subscriptions/own?page=${page}&pageSize=${pageSize}&sortBy=endTime&sortDirection=DESC`;
+
+  try {
+    const response = await authFetch(url, { method: "GET" });
+    const payload = await response.json();
+    if (!response.ok || (payload && payload.code >= 400)) {
+      return {
+        success: false,
+        message: payload?.message || `Request failed with status ${response.status}`,
+      };
+    }
+
+    const payloadData = payload?.data !== undefined ? payload.data : payload;
+    const content = Array.isArray(payloadData)
+      ? payloadData
+      : Array.isArray(payloadData?.content)
+      ? payloadData.content
+      : [];
+
+    return {
+      success: true,
+      data: {
+        content,
+        pageNumber: payloadData?.pageNumber ?? page,
+        pageSize: payloadData?.pageSize ?? pageSize,
+        totalElements: payloadData?.totalElements ?? content.length,
+        totalPages: payloadData?.totalPages ?? 1,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Không thể tải lịch sử Premium.",
+    };
+  }
+};
+

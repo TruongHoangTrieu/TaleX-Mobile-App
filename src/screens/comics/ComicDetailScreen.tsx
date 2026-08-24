@@ -22,7 +22,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Animated } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { InteractiveStarRating } from "@/components/InteractiveStarRating";
-import { getComicById, allComics } from "./comicMockData";
 import {
   getPublicSeriesDetail,
   getPublicSeries,
@@ -106,9 +105,7 @@ export default function ComicDetailScreen() {
   const { comicId } = (route.params || {}) as ComicDetailRouteParams;
 
   const [comic, setComic] = useState<any>(() => {
-    if (comicId && comicId.length < 10) {
-      return getComicById(comicId);
-    }
+    if (route.params?.comic) return route.params.comic;
     return null;
   });
 
@@ -131,6 +128,38 @@ export default function ComicDetailScreen() {
     toggleFollow,
     isMutating: isFollowMutating,
   } = useCreatorFollow(creatorAccountId);
+
+  const activeSeasonId =
+    selectedSeasonId || (seasons.length > 0 ? seasons[0].seasonId : null);
+
+  const currentEpisodes: EpisodeItem[] = useMemo(() => {
+    if (activeSeasonId && episodesMap[activeSeasonId]) {
+      return [...episodesMap[activeSeasonId]].sort((a, b) => a.episodeNumber - b.episodeNumber);
+    }
+    return comic?.chapters || [];
+  }, [activeSeasonId, episodesMap, comic?.chapters]);
+
+  const firstEpisode = currentEpisodes.length > 0 ? currentEpisodes[0] : null;
+
+  const seriesCombos = useMemo(() => {
+    const seasonIds = new Set(seasons.map((s) => s.seasonId));
+    return combos.filter((combo) => {
+      if (!combo.episodes || combo.episodes.length === 0) return false;
+      return combo.episodes.some(
+        (ep) =>
+          (ep.seasonId && seasonIds.has(ep.seasonId)) ||
+          (comic?.title && ep.seriesTitle?.toLowerCase() === comic.title.toLowerCase())
+      );
+    });
+  }, [combos, seasons, comic]);
+
+  const { buy } = useContentPurchase();
+  const { isEpisodeUnlocked, refreshEntitlements } = useContentEntitlement({
+    contentType: "COMIC",
+    creatorAccountId,
+    combos: seriesCombos,
+    episodes: currentEpisodes,
+  });
 
   const [realRecommendations, setRealRecommendations] = useState<SeriesItem[]>([]);
   const [recPage, setRecPage] = useState<number>(1);
@@ -173,21 +202,21 @@ export default function ComicDetailScreen() {
       try {
         fetchComicRecommendations(1);
 
-        if (comicId && comicId.length >= 10) {
+        if (comicId) {
           const detailRes = await getPublicSeriesDetail(comicId);
           const detail = detailRes?.data;
           if (detail) {
             setComic({
+              ...detail,
               id: detail.seriesId || comicId,
               title: detail.title,
-              coverUrl: detail.coverUrl || detail.bannerUrl,
-              bannerUrl: detail.bannerUrl || detail.coverUrl,
-              author: detail.creatorName || (detail as any).author || null,
-              authorAccountId: detail.accountId || (detail as any).creatorId,
-              creatorAccountId: detail.accountId || (detail as any).creatorId,
-              creatorAvatar: (detail as any).creatorAvatar,
-              totalCreatorFollowers: (detail as any).totalCreatorFollowers ?? null,
               description: detail.description,
+              coverImage: detail.thumbnailUrl,
+              bannerImage: detail.coverImageUrl || detail.thumbnailUrl,
+              author: detail.creatorName || "Tác giả TaleX",
+              authorAccountId: detail.creatorAccountId,
+              creatorAccountId: detail.creatorAccountId,
+              creatorAvatar: detail.creatorAvatar,
               categories: (detail as any).categories || [],
               tags: (detail as any).tags || [],
               totalViews: detail.analyticData?.views ?? (detail as any).totalViews ?? null,
@@ -241,7 +270,7 @@ export default function ComicDetailScreen() {
         setRefreshing(false);
       }
     },
-    [comicId],
+    [comicId, fetchComicRecommendations],
   );
 
   useFocusEffect(
@@ -276,38 +305,6 @@ export default function ComicDetailScreen() {
     }
   };
 
-  const activeSeasonId =
-    selectedSeasonId || (seasons.length > 0 ? seasons[0].seasonId : null);
-
-  const currentEpisodes: EpisodeItem[] = useMemo(() => {
-    if (activeSeasonId && episodesMap[activeSeasonId]) {
-      return [...episodesMap[activeSeasonId]].sort((a, b) => a.episodeNumber - b.episodeNumber);
-    }
-    return comic?.chapters || [];
-  }, [activeSeasonId, episodesMap, comic?.chapters]);
-
-  const firstEpisode = currentEpisodes.length > 0 ? currentEpisodes[0] : null;
-
-  const seriesCombos = useMemo(() => {
-    const seasonIds = new Set(seasons.map((s) => s.seasonId));
-    return combos.filter((combo) => {
-      if (!combo.episodes || combo.episodes.length === 0) return false;
-      return combo.episodes.some(
-        (ep) =>
-          (ep.seasonId && seasonIds.has(ep.seasonId)) ||
-          (comic?.title && ep.seriesTitle?.toLowerCase() === comic.title.toLowerCase())
-      );
-    });
-  }, [combos, seasons, comic]);
-
-  const { buy } = useContentPurchase();
-  const { isEpisodeUnlocked, refreshEntitlements } = useContentEntitlement({
-    contentType: "COMIC",
-    creatorAccountId,
-    combos: seriesCombos,
-    episodes: currentEpisodes,
-  });
-
   const displayEpisodes = useMemo(() => {
     const list = Array.isArray(currentEpisodes) ? [...currentEpisodes] : [];
     if (!isAscending) {
@@ -315,10 +312,6 @@ export default function ComicDetailScreen() {
     }
     return list;
   }, [currentEpisodes, isAscending]);
-
-  const recommendations = useMemo(() => {
-    return allComics.filter((c) => c.id !== (comicId || comic?.id)).slice(0, 6);
-  }, [comicId, comic]);
 
   const handleReadEpisode = (ep: EpisodeItem | null, index: number) => {
     const targetEp = ep || firstEpisode;
@@ -833,7 +826,7 @@ export default function ComicDetailScreen() {
 
               {/* 3-Column Recommendations Grid */}
               <View className="flex-row flex-wrap justify-between gap-y-3">
-                {(realRecommendations.length > 0 ? realRecommendations : recommendations).map((rec: any) => {
+                {realRecommendations.map((rec: any) => {
                   const recId = rec.seriesId || rec.id;
                   const recImg = rec.coverUrl || rec.bannerUrl || rec.thumbnailUrl || rec.image;
                   return (

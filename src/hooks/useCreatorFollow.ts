@@ -59,7 +59,11 @@ export function useCreatorFollow(creatorAccountId?: string) {
         // Optimistic update: remove creator
         setFollowedList((prev) => prev.filter((item) => item.accountId !== creatorAccountId));
         await unfollowCreator(creatorAccountId);
-        Toast.show({ type: "success", text1: "Đã hủy theo dõi nhà sáng tạo." });
+        Toast.show({
+          type: "info",
+          text1: "Đã hủy đăng ký kênh",
+          text2: "Bạn sẽ không nhận được thông báo từ kênh này.",
+        });
       } else {
         // Optimistic update: add creator
         setFollowedList((prev) => [
@@ -67,7 +71,11 @@ export function useCreatorFollow(creatorAccountId?: string) {
           { accountId: creatorAccountId, followedAt: new Date().toISOString() },
         ]);
         await followCreator(creatorAccountId);
-        Toast.show({ type: "success", text1: "Đã theo dõi nhà sáng tạo." });
+        Toast.show({
+          type: "success",
+          text1: "Đăng ký kênh thành công!",
+          text2: "Bạn sẽ nhận được các thông báo về tác phẩm mới nhất.",
+        });
       }
     } catch (err: any) {
       // Revert snapshot

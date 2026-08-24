@@ -18,7 +18,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getComicById } from "./comicMockData";
 import {
   getPublicEpisodeMedia,
   getSeriesSeasons,
@@ -419,14 +418,11 @@ export default function ComicReaderScreen() {
     route.params?.comicTitle || "Truyện Tranh",
   );
 
-  const comic =
-    isMock && getComicById(comicId)
-      ? getComicById(comicId)
-      : {
-          id: comicId,
-          title: comicTitleState,
-          chapters: [],
-        };
+  const comic = {
+    id: comicId,
+    title: comicTitleState,
+    chapters: [],
+  };
 
   // States
   const [showControls, setShowControls] = useState(true);
@@ -481,25 +477,7 @@ export default function ComicReaderScreen() {
     isEntitled?: boolean;
     isUnlocked?: boolean;
     unlockType?: string;
-  }[] = isMock
-    ? (() => {
-        const list: any[] = [];
-        if (comic && comic.chapters) {
-          comic.chapters.forEach((chap) => {
-            if (chap.episodes) {
-              chap.episodes.forEach((ep, idx) => {
-                list.push({
-                  chapterTitle: chap.title,
-                  title: ep,
-                  index: idx,
-                });
-              });
-            }
-          });
-        }
-        return list;
-      })()
-    : dbEpisodes;
+  }[] = dbEpisodes;
 
   // -1 khi chưa tìm thấy (VD dbEpisodes chưa load xong) — KHÔNG fallback về
   // index 0, vì đó là 1 tập ngẫu nhiên khác, gây hiện sai tên chương/tập.

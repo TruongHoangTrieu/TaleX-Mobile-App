@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Modal,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import {
   cancelOrder,
@@ -16,6 +17,7 @@ import {
 } from "@/services/order";
 import { getWallet } from "@/services/rewardService";
 import { useReward } from "@/context/RewardContext";
+import { buildEpisodeWebUrl } from "@/utils/web-checkout-links";
 import { formatVnd } from "./format-vnd";
 
 interface QuickUnlockModalProps {
@@ -24,6 +26,7 @@ interface QuickUnlockModalProps {
   episodeId: string | null;
   episodeTitle?: string;
   comicTitle?: string;
+  contentKind?: "COMIC" | "VIDEO";
   onSuccess: () => void;
 }
 
@@ -33,6 +36,7 @@ export default function QuickUnlockModal({
   episodeId,
   episodeTitle,
   comicTitle,
+  contentKind = "COMIC",
   onSuccess,
 }: QuickUnlockModalProps) {
   const { refreshRewardData } = useReward();
@@ -248,7 +252,7 @@ export default function QuickUnlockModal({
                   </Text>
                 </View>
                 <View className="flex-row justify-between items-center">
-                  <Text className="text-xs text-zinc-400">Giá tập truyện:</Text>
+                  <Text className="text-xs text-zinc-400">Giá tập:</Text>
                   <Text className="text-xs font-bold text-[#D4AF37]">
                     {(order?.totalAmount || 0).toLocaleString("vi-VN")} Coin
                   </Text>
@@ -261,11 +265,32 @@ export default function QuickUnlockModal({
                 </View>
               </View>
 
+              {/* Nút chuyển sang Website để mua/nạp */}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                  handleClose();
+                  if (episodeId) {
+                    const kind = contentKind || (comicTitle ? "COMIC" : "VIDEO");
+                    const url = buildEpisodeWebUrl(episodeId, kind);
+                    Linking.openURL(url).catch((err) => {
+                      console.warn("Không thể mở website:", err);
+                    });
+                  }
+                }}
+                className="mt-5 h-12 w-full flex-row items-center justify-center rounded-xl bg-[#D4AF37]"
+              >
+                <Feather name="external-link" size={16} color="#141210" style={{ marginRight: 6 }} />
+                <Text className="text-xs font-black uppercase tracking-wide text-[#141210]">
+                  Mua trên Website
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={handleClose}
-                className="mt-5 h-11 w-full items-center justify-center rounded-xl bg-zinc-800 active:opacity-80"
+                className="mt-2.5 h-11 w-full items-center justify-center rounded-xl bg-zinc-800/80 border border-white/5 active:opacity-80"
               >
-                <Text className="text-xs font-bold text-zinc-300">Đóng</Text>
+                <Text className="text-xs font-bold text-zinc-400">Đóng</Text>
               </TouchableOpacity>
             </View>
           ) : (

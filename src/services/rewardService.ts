@@ -242,3 +242,14 @@ export async function completeAdMissionSession(
     body: JSON.stringify({ sessionId }),
   });
 }
+
+export async function getCoinTransactions(
+  page = 1,
+  size = 20,
+): Promise<import("@/types/reward").CoinTransactionPageResponse> {
+  const pageIndex = Math.max(1, page);
+  return requestData<import("@/types/reward").CoinTransactionPageResponse>(
+    `/api/v1/coins/transactions?page=${pageIndex}&size=${size}`,
+    { method: "GET" },
+  );
+}

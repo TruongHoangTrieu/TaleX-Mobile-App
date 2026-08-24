@@ -30,7 +30,9 @@ export default function LikedScreen() {
 
   const [activeTab, setActiveTab] = useState<TabType>("ALL");
   const [likedList, setLikedList] = useState<AccountLikeResponse[]>([]);
-  const [contentTypes, setContentTypes] = useState<Record<string, "VIDEO" | "COMIC">>({});
+  const [contentTypes, setContentTypes] = useState<
+    Record<string, "VIDEO" | "COMIC">
+  >({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -50,20 +52,26 @@ export default function LikedScreen() {
       const typeMap: Record<string, "VIDEO" | "COMIC"> = {};
       await Promise.all(
         items.map(async (item) => {
-          const rawType = (item as any).contentType || (item as any).seriesContentType || (item as any).type;
+          const rawType =
+            (item as any).contentType ||
+            (item as any).seriesContentType ||
+            (item as any).type;
           if (rawType) {
-            typeMap[item.episodeId] = String(rawType).toUpperCase() === "COMIC" ? "COMIC" : "VIDEO";
+            typeMap[item.episodeId] =
+              String(rawType).toUpperCase() === "COMIC" ? "COMIC" : "VIDEO";
             return;
           }
           try {
             const detailRes = await getPublicEpisodeDetail(item.episodeId);
             const data = detailRes?.data || detailRes;
-            const typeStr = String(data?.contentType || data?.type || "").toUpperCase();
+            const typeStr = String(
+              data?.contentType || data?.type || "",
+            ).toUpperCase();
             typeMap[item.episodeId] = typeStr === "COMIC" ? "COMIC" : "VIDEO";
           } catch (e) {
             typeMap[item.episodeId] = "VIDEO";
           }
-        })
+        }),
       );
       setContentTypes(typeMap);
     } catch (err: any) {
@@ -86,7 +94,9 @@ export default function LikedScreen() {
   const handleUnlike = (item: AccountLikeResponse) => {
     const isComic = contentTypes[item.episodeId] === "COMIC";
     const typeName = isComic ? "chương truyện" : "tập phim";
-    const titleText = item.episodeTitle || (item.episodeNumber != null ? `Tập ${item.episodeNumber}` : "");
+    const titleText =
+      item.episodeTitle ||
+      (item.episodeNumber != null ? `Tập ${item.episodeNumber}` : "");
     const displayTitle = titleText ? `"${titleText}"` : "";
 
     Alert.alert(
@@ -98,7 +108,9 @@ export default function LikedScreen() {
           text: "Bỏ thích",
           style: "destructive",
           onPress: async () => {
-            setLikedList((prev) => prev.filter((i) => i.episodeId !== item.episodeId));
+            setLikedList((prev) =>
+              prev.filter((i) => i.episodeId !== item.episodeId),
+            );
             try {
               await unlikeEpisode(item.episodeId);
               Toast.show({
@@ -106,26 +118,36 @@ export default function LikedScreen() {
                 text1: `Đã bỏ ${typeName} khỏi danh sách yêu thích.`,
               });
             } catch (err: any) {
-              Alert.alert("Lỗi", err.message || `Không thể bỏ thích ${typeName}.`);
+              Alert.alert(
+                "Lỗi",
+                err.message || `Không thể bỏ thích ${typeName}.`,
+              );
               fetchLikedData();
             }
           },
         },
-      ]
+      ],
     );
   };
 
   const handleOpenItem = async (item: AccountLikeResponse) => {
     const type = contentTypes[item.episodeId];
     if (type === "COMIC") {
-      navigation.navigate("ComicReader", { episodeId: item.episodeId, episodeTitle: item.episodeTitle });
+      navigation.navigate("ComicReader", {
+        episodeId: item.episodeId,
+        episodeTitle: item.episodeTitle,
+      });
     } else {
       navigation.navigate("MovieDetailScreen", { movieId: item.episodeId });
     }
   };
 
-  const videoCount = likedList.filter((item) => contentTypes[item.episodeId] === "VIDEO").length;
-  const comicCount = likedList.filter((item) => contentTypes[item.episodeId] === "COMIC").length;
+  const videoCount = likedList.filter(
+    (item) => contentTypes[item.episodeId] === "VIDEO",
+  ).length;
+  const comicCount = likedList.filter(
+    (item) => contentTypes[item.episodeId] === "COMIC",
+  ).length;
 
   const filteredList = likedList.filter((item) => {
     if (activeTab === "ALL") return true;
@@ -147,7 +169,7 @@ export default function LikedScreen() {
           <Feather name="arrow-left" size={22} color="#E5E0D8" />
         </TouchableOpacity>
         <Text className="text-[#E5E0D8] text-[18px] font-bold">
-          Đã Yêu Thích
+          Yêu Thích
         </Text>
         <View className="w-10" />
       </View>
@@ -160,8 +182,8 @@ export default function LikedScreen() {
             tab === "ALL"
               ? `Tất cả (${likedList.length})`
               : tab === "VIDEO"
-              ? `Video (${videoCount})`
-              : `Truyện tranh (${comicCount})`;
+                ? `Video (${videoCount})`
+                : `Truyện tranh (${comicCount})`;
 
           return (
             <TouchableOpacity
@@ -190,7 +212,9 @@ export default function LikedScreen() {
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#D4AF37" />
-          <Text className="text-zinc-500 text-xs mt-3">Đang tải nội dung đã thích...</Text>
+          <Text className="text-zinc-500 text-xs mt-3">
+            Đang tải nội dung đã thích...
+          </Text>
         </View>
       ) : !isAuthenticated ? (
         <View className="flex-1 items-center justify-center px-6">
@@ -205,7 +229,9 @@ export default function LikedScreen() {
             onPress={() => navigation.navigate("LoginScreen")}
             className="mt-6 bg-[#D4AF37] px-6 py-3 rounded-full"
           >
-            <Text className="text-[#141210] font-bold text-sm">Đăng nhập ngay</Text>
+            <Text className="text-[#141210] font-bold text-sm">
+              Đăng nhập ngay
+            </Text>
           </TouchableOpacity>
         </View>
       ) : filteredList.length === 0 ? (
@@ -253,17 +279,24 @@ export default function LikedScreen() {
 
                 {/* Info */}
                 <View className="flex-1 mr-2">
-                  <Text className="text-white font-bold text-sm" numberOfLines={1}>
+                  <Text
+                    className="text-white font-bold text-sm"
+                    numberOfLines={1}
+                  >
                     {item.episodeTitle || `Tập ${item.episodeNumber || ""}`}
                   </Text>
                   {item.seriesTitle && (
-                    <Text className="text-[#D4AF37] text-xs font-semibold mt-0.5" numberOfLines={1}>
+                    <Text
+                      className="text-[#D4AF37] text-xs font-semibold mt-0.5"
+                      numberOfLines={1}
+                    >
                       {item.seriesTitle}
                     </Text>
                   )}
                   {item.likedAt && (
                     <Text className="text-zinc-500 text-[10px] mt-1">
-                      Đã thích: {new Date(item.likedAt).toLocaleDateString("vi-VN")}
+                      Đã thích:{" "}
+                      {new Date(item.likedAt).toLocaleDateString("vi-VN")}
                     </Text>
                   )}
                 </View>

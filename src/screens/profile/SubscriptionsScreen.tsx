@@ -17,12 +17,22 @@ import { getFollowedCreators, AccountFollowInfoDto } from "@/services/follow";
 import { FollowButton } from "@/components/FollowButton";
 import { useCreatorFollow } from "@/hooks/useCreatorFollow";
 
-function CreatorItemCard({ creator }: { creator: AccountFollowInfoDto }) {
+function CreatorItemCard({
+  creator,
+  onPress,
+}: {
+  creator: AccountFollowInfoDto;
+  onPress: () => void;
+}) {
   const { isFollowing, toggleFollow, isMutating } = useCreatorFollow(creator.accountId);
 
   return (
     <View className="bg-[#1C1A17] p-3.5 rounded-2xl mb-3 flex-row items-center justify-between border border-white/5">
-      <View className="flex-row items-center flex-1 mr-3">
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={onPress}
+        className="flex-row items-center flex-1 mr-3"
+      >
         <View className="w-12 h-12 rounded-full bg-zinc-800 overflow-hidden border border-white/10 mr-3">
           <Image
             source={
@@ -44,7 +54,7 @@ function CreatorItemCard({ creator }: { creator: AccountFollowInfoDto }) {
             </Text>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
 
       <FollowButton
         isFollowing={isFollowing}
@@ -58,7 +68,7 @@ function CreatorItemCard({ creator }: { creator: AccountFollowInfoDto }) {
 
 export default function SubscriptionsScreen() {
   const navigation = useNavigation<any>();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const [creators, setCreators] = useState<AccountFollowInfoDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,6 +99,19 @@ export default function SubscriptionsScreen() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchFollowed();
+  };
+
+  const handleCreatorPress = (creator: AccountFollowInfoDto) => {
+    if (!creator.accountId) return;
+    const isMyChannel =
+      user?.accountId &&
+      String(user.accountId).toLowerCase() === String(creator.accountId).toLowerCase();
+
+    if (isMyChannel) {
+      navigation.navigate("CreatorChannel");
+    } else {
+      navigation.navigate("PublicChannel", { creatorId: creator.accountId });
+    }
   };
 
   return (
@@ -154,7 +177,12 @@ export default function SubscriptionsScreen() {
             />
           }
           contentContainerStyle={{ padding: 16 }}
-          renderItem={({ item }) => <CreatorItemCard creator={item} />}
+          renderItem={({ item }) => (
+            <CreatorItemCard
+              creator={item}
+              onPress={() => handleCreatorPress(item)}
+            />
+          )}
         />
       )}
     </SafeAreaView>

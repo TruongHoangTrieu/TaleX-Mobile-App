@@ -48,7 +48,6 @@ import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSec
 import ContentPaywall from "@/components/purchase/ContentPaywall";
 import { useContentPurchase } from "@/hooks/useContentPurchase";
 import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
-import { allMovies } from "./movieMockData";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -697,7 +696,7 @@ export default function MoviePlayerScreen() {
     loadFeedRecommendations();
   }, [loadFeedRecommendations]);
 
-  const recommendations = allMovies.slice(0, 5);
+  const recommendations: any[] = [];
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-[#0F0F0F]">
@@ -1301,6 +1300,7 @@ export default function MoviePlayerScreen() {
         episodeId={unlockModalEpId || activeEpisodeId || null}
         episodeTitle={unlockModalEpTitle || currentEp?.title || movieTitle}
         comicTitle={movieTitle}
+        contentKind="VIDEO"
         onSuccess={() => {
           setRefreshCount((prev) => prev + 1);
         }}

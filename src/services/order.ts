@@ -107,12 +107,13 @@ export const confirmCoinPayment = (
   postForResult<OrderResponseDto>(`/${orderId}/confirm-coin-payment`);
 
 export const getOrderHistory = async (
-  page = 0,
-  pageSize = 100,
+  page = 1,
+  pageSize = 50,
 ): Promise<OrderResult<OrderHistoryPageData>> => {
+  const pageIndex = Math.max(1, page);
   try {
     const response = await authFetch(
-      orderUrl(`/history?page=${page}&pageSize=${pageSize}`),
+      orderUrl(`/history?page=${pageIndex}&pageSize=${pageSize}`),
       { method: "GET" },
     );
     const payload = (await response.json()) as any;

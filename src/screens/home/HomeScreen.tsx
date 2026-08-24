@@ -31,10 +31,15 @@ import RecentWatchSection from "@/components/RecentWatchSection";
 import CinematicBackground from "@/components/CinematicBackground";
 import {
   getHomeFeed,
+  getRecommendationFeed,
+  generateSessionId,
   HomeFeedData,
   HomeFeedSeries,
 } from "@/services/recommendations";
 import { formatAnalyticNumber } from "@/services/series";
+import { Dimensions } from "react-native";
+
+const { width: screenWidth } = Dimensions.get("window");
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1518676590629-3dcbd9c5a5c9?q=80&w=1400&auto=format&fit=crop";
@@ -117,18 +122,67 @@ export default function HomeScreen() {
   const [isLoadingFeed, setIsLoadingFeed] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
+  const [recommendedFeed, setRecommendedFeed] = useState<HomeFeedSeries[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState<boolean>(true);
+  const [loadingMoreRecs, setLoadingMoreRecs] = useState<boolean>(false);
+  const [hasMoreRecs, setHasMoreRecs] = useState<boolean>(true);
+  const sessionIdRef = useRef<string>(generateSessionId("sess_home"));
+
+  const loadRecommendedFeed = useCallback(async (reset = false) => {
+    if (reset) {
+      sessionIdRef.current = generateSessionId("sess_home");
+      setLoadingRecs(true);
+      setHasMoreRecs(true);
+    } else {
+      setLoadingMoreRecs(true);
+    }
+
+    try {
+      const currentOffset = reset ? 0 : recommendedFeed.length;
+      const recs = await getRecommendationFeed({
+        sessionId: sessionIdRef.current,
+        pageType: "HOME",
+        limit: 10,
+        offset: currentOffset,
+      });
+
+      if (Array.isArray(recs)) {
+        if (reset) {
+          setRecommendedFeed(recs);
+        } else {
+          setRecommendedFeed((prev) => {
+            const seen = new Set(prev.map((p) => p.seriesId));
+            const newItems = recs.filter((r) => !seen.has(r.seriesId));
+            return [...prev, ...newItems];
+          });
+        }
+        if (recs.length < 10) {
+          setHasMoreRecs(false);
+        }
+      }
+    } catch (err) {
+      console.warn("Error fetching recommended feed:", err);
+    } finally {
+      setLoadingRecs(false);
+      setLoadingMoreRecs(false);
+    }
+  }, [recommendedFeed.length]);
+
   const fetchFeed = useCallback(async () => {
     try {
-      const res = await getHomeFeed({
-        promotedLimit: 3,
-        trendingLimit: 10,
-        newReleasesLimit: 8,
-        recentlyUpdatedLimit: 6,
-        latestCommunityChoiceLimit: 4,
-        communityChoiceLimit: 10,
-        randomCategoryLimit: 6,
-        subscriptionLimit: 6,
-      });
+      const [res] = await Promise.all([
+        getHomeFeed({
+          promotedLimit: 3,
+          trendingLimit: 10,
+          newReleasesLimit: 8,
+          recentlyUpdatedLimit: 6,
+          latestCommunityChoiceLimit: 4,
+          communityChoiceLimit: 10,
+          randomCategoryLimit: 6,
+          subscriptionLimit: 6,
+        }),
+        loadRecommendedFeed(true),
+      ]);
       if (res && res.data) {
         setFeedData(res.data);
       }
@@ -138,7 +192,7 @@ export default function HomeScreen() {
       setIsLoadingFeed(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [loadRecommendedFeed]);
 
   useEffect(() => {
     fetchFeed();
@@ -748,9 +802,11 @@ export default function HomeScreen() {
   // 7. Account Subscription Channel (Kênh 7: Kênh Theo Dõi - Limit 6)
   // -------------------------------------------------------------------------
   const renderAccountSubscriptionChannel = () => {
+    if (!isAuthenticated) return null;
+
     const items = uniqueSeries(feedData?.accountSubscription);
 
-    if (isLoadingFeed || items.length === 0) {
+    if (isLoadingFeed) {
       return (
         <View className="mt-6">
           {renderSectionHeader(
@@ -760,6 +816,10 @@ export default function HomeScreen() {
           {renderHorizontalSkeletonRow(5, 140, 190)}
         </View>
       );
+    }
+
+    if (items.length === 0) {
+      return null;
     }
 
     return (
@@ -825,6 +885,128 @@ export default function HomeScreen() {
     );
   };
 
+  // -------------------------------------------------------------------------
+  // 8. Tất Cả Nội Dung Đề Xuất (Infinite Recommendation Feed - Giống Web Home)
+  // -------------------------------------------------------------------------
+  const renderAllRecommendationsChannel = () => {
+    return (
+      <View className="mt-8 px-4">
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center">
+            <Ionicons name="sparkles" size={18} color="#D4AF37" />
+            <Text className="text-white text-base font-black tracking-wide ml-2">
+              Tất Cả Nội Dung Đề Xuất
+            </Text>
+          </View>
+        </View>
+
+        {loadingRecs && recommendedFeed.length === 0 ? (
+          <View className="flex-row flex-wrap justify-between">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <View
+                key={idx}
+                style={{ width: (screenWidth - 44) / 2 }}
+                className="aspect-[2/3] rounded-2xl bg-zinc-800/80 mb-4 p-2"
+              >
+                <SkeletonPulse className="w-full h-full rounded-xl" />
+              </View>
+            ))}
+          </View>
+        ) : recommendedFeed.length === 0 ? null : (
+          <View>
+            <View className="flex-row flex-wrap justify-between">
+              {recommendedFeed.map((item, index) => {
+                const sId = item.seriesId;
+                const isComic = item.contentType?.toUpperCase() === "COMIC";
+                const coverUri = getImageUri(item, true);
+                const views = item.totalViews ?? item.views ?? item.analyticData?.views ?? 0;
+
+                return (
+                  <TouchableOpacity
+                    key={`rec-home-${sId || index}-${index}`}
+                    activeOpacity={0.85}
+                    onPress={() => handleSeriesPress(item)}
+                    style={{ width: (screenWidth - 44) / 2 }}
+                    className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
+                  >
+                    <Image
+                      source={{ uri: coverUri }}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
+
+                    {/* Badge Content Type */}
+                    <View
+                      style={{
+                        backgroundColor: isComic ? "#2563EB" : "#D97706",
+                        borderColor: isComic ? "#60A5FA" : "#FBBF24",
+                      }}
+                      className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md border z-20 shadow-md"
+                    >
+                      <Text className="text-white text-[8px] font-black uppercase tracking-wider">
+                        {isComic ? "TRUYỆN" : "PHIM"}
+                      </Text>
+                    </View>
+
+                    {/* Gradient Overlay */}
+                    <LinearGradient
+                      colors={["transparent", "rgba(10, 8, 6, 0.95)"]}
+                      className="absolute bottom-0 left-0 right-0 h-20 justify-end p-2.5"
+                    >
+                      <Text
+                        className="text-white font-black text-xs leading-tight"
+                        numberOfLines={1}
+                      >
+                        {item.title}
+                      </Text>
+
+                      <View className="flex-row items-center justify-between mt-1">
+                        <View className="flex-row items-center">
+                          <Ionicons name="star" size={10} color="#D4AF37" />
+                          <Text className="text-white text-[10px] font-black ml-1">
+                            {(item.averageRating ?? 0).toFixed(1)}
+                          </Text>
+                        </View>
+
+                        <View className="flex-row items-center bg-black/60 px-1.5 py-0.5 rounded">
+                          <Ionicons name="eye" size={9} color="#38bdf8" />
+                          <Text className="text-zinc-300 text-[9px] font-bold ml-1">
+                            {formatAnalyticNumber(views)}
+                          </Text>
+                        </View>
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Nút tải thêm đề xuất nếu còn */}
+            {hasMoreRecs && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => loadRecommendedFeed(false)}
+                disabled={loadingMoreRecs}
+                className="w-full py-3 mt-2 rounded-2xl bg-zinc-900/80 border border-white/10 items-center justify-center flex-row"
+              >
+                {loadingMoreRecs ? (
+                  <SkeletonPulse className="w-24 h-4 rounded" />
+                ) : (
+                  <>
+                    <Ionicons name="refresh-outline" size={15} color="#D4AF37" style={{ marginRight: 6 }} />
+                    <Text className="text-[#D4AF37] font-black text-xs">
+                      Khám phá thêm nội dung
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView
       edges={[]}
@@ -872,6 +1054,9 @@ export default function HomeScreen() {
           {renderCommunityChoiceChannel()}
           {renderRandomCategoryChannel()}
           {renderAccountSubscriptionChannel()}
+
+          {/* 8. TẤT CẢ NỘI DUNG ĐỀ XUẤT (INFINITE SCROLL FEED) */}
+          {renderAllRecommendationsChannel()}
         </ScrollView>
       </CinematicBackground>
 

@@ -14,7 +14,6 @@ import ComicDetailScreen from "@/screens/comics/ComicDetailScreen";
 import ComicReaderScreen from "@/screens/comics/ComicReaderScreen";
 import MovieDetailScreen from "@/screens/movies/MovieDetailScreen";
 import MoviePlayerScreen from "@/screens/movies/MoviePlayerScreen";
-import Top10MoviesScreen from "@/screens/movies/Top10MoviesScreen";
 import CreatorGuardScreen from "@/screens/creator/CreatorGuardScreen";
 import CreatorDashboardScreen from "@/screens/creator/CreatorDashboardScreen";
 import CreatorChannelScreen from "@/screens/creator/CreatorChannelScreen";
@@ -31,6 +30,8 @@ import SubscriptionsScreen from "@/screens/profile/SubscriptionsScreen";
 import BookmarkedScreen from "@/screens/profile/BookmarkedScreen";
 import HistoryScreen from "@/screens/profile/HistoryScreen";
 import ChangePasswordScreen from "@/screens/profile/ChangePasswordScreen";
+import TransactionHistoryScreen from "@/screens/profile/TransactionHistoryScreen";
+import TransactionDetailScreen from "@/screens/profile/TransactionDetailScreen";
 import { navigationRef } from "./navigationRef";
 import type { SeriesItem } from "@/services/series";
 
@@ -57,6 +58,11 @@ export type RootStackParamList = {
   SubscriptionsScreen: undefined;
   BookmarkedScreen: undefined;
   HistoryScreen: undefined;
+  TransactionHistoryScreen: undefined;
+  TransactionDetailScreen: {
+    type: "COIN" | "CONTENT" | "PREMIUM";
+    data: any;
+  };
   ComicDetailScreen: { comicId?: string } | undefined;
   ComicReader:
     | {
@@ -88,7 +94,6 @@ export type RootStackParamList = {
         refreshKey?: string;
       }
     | undefined;
-  Top10Movies: undefined;
   CreatorGuard: undefined;
   CreatorDashboard: undefined;
   CreatorChannel: { creatorId?: string } | undefined;
@@ -148,9 +153,16 @@ export default function RootNavigator() {
         />
         <Stack.Screen name="BookmarkedScreen" component={BookmarkedScreen} />
         <Stack.Screen name="HistoryScreen" component={HistoryScreen} />
+        <Stack.Screen
+          name="TransactionHistoryScreen"
+          component={TransactionHistoryScreen}
+        />
+        <Stack.Screen
+          name="TransactionDetailScreen"
+          component={TransactionDetailScreen}
+        />
         <Stack.Screen name="ComicDetailScreen" component={ComicDetailScreen} />
         <Stack.Screen name="MovieDetailScreen" component={MovieDetailScreen} />
-        <Stack.Screen name="Top10Movies" component={Top10MoviesScreen} />
         <Stack.Screen
           name="CreatorGuard"
           component={CreatorGuardScreen}

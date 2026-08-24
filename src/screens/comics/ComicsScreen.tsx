@@ -24,7 +24,15 @@ import ComicCarousel from "@components/ComicCarousel";
 import Header from "@components/Header";
 import RecentWatchSection from "@/components/RecentWatchSection";
 import CinematicBackground from "@/components/CinematicBackground";
-import { searchPublicSeries, SearchSeriesItem } from "@/services/series";
+import { searchPublicSeries, SearchSeriesItem, formatAnalyticNumber } from "@/services/series";
+import {
+  getRecommendationFeed,
+  generateSessionId,
+  HomeFeedSeries,
+} from "@/services/recommendations";
+import { Dimensions } from "react-native";
+
+const { width: screenWidth } = Dimensions.get("window");
 
 function SkeletonPulse({
   style,
@@ -87,6 +95,53 @@ export default function ComicsScreen() {
   const [topRatedComics, setTopRatedComics] = useState<SearchSeriesItem[]>([]);
   const [topLikedComics, setTopLikedComics] = useState<SearchSeriesItem[]>([]);
 
+  // 5. Tất Cả Truyện Tranh Đề Xuất (Recommendation Feed Infinite API)
+  const [recommendedComics, setRecommendedComics] = useState<HomeFeedSeries[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState<boolean>(true);
+  const [loadingMoreRecs, setLoadingMoreRecs] = useState<boolean>(false);
+  const [hasMoreRecs, setHasMoreRecs] = useState<boolean>(true);
+  const sessionIdRef = useRef<string>(generateSessionId("sess_comics"));
+
+  const loadRecommendedComics = useCallback(async (reset = false) => {
+    if (reset) {
+      sessionIdRef.current = generateSessionId("sess_comics");
+      setLoadingRecs(true);
+      setHasMoreRecs(true);
+    } else {
+      setLoadingMoreRecs(true);
+    }
+
+    try {
+      const currentOffset = reset ? 0 : recommendedComics.length;
+      const recs = await getRecommendationFeed({
+        sessionId: sessionIdRef.current,
+        pageType: "COMICS",
+        limit: 10,
+        offset: currentOffset,
+      });
+
+      if (Array.isArray(recs)) {
+        if (reset) {
+          setRecommendedComics(recs);
+        } else {
+          setRecommendedComics((prev) => {
+            const seen = new Set(prev.map((p) => p.seriesId));
+            const newItems = recs.filter((r) => !seen.has(r.seriesId));
+            return [...prev, ...newItems];
+          });
+        }
+        if (recs.length < 10) {
+          setHasMoreRecs(false);
+        }
+      }
+    } catch (err) {
+      console.warn("[ComicsScreen] Error fetching recommended comics feed:", err);
+    } finally {
+      setLoadingRecs(false);
+      setLoadingMoreRecs(false);
+    }
+  }, [recommendedComics.length]);
+
   const loadComicsData = async (isRefreshing = false) => {
     if (isRefreshing) {
       setRefreshing(true);
@@ -95,7 +150,7 @@ export default function ComicsScreen() {
     }
 
     try {
-      const [resLatest, resViews, resRating, resLikes] = await Promise.all([
+      await Promise.all([
         searchPublicSeries({
           contentType: "COMIC",
           status: "PUBLISHED",
@@ -103,6 +158,8 @@ export default function ComicsScreen() {
           sortDirection: "DESC",
           page: 0,
           size: 10,
+        }).then((res) => {
+          if (res?.data?.content) setLatestComics(res.data.content);
         }),
         searchPublicSeries({
           contentType: "COMIC",
@@ -111,6 +168,8 @@ export default function ComicsScreen() {
           sortDirection: "DESC",
           page: 0,
           size: 10,
+        }).then((res) => {
+          if (res?.data?.content) setTopViewsComics(res.data.content);
         }),
         searchPublicSeries({
           contentType: "COMIC",
@@ -119,6 +178,8 @@ export default function ComicsScreen() {
           sortDirection: "DESC",
           page: 0,
           size: 10,
+        }).then((res) => {
+          if (res?.data?.content) setTopRatedComics(res.data.content);
         }),
         searchPublicSeries({
           contentType: "COMIC",
@@ -127,13 +188,11 @@ export default function ComicsScreen() {
           sortDirection: "DESC",
           page: 0,
           size: 10,
+        }).then((res) => {
+          if (res?.data?.content) setTopLikedComics(res.data.content);
         }),
+        loadRecommendedComics(true),
       ]);
-
-      if (resLatest?.data?.content) setLatestComics(resLatest.data.content);
-      if (resViews?.data?.content) setTopViewsComics(resViews.data.content);
-      if (resRating?.data?.content) setTopRatedComics(resRating.data.content);
-      if (resLikes?.data?.content) setTopLikedComics(resLikes.data.content);
     } catch (err) {
       console.error("[ComicsScreen] Error fetching real API comics:", err);
     } finally {
@@ -438,6 +497,134 @@ export default function ComicsScreen() {
             emptyText="Chưa có truyện yêu thích"
             highlighted
           />
+
+          {/* 8. Tất Cả Truyện Tranh Đề Xuất (Cuộn vô tận - Giống Web Comics Feed) */}
+          <View className="mt-8 px-4">
+            <View className="flex-row items-center justify-between mb-4">
+              <View className="flex-row items-center">
+                <Ionicons name="sparkles" size={18} color="#D4AF37" />
+                <Text className="text-white text-base font-black tracking-wide ml-2">
+                  Tất Cả Truyện Tranh Đề Xuất
+                </Text>
+              </View>
+            </View>
+
+            {loadingRecs && recommendedComics.length === 0 ? (
+              <View className="flex-row flex-wrap justify-between">
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={{ width: (screenWidth - 44) / 2 }}
+                    className="aspect-[2/3] rounded-2xl bg-zinc-800/80 mb-4 p-2"
+                  >
+                    <SkeletonPulse className="w-full h-full rounded-xl" />
+                  </View>
+                ))}
+              </View>
+            ) : recommendedComics.length === 0 ? (
+              <View className="py-8 items-center justify-center bg-zinc-900/40 rounded-2xl border border-white/5">
+                <Ionicons name="book-outline" size={36} color="#52525B" />
+                <Text className="text-zinc-500 text-xs mt-2 font-medium">
+                  Chưa có dữ liệu truyện tranh đề xuất
+                </Text>
+              </View>
+            ) : (
+              <View>
+                <View className="flex-row flex-wrap justify-between">
+                  {recommendedComics.map((item, index) => {
+                    const sId = item.seriesId;
+                    const coverUri = item.coverUrl || item.bannerUrl;
+                    const views = item.totalViews ?? item.views ?? item.analyticData?.views ?? 0;
+
+                    return (
+                      <TouchableOpacity
+                        key={`rec-comic-${sId || index}-${index}`}
+                        activeOpacity={0.85}
+                        onPress={() => openComicDetail(sId)}
+                        style={{ width: (screenWidth - 44) / 2 }}
+                        className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
+                      >
+                        {coverUri ? (
+                          <Image
+                            source={{ uri: coverUri }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View className="w-full h-full items-center justify-center bg-zinc-800">
+                            <Ionicons name="book-outline" size={32} color="#71717A" />
+                          </View>
+                        )}
+
+                        {/* Badge TRUYỆN */}
+                        <View
+                          style={{ backgroundColor: "#2563EB", borderColor: "#60A5FA" }}
+                          className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md border z-20 shadow-md"
+                        >
+                          <Text className="text-white text-[8px] font-black uppercase tracking-wider">
+                            TRUYỆN
+                          </Text>
+                        </View>
+
+                        {/* Age Rating Overlay Badge */}
+                        {renderAgeRatingBadge(item.ageRating)}
+
+                        {/* Gradient Overlay */}
+                        <LinearGradient
+                          colors={["transparent", "rgba(10, 8, 6, 0.95)"]}
+                          className="absolute bottom-0 left-0 right-0 h-20 justify-end p-2.5"
+                        >
+                          <Text
+                            className="text-white font-black text-xs leading-tight"
+                            numberOfLines={1}
+                          >
+                            {item.title}
+                          </Text>
+
+                          <View className="flex-row items-center justify-between mt-1">
+                            <View className="flex-row items-center">
+                              <Ionicons name="star" size={10} color="#D4AF37" />
+                              <Text className="text-white text-[10px] font-black ml-1">
+                                {(item.averageRating ?? 0).toFixed(1)}
+                              </Text>
+                            </View>
+
+                            <View className="flex-row items-center bg-black/60 px-1.5 py-0.5 rounded">
+                              <Ionicons name="eye" size={9} color="#38bdf8" />
+                              <Text className="text-zinc-300 text-[9px] font-bold ml-1">
+                                {formatAnalyticNumber(views)}
+                              </Text>
+                            </View>
+                          </View>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Nút tải thêm đề xuất nếu còn */}
+                {hasMoreRecs && (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => loadRecommendedComics(false)}
+                    disabled={loadingMoreRecs}
+                    className="w-full py-3 mt-2 rounded-2xl bg-zinc-900/80 border border-white/10 items-center justify-center flex-row"
+                  >
+                    {loadingMoreRecs ? (
+                      <SkeletonPulse className="w-24 h-4 rounded" />
+                    ) : (
+                      <>
+                        <Ionicons name="refresh-outline" size={15} color="#D4AF37" style={{ marginRight: 6 }} />
+                        <Text className="text-[#D4AF37] font-black text-xs">
+                          Khám phá thêm truyện tranh
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
         </ScrollView>
       </CinematicBackground>
     </SafeAreaView>

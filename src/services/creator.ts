@@ -292,3 +292,27 @@ export async function getNextCreatorTier(currentTierLevel = 0): Promise<NextCrea
     return null;
   }
 }
+
+export async function getCreatorTiers(): Promise<NextCreatorTierData[]> {
+  const baseUrlClean = BASE_URL.replace(/\/$/, "");
+  const url = `${baseUrlClean}/api/v1/creator-tiers?page=1&pageSize=50&sortBy=tierLevel&sortDirection=ASC`;
+
+  try {
+    const res = await authFetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "*/*",
+      },
+    });
+
+    if (!res.ok) {
+      return [];
+    }
+
+    const json = await res.json();
+    return json?.data?.content || json?.data || [];
+  } catch (err) {
+    console.log("Error fetching creator tiers:", err);
+    return [];
+  }
+}

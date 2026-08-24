@@ -146,9 +146,9 @@ export function useContentEntitlement({
                       currentPurchasedSet.add(String(ep.episodeId));
                       globalPurchasedCache.add(String(ep.episodeId));
                     }
-                    if (ep.id) {
-                      currentPurchasedSet.add(String(ep.id));
-                      globalPurchasedCache.add(String(ep.id));
+                    if ((ep as any).id) {
+                      currentPurchasedSet.add(String((ep as any).id));
+                      globalPurchasedCache.add(String((ep as any).id));
                     }
                   });
                 }

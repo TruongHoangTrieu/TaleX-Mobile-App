@@ -30,7 +30,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Animated } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { InteractiveStarRating } from "@/components/InteractiveStarRating";
-import { getMovieById, allMovies } from "./movieMockData";
 import {
   getPublicSeriesDetail,
   getPublicSeries,
@@ -174,7 +173,7 @@ export default function MovieDetailScreen() {
         creatorAvatar: seriesItem.creatorAvatar,
       };
     }
-    return getMovieById(movieId);
+    return null;
   });
 
   const [loading, setLoading] = useState(false);
@@ -529,23 +528,6 @@ export default function MovieDetailScreen() {
           setEpisodesMap(newEpisodesMap);
         }
 
-        if (!hasRealData) {
-          const mockMovie = getMovieById(movieId);
-          if (mockMovie) {
-            setMovie(mockMovie);
-            setEpisodesMap({
-              default: (mockMovie.episodes || []).map((e: any) => ({
-                episodeId: e.id || String(e.episodeNumber),
-                seasonId: "default",
-                episodeNumber: e.episodeNumber || 1,
-                title: e.title || `Tập ${e.episodeNumber || 1}`,
-                videoUrl: e.videoUrl,
-                duration: "45 phút",
-              })) as EpisodeItem[],
-            });
-          }
-        }
-
         getPublicCombos()
           .then(setCombos)
           .catch(() => setCombos([]));
@@ -591,9 +573,7 @@ export default function MovieDetailScreen() {
     });
   };
 
-  const recommendations = allMovies
-    .filter((m) => m.id !== movie?.id)
-    .slice(0, 6);
+  const recommendations: any[] = [];
 
   const [isWatched, setIsWatched] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);

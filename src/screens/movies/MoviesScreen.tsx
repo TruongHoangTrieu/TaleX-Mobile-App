@@ -20,7 +20,15 @@ import Header from "@components/Header";
 import MovieCarousel from "@components/MovieCarousel";
 import RecentWatchSection from "@/components/RecentWatchSection";
 import CinematicBackground from "@/components/CinematicBackground";
-import { searchPublicSeries, SearchSeriesItem } from "@/services/series";
+import { searchPublicSeries, SearchSeriesItem, formatAnalyticNumber } from "@/services/series";
+import {
+  getRecommendationFeed,
+  generateSessionId,
+  HomeFeedSeries,
+} from "@/services/recommendations";
+import { Dimensions } from "react-native";
+
+const { width: screenWidth } = Dimensions.get("window");
 
 function SkeletonPulse({
   style,
@@ -83,6 +91,53 @@ export default function MoviesScreen() {
   const [topRatedMovies, setTopRatedMovies] = useState<SearchSeriesItem[]>([]);
   const [topLikedMovies, setTopLikedMovies] = useState<SearchSeriesItem[]>([]);
 
+  // 5. Tất Cả Phim Đề Xuất (Recommendation Feed Infinite API)
+  const [recommendedMovies, setRecommendedMovies] = useState<HomeFeedSeries[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState<boolean>(true);
+  const [loadingMoreRecs, setLoadingMoreRecs] = useState<boolean>(false);
+  const [hasMoreRecs, setHasMoreRecs] = useState<boolean>(true);
+  const sessionIdRef = useRef<string>(generateSessionId("sess_movies"));
+
+  const loadRecommendedMovies = useCallback(async (reset = false) => {
+    if (reset) {
+      sessionIdRef.current = generateSessionId("sess_movies");
+      setLoadingRecs(true);
+      setHasMoreRecs(true);
+    } else {
+      setLoadingMoreRecs(true);
+    }
+
+    try {
+      const currentOffset = reset ? 0 : recommendedMovies.length;
+      const recs = await getRecommendationFeed({
+        sessionId: sessionIdRef.current,
+        pageType: "MOVIES",
+        limit: 10,
+        offset: currentOffset,
+      });
+
+      if (Array.isArray(recs)) {
+        if (reset) {
+          setRecommendedMovies(recs);
+        } else {
+          setRecommendedMovies((prev) => {
+            const seen = new Set(prev.map((p) => p.seriesId));
+            const newItems = recs.filter((r) => !seen.has(r.seriesId));
+            return [...prev, ...newItems];
+          });
+        }
+        if (recs.length < 10) {
+          setHasMoreRecs(false);
+        }
+      }
+    } catch (err) {
+      console.warn("[MoviesScreen] Error fetching recommended movies feed:", err);
+    } finally {
+      setLoadingRecs(false);
+      setLoadingMoreRecs(false);
+    }
+  }, [recommendedMovies.length]);
+
   const loadMoviesData = async (isRefreshing = false) => {
     if (isRefreshing) {
       setRefreshing(true);
@@ -91,7 +146,7 @@ export default function MoviesScreen() {
     }
 
     try {
-      const [resLatest, resViews, resRating, resLikes] = await Promise.all([
+      await Promise.all([
         searchPublicSeries({
           contentType: "VIDEO",
           status: "PUBLISHED",
@@ -99,6 +154,8 @@ export default function MoviesScreen() {
           sortDirection: "DESC",
           page: 0,
           size: 10,
+        }).then((res) => {
+          if (res?.data?.content) setLatestMovies(res.data.content);
         }),
         searchPublicSeries({
           contentType: "VIDEO",
@@ -107,6 +164,8 @@ export default function MoviesScreen() {
           sortDirection: "DESC",
           page: 0,
           size: 10,
+        }).then((res) => {
+          if (res?.data?.content) setTopViewsMovies(res.data.content);
         }),
         searchPublicSeries({
           contentType: "VIDEO",
@@ -115,6 +174,8 @@ export default function MoviesScreen() {
           sortDirection: "DESC",
           page: 0,
           size: 10,
+        }).then((res) => {
+          if (res?.data?.content) setTopRatedMovies(res.data.content);
         }),
         searchPublicSeries({
           contentType: "VIDEO",
@@ -123,13 +184,11 @@ export default function MoviesScreen() {
           sortDirection: "DESC",
           page: 0,
           size: 10,
+        }).then((res) => {
+          if (res?.data?.content) setTopLikedMovies(res.data.content);
         }),
+        loadRecommendedMovies(true),
       ]);
-
-      if (resLatest?.data?.content) setLatestMovies(resLatest.data.content);
-      if (resViews?.data?.content) setTopViewsMovies(resViews.data.content);
-      if (resRating?.data?.content) setTopRatedMovies(resRating.data.content);
-      if (resLikes?.data?.content) setTopLikedMovies(resLikes.data.content);
     } catch (err) {
       console.error("[MoviesScreen] Error fetching real API movies:", err);
     } finally {
@@ -302,6 +361,134 @@ export default function MoviesScreen() {
             renderItem={renderMovieCard}
             emptyText="Chưa có phim yêu thích"
           />
+
+          {/* 7. TẤT CẢ PHIM ĐỀ XUẤT (Cuộn vô tận - Giống Web Series Feed) */}
+          <View className="mt-8 px-4">
+            <View className="flex-row items-center justify-between mb-4">
+              <View className="flex-row items-center">
+                <Ionicons name="sparkles" size={18} color="#D4AF37" />
+                <Text className="text-white text-base font-black tracking-wide ml-2">
+                  Tất Cả Phim Đề Xuất
+                </Text>
+              </View>
+            </View>
+
+            {loadingRecs && recommendedMovies.length === 0 ? (
+              <View className="flex-row flex-wrap justify-between">
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={{ width: (screenWidth - 44) / 2 }}
+                    className="aspect-[2/3] rounded-2xl bg-zinc-800/80 mb-4 p-2"
+                  >
+                    <SkeletonPulse className="w-full h-full rounded-xl" />
+                  </View>
+                ))}
+              </View>
+            ) : recommendedMovies.length === 0 ? (
+              <View className="py-8 items-center justify-center bg-zinc-900/40 rounded-2xl border border-white/5">
+                <FontAwesome5 name="film" size={36} color="#52525B" />
+                <Text className="text-zinc-500 text-xs mt-2 font-medium">
+                  Chưa có dữ liệu phim đề xuất
+                </Text>
+              </View>
+            ) : (
+              <View>
+                <View className="flex-row flex-wrap justify-between">
+                  {recommendedMovies.map((item, index) => {
+                    const sId = item.seriesId;
+                    const coverUri = item.coverUrl || item.bannerUrl;
+                    const views = item.totalViews ?? item.views ?? item.analyticData?.views ?? 0;
+
+                    return (
+                      <TouchableOpacity
+                        key={`rec-movie-${sId || index}-${index}`}
+                        activeOpacity={0.85}
+                        onPress={() => openMovieDetail(sId)}
+                        style={{ width: (screenWidth - 44) / 2 }}
+                        className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
+                      >
+                        {coverUri ? (
+                          <Image
+                            source={{ uri: coverUri }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View className="w-full h-full items-center justify-center bg-zinc-800">
+                            <FontAwesome5 name="film" size={32} color="#71717A" />
+                          </View>
+                        )}
+
+                        {/* Badge PHIM */}
+                        <View
+                          style={{ backgroundColor: "#D97706", borderColor: "#FBBF24" }}
+                          className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md border z-20 shadow-md"
+                        >
+                          <Text className="text-white text-[8px] font-black uppercase tracking-wider">
+                            PHIM
+                          </Text>
+                        </View>
+
+                        {/* Age Rating Overlay Badge */}
+                        {renderAgeRatingBadge(item.ageRating)}
+
+                        {/* Gradient Overlay */}
+                        <LinearGradient
+                          colors={["transparent", "rgba(10, 8, 6, 0.95)"]}
+                          className="absolute bottom-0 left-0 right-0 h-20 justify-end p-2.5"
+                        >
+                          <Text
+                            className="text-white font-black text-xs leading-tight"
+                            numberOfLines={1}
+                          >
+                            {item.title}
+                          </Text>
+
+                          <View className="flex-row items-center justify-between mt-1">
+                            <View className="flex-row items-center">
+                              <Ionicons name="star" size={10} color="#D4AF37" />
+                              <Text className="text-white text-[10px] font-black ml-1">
+                                {(item.averageRating ?? 0).toFixed(1)}
+                              </Text>
+                            </View>
+
+                            <View className="flex-row items-center bg-black/60 px-1.5 py-0.5 rounded">
+                              <Ionicons name="eye" size={9} color="#38bdf8" />
+                              <Text className="text-zinc-300 text-[9px] font-bold ml-1">
+                                {formatAnalyticNumber(views)}
+                              </Text>
+                            </View>
+                          </View>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Nút tải thêm đề xuất nếu còn */}
+                {hasMoreRecs && (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => loadRecommendedMovies(false)}
+                    disabled={loadingMoreRecs}
+                    className="w-full py-3 mt-2 rounded-2xl bg-zinc-900/80 border border-white/10 items-center justify-center flex-row"
+                  >
+                    {loadingMoreRecs ? (
+                      <SkeletonPulse className="w-24 h-4 rounded" />
+                    ) : (
+                      <>
+                        <Ionicons name="refresh-outline" size={15} color="#D4AF37" style={{ marginRight: 6 }} />
+                        <Text className="text-[#D4AF37] font-black text-xs">
+                          Khám phá thêm phim
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
         </ScrollView>
       </CinematicBackground>
     </SafeAreaView>

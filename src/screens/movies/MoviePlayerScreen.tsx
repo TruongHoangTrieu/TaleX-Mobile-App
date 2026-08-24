@@ -597,7 +597,7 @@ export default function MoviePlayerScreen() {
             avatar: d.creatorAvatar || d.creator?.avatarUrl,
             followers: d.totalCreatorFollowers ?? 0,
             category: d.category || "PhimBo",
-            averageRating: d.averageRating ?? d.rating ?? 5.0,
+            averageRating: Number(d.averageRating ?? d.rating ?? 5.0),
             description: d.description,
             regionAndGenre: d.regionAndGenre,
           });

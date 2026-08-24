@@ -8,6 +8,21 @@ type GoogleSignInModule =
 
 let googleSignInModule: GoogleSignInModule | null = null;
 
+const NATIVE_MODULE_UNAVAILABLE_MESSAGE =
+  "Đăng nhập Google không khả dụng trong Expo Go. Vui lòng dùng đăng nhập email hoặc chạy ứng dụng bằng development build.";
+
+// The RNGoogleSignin native binding isn't always missing at require()-time —
+// some versions resolve it lazily on first native call (configure/signIn),
+// throwing a raw TurboModuleRegistry Invariant Violation deep inside the SDK
+// instead. Match on that so it still surfaces as the friendly message below.
+function isNativeModuleMissingError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes("TurboModuleRegistry") ||
+      error.message.includes("RNGoogleSignin"))
+  );
+}
+
 function getGoogleSignInModule(): GoogleSignInModule {
   if (googleSignInModule) return googleSignInModule;
 
@@ -21,9 +36,7 @@ function getGoogleSignInModule(): GoogleSignInModule {
     googleSignInModule = loadedModule;
     return loadedModule;
   } catch {
-    throw new Error(
-      "Đăng nhập Google không khả dụng trong Expo Go. Vui lòng dùng đăng nhập email hoặc chạy ứng dụng bằng development build.",
-    );
+    throw new Error(NATIVE_MODULE_UNAVAILABLE_MESSAGE);
   }
 }
 
@@ -40,26 +53,34 @@ function ensureConfigured(module: GoogleSignInModule) {
 // to the backend (`POST /api/auth/google`). Returns null if the user cancelled.
 export async function signInWithGoogle(): Promise<string | null> {
   const module = getGoogleSignInModule();
-  ensureConfigured(module);
 
-  if (Platform.OS === "android") {
-    await module.GoogleSignin.hasPlayServices({
-      showPlayServicesUpdateDialog: true,
-    });
+  try {
+    ensureConfigured(module);
+
+    if (Platform.OS === "android") {
+      await module.GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+    }
+
+    const response = await module.GoogleSignin.signIn();
+
+    if (!module.isSuccessResponse(response)) {
+      return null;
+    }
+
+    const idToken = response.data.idToken;
+    if (!idToken) {
+      throw new Error("Google không trả về idToken, vui lòng thử lại.");
+    }
+
+    return idToken;
+  } catch (error) {
+    if (isNativeModuleMissingError(error)) {
+      throw new Error(NATIVE_MODULE_UNAVAILABLE_MESSAGE);
+    }
+    throw error;
   }
-
-  const response = await module.GoogleSignin.signIn();
-
-  if (!module.isSuccessResponse(response)) {
-    return null;
-  }
-
-  const idToken = response.data.idToken;
-  if (!idToken) {
-    throw new Error("Google không trả về idToken, vui lòng thử lại.");
-  }
-
-  return idToken;
 }
 
 export function isGoogleSignInCancelled(error: unknown): boolean {

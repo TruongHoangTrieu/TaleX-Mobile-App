@@ -26,6 +26,7 @@ import type { RootStackParamList } from "@/navigation/RootNavigator";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { getOwnCreator } from "@/services/creator";
 import { useUserFeature } from "@/hooks/useUserFeature";
+import { getActiveSubscription, AccountSubscription } from "@/services/subscription";
 
 export default function ProfileScreen() {
   const navigation =
@@ -43,17 +44,25 @@ export default function ProfileScreen() {
   } = useUserFeature();
 
   const [isCreator, setIsCreator] = useState(false);
+  const [activeSubscription, setActiveSubscription] = useState<AccountSubscription | null>(null);
+  const isPremium = Boolean(activeSubscription);
+
+  const remainingDays = React.useMemo(() => {
+    if (!activeSubscription?.endTime) return 0;
+    const diff = new Date(activeSubscription.endTime).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  }, [activeSubscription?.endTime]);
 
   useFocusEffect(
     React.useCallback(() => {
-      // Auto reset scroll position to top whenever screen is focused
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-
       if (isAuthenticated) {
-        refreshProfile();
-        void refreshUnreadCount({ silent: true });
-        void refreshRewardData({ silent: true });
-        refetchUserFeature();
+        getActiveSubscription()
+          .then((sub) => {
+            setActiveSubscription(sub);
+          })
+          .catch(() => {
+            setActiveSubscription(null);
+          });
 
         getOwnCreator()
           .then((res) => {
@@ -68,14 +77,9 @@ export default function ProfileScreen() {
           });
       } else {
         setIsCreator(false);
+        setActiveSubscription(null);
       }
-    }, [
-      refreshProfile,
-      refreshUnreadCount,
-      refreshRewardData,
-      refetchUserFeature,
-      isAuthenticated,
-    ]),
+    }, [isAuthenticated]),
   );
 
   const renderMenuItem = (
@@ -197,13 +201,38 @@ export default function ProfileScreen() {
             }}
             className="mb-3.5 relative z-10"
           >
-            <View className="w-[92px] h-[92px] rounded-full overflow-hidden items-center justify-center">
+            <View
+              style={isPremium ? { borderColor: "#D4AF37", borderWidth: 2.5 } : {}}
+              className="w-[92px] h-[92px] rounded-full overflow-hidden items-center justify-center relative"
+            >
               <Image
                 source={avatarSource}
                 className="w-full h-full"
                 resizeMode="cover"
               />
             </View>
+
+            {/* Premium Gold Crown Badge */}
+            {isPremium && (
+              <View
+                style={{
+                  position: "absolute",
+                  right: -2,
+                  top: -2,
+                  zIndex: 20,
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  backgroundColor: "#D4AF37",
+                  borderWidth: 2,
+                  borderColor: "#161618",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <FontAwesome5 name="crown" size={11} color="#000000" />
+              </View>
+            )}
           </TouchableOpacity>
 
           {/* User Name */}
@@ -212,6 +241,19 @@ export default function ProfileScreen() {
               ? user?.username || user?.fullName || "Dima"
               : "Khách "}
           </Text>
+
+          {/* Premium Membership Pill Badge */}
+          {isAuthenticated && isPremium && (
+            <View
+              style={{ backgroundColor: "rgba(212, 175, 55, 0.15)", borderColor: "rgba(212, 175, 55, 0.4)" }}
+              className="flex-row items-center border px-3 py-1 rounded-full mt-2 self-center z-10 shadow-sm"
+            >
+              <FontAwesome5 name="crown" size={11} color="#D4AF37" />
+              <Text className="ml-1.5 text-xs font-black text-[#D4AF37]">
+                Thành Viên Premium
+              </Text>
+            </View>
+          )}
 
           {/* User Email */}
           <Text className="text-white text-sm font-medium mt-1 text-center z-10">
@@ -237,8 +279,31 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Subscribe Pill Button - Chỉ hiện khi đã đăng nhập */}
-          {isAuthenticated && (
+          {/* Subscribe Pill Button or Active Plan Card */}
+          {isAuthenticated && isPremium ? (
+            <View
+              style={{ backgroundColor: "rgba(212, 175, 55, 0.1)", borderColor: "rgba(212, 175, 55, 0.3)" }}
+              className="mt-5 w-full p-3.5 rounded-2xl border flex-row items-center justify-between z-10"
+            >
+              <View className="flex-row items-center flex-1 mr-2">
+                <FontAwesome5 name="crown" size={15} color="#D4AF37" />
+                <View className="ml-3">
+                  <Text className="text-xs font-bold text-zinc-300">
+                    Gói Premium đang hoạt động
+                  </Text>
+                  <Text className="text-sm font-black text-[#D4AF37]">
+                    Còn {remainingDays} ngày
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("SubscriptionPlans")}
+                className="bg-[#D4AF37] px-3 py-1.5 rounded-xl"
+              >
+                <Text className="text-black text-xs font-bold">Xem Gói</Text>
+              </TouchableOpacity>
+            </View>
+          ) : isAuthenticated ? (
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => navigation.navigate("SubscriptionPlans")}
@@ -249,7 +314,7 @@ export default function ProfileScreen() {
                 Đăng Ký Hội Viên
               </Text>
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
         {/* ================= NỘI DUNG MENU CÁC TÍNH NĂNG HOẠT ĐỘNG ================= */}

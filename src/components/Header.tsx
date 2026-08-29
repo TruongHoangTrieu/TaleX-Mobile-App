@@ -111,8 +111,12 @@ export default function Header({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather name="bell" size={20} color="#FFFFFF" />
-            {showUnreadNotification && (
-              <View className="w-2.5 h-2.5 rounded-full bg-[#D4AF37] absolute top-2 right-2 border border-[#141619]" />
+            {showUnreadNotification && unreadCount > 0 && (
+              <View className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 border-2 border-[#141619] items-center justify-center shadow-md">
+                <Text className="text-white text-[9px] font-black text-center leading-none">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
+              </View>
             )}
           </TouchableOpacity>
         </View>

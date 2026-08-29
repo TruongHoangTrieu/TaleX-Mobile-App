@@ -1062,7 +1062,7 @@ export default function CreatorDashboardScreen({ navigation: propNav }: { naviga
             <View className="mt-5 bg-[#17171A] border border-zinc-800 rounded-3xl p-5">
               <View className="flex-row items-center justify-between mb-4">
                 <Text className="text-white text-base font-black tracking-wide">
-                  Top Tác Phẩm Nổi Bật
+                  Tác Phẩm Nổi Bật
                 </Text>
                 <TouchableOpacity onPress={() => setActiveTab("content")}>
                   <Text className="text-[#D4AF37] text-xs font-bold">Xem tất cả</Text>

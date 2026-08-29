@@ -32,6 +32,7 @@ import HistoryScreen from "@/screens/profile/HistoryScreen";
 import ChangePasswordScreen from "@/screens/profile/ChangePasswordScreen";
 import TransactionHistoryScreen from "@/screens/profile/TransactionHistoryScreen";
 import TransactionDetailScreen from "@/screens/profile/TransactionDetailScreen";
+import WatchAdScreen from "@/screens/rewards/WatchAdScreen";
 import { navigationRef } from "./navigationRef";
 import type { SeriesItem } from "@/services/series";
 
@@ -114,6 +115,11 @@ export type RootStackParamList = {
     contentKind?: "COMIC" | "VIDEO";
     /** Required when itemType is "COMBO" — the combo's web fallback is its series page. */
     seriesId?: string;
+  };
+  WatchAd: {
+    missionCode: string;
+    rewardAmount?: number;
+    missionTitle?: string;
   };
 };
 
@@ -226,6 +232,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="MoviePlayer"
           component={MoviePlayerScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="WatchAd"
+          component={WatchAdScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

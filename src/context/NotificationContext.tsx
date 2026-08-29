@@ -87,15 +87,29 @@ export function NotificationProvider({ children }: React.PropsWithChildren) {
   }, [refreshUnreadCount]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      setUnreadCount(0);
+      return;
+    }
 
+    // Refresh immediately when active
     const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
         void refreshUnreadCount({ silent: true });
       }
     });
 
-    return () => subscription.remove();
+    // Auto poll every 20s while app is running
+    const interval = setInterval(() => {
+      if (AppState.currentState === "active") {
+        void refreshUnreadCount({ silent: true });
+      }
+    }, 20000);
+
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
   }, [isAuthenticated, refreshUnreadCount]);
 
   return (

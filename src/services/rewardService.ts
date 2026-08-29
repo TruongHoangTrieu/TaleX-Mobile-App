@@ -189,27 +189,36 @@ export function startAdMissionSession(
 }
 
 export async function getMissionAds(): Promise<AdCampaignData[]> {
-  let lastError: unknown;
+  const slotCodes = ["IN_VIDEO", "POPUP_OVERLAY", "BANNER_TOP", "BANNER_BOTTOM"];
+  let allAds: AdCampaignData[] = [];
 
-  for (const slotCode of MISSION_AD_SLOT_CODES) {
+  for (const slotCode of slotCodes) {
     try {
       const ads = await requestPublicData<AdCampaignData[]>(
         `/api/v1/ads/serve/all?slotCode=${encodeURIComponent(slotCode)}`,
         { method: "GET" },
       );
-
-      const videoAds = ads.filter(
-        (ad) => ad.mediaUrl && ad.mediaType?.toUpperCase() === "VIDEO",
-      );
-
-      if (videoAds.length > 0) return videoAds;
-    } catch (error) {
-      lastError = error;
-    }
+      if (Array.isArray(ads) && ads.length > 0) {
+        allAds = [...allAds, ...ads.filter((a) => a.mediaUrl)];
+      }
+    } catch {}
   }
 
-  if (lastError) throw lastError;
-  return [];
+  // Ưu tiên video ads trước, nếu không có thì fallback sang hình ảnh/poster ads
+  const videoAds = allAds.filter((a) => a.mediaType?.toUpperCase() === "VIDEO");
+  if (videoAds.length > 0) return videoAds;
+  if (allAds.length > 0) return allAds;
+
+  // Fallback demo ad nếu server chưa có chiến dịch quảng cáo nào
+  return [
+    {
+      campaignId: "demo-ad-campaign",
+      title: "TaleX Studio Entertainment",
+      mediaUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+      mediaType: "VIDEO",
+      targetUrl: "https://talex.vn",
+    },
+  ];
 }
 
 export async function trackMissionAdImpression(

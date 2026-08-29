@@ -9,6 +9,7 @@ import {
   FlatList,
   Animated,
   RefreshControl,
+  StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -265,29 +266,28 @@ export default function MoviesScreen() {
             resizeMode="cover"
           />
 
-          <LinearGradient
-            colors={["transparent", "rgba(10, 8, 6, 0.98)"]}
-            className="absolute bottom-0 left-0 right-0 h-16 justify-end p-2.5"
+          {/* Views Counter Badge Bottom Right */}
+          <View
+            style={{ zIndex: 20 }}
+            className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-20 shadow-md"
           >
-            <View className="flex-row items-center justify-between">
-              <Text
-                className="flex-1 text-white text-xs font-black mr-1.5"
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {item.title}
-              </Text>
-              <View className="flex-row items-center bg-black/90 px-1.5 py-0.5 rounded-full border border-white/20">
-                <Ionicons name="star" size={10} color="#D4AF37" style={{ marginRight: 2 }} />
-                <Text className="text-[#E5E0D8] text-[9px] font-black">
-                  {(item.averageRating ?? 0).toFixed(1)}
-                </Text>
-              </View>
-            </View>
-          </LinearGradient>
+            <Ionicons name="eye" size={9} color="#38bdf8" />
+            <Text className="text-white text-[9px] font-bold ml-1">
+              {formatAnalyticNumber(item.totalViews ?? 0)}
+            </Text>
+          </View>
         </View>
 
-        <Text className="text-[#7C766B] text-[10px] mt-1.5 px-0.5" numberOfLines={1}>
+        <Text
+          className="text-stone-100 font-bold text-xs mt-2 px-0.5"
+          numberOfLines={1}
+        >
+          {item.title}
+        </Text>
+        <Text
+          className="text-[#7C766B] text-[10px] font-semibold mt-0.5 px-0.5"
+          numberOfLines={1}
+        >
           {item.description || item.creatorName || "Phim bộ TaleX"}
         </Text>
       </TouchableOpacity>
@@ -399,18 +399,21 @@ export default function MoviesScreen() {
                     const sId = item.seriesId;
                     const coverUri = item.coverUrl || item.bannerUrl;
                     const views = item.totalViews ?? item.views ?? item.analyticData?.views ?? 0;
+                    const recCardWidth = (screenWidth - 44) / 2;
+                    const recCardHeight = recCardWidth * 1.45;
 
                     return (
                       <TouchableOpacity
                         key={`rec-movie-${sId || index}-${index}`}
                         activeOpacity={0.85}
                         onPress={() => openMovieDetail(sId)}
-                        style={{ width: (screenWidth - 44) / 2 }}
-                        className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
+                        style={{ width: recCardWidth, height: recCardHeight }}
+                        className="mb-4 rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
                       >
                         {coverUri ? (
                           <Image
                             source={{ uri: coverUri }}
+                            style={StyleSheet.absoluteFillObject}
                             className="w-full h-full"
                             resizeMode="cover"
                           />
@@ -422,7 +425,7 @@ export default function MoviesScreen() {
 
                         {/* Badge PHIM */}
                         <View
-                          style={{ backgroundColor: "#D97706", borderColor: "#FBBF24" }}
+                          style={{ backgroundColor: "#DC2626", borderColor: "#F87171" }}
                           className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md border z-20 shadow-md"
                         >
                           <Text className="text-white text-[8px] font-black uppercase tracking-wider">
@@ -433,10 +436,20 @@ export default function MoviesScreen() {
                         {/* Age Rating Overlay Badge */}
                         {renderAgeRatingBadge(item.ageRating)}
 
-                        {/* Gradient Overlay */}
+                        {/* Gradient Overlay with Title, Star Rating, and Views */}
                         <LinearGradient
-                          colors={["transparent", "rgba(10, 8, 6, 0.95)"]}
-                          className="absolute bottom-0 left-0 right-0 h-20 justify-end p-2.5"
+                          colors={["transparent", "rgba(10, 8, 6, 0.75)", "rgba(10, 8, 6, 0.98)"]}
+                          locations={[0, 0.35, 1]}
+                          style={{
+                            position: "absolute",
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: 85,
+                            justifyContent: "flex-end",
+                            padding: 10,
+                            zIndex: 20,
+                          }}
                         >
                           <Text
                             className="text-white font-black text-xs leading-tight"
@@ -453,9 +466,9 @@ export default function MoviesScreen() {
                               </Text>
                             </View>
 
-                            <View className="flex-row items-center bg-black/60 px-1.5 py-0.5 rounded">
+                            <View className="flex-row items-center bg-black/75 px-1.5 py-0.5 rounded border border-white/10">
                               <Ionicons name="eye" size={9} color="#38bdf8" />
-                              <Text className="text-zinc-300 text-[9px] font-bold ml-1">
+                              <Text className="text-zinc-200 text-[9px] font-bold ml-1">
                                 {formatAnalyticNumber(views)}
                               </Text>
                             </View>
@@ -472,7 +485,7 @@ export default function MoviesScreen() {
                     activeOpacity={0.8}
                     onPress={() => loadRecommendedMovies(false)}
                     disabled={loadingMoreRecs}
-                    className="w-full py-3 mt-2 rounded-2xl bg-zinc-900/80 border border-white/10 items-center justify-center flex-row"
+                    className="w-full py-3.5 mt-3 mb-10 rounded-2xl bg-zinc-900/90 border border-[#D4AF37]/30 items-center justify-center flex-row shadow-lg"
                   >
                     {loadingMoreRecs ? (
                       <SkeletonPulse className="w-24 h-4 rounded" />

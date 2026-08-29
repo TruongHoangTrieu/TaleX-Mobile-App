@@ -111,22 +111,41 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [showTierModal, setShowTierModal] = useState(false);
 
-  const currentTierLevel = (creator as any)?.tierLevel ?? (creator as any)?.tier?.tierLevel ?? 0;
-  const currentTierName = (creator as any)?.tierName ?? (creator as any)?.tier?.tierName ?? "Creator Khởi Đầu";
+  const currentTierLevel =
+    creator?.creatorTier?.tierLevel ??
+    (creator as any)?.tierLevel ??
+    (creator as any)?.tier?.tierLevel ??
+    0;
+  const currentTierName =
+    creator?.creatorTier?.tierName ??
+    (creator as any)?.tierName ??
+    (creator as any)?.tier?.tierName ??
+    "Creator Khởi Đầu";
 
   const totalViewsSum = React.useMemo(() => {
+    if (creator?.analyticData?.views != null) {
+      return creator.analyticData.views;
+    }
     return series.reduce(
-      (acc, item) => acc + ((item as any).totalViews || item.analyticData?.views || 0),
+      (acc, item) =>
+        acc +
+        ((item as any).totalViews ??
+          item.analyticData?.views ??
+          (item as any).views ??
+          0),
       0
     );
-  }, [series]);
+  }, [creator?.analyticData?.views, series]);
 
   const totalWatchTimeSum = React.useMemo(() => {
+    if (creator?.analyticData?.watchTime != null) {
+      return creator.analyticData.watchTime;
+    }
     return series.reduce(
       (acc, item) => acc + (item.analyticData?.watchTime || 0),
       0
     );
-  }, [series]);
+  }, [creator?.analyticData?.watchTime, series]);
 
   // Categories & Tags list for editing
   const [categoriesList, setCategoriesList] = useState<any[]>([]);

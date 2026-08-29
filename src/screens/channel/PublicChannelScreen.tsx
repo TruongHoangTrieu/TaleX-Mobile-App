@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Modal,
+  StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -459,52 +460,93 @@ export default function PublicChannelScreen() {
                       <TouchableOpacity
                         activeOpacity={0.9}
                         onPress={() => handleSeriesPress(seriesList[0])}
-                        className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900 shadow-2xl"
+                        className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900 shadow-2xl min-h-[190px]"
                       >
                         {seriesList[0].coverUrl || seriesList[0].bannerUrl ? (
                           <Image
                             source={{
                               uri:
-                                seriesList[0].coverUrl ||
-                                seriesList[0].bannerUrl,
+                                seriesList[0].bannerUrl ||
+                                seriesList[0].coverUrl,
                             }}
-                            className="w-full h-[185px]"
+                            style={StyleSheet.absoluteFillObject}
+                            className="w-full h-full"
                             resizeMode="cover"
                           />
                         ) : (
                           <Image
                             source={require("@assets/background.webp")}
-                            className="w-full h-[185px]"
+                            style={StyleSheet.absoluteFillObject}
+                            className="w-full h-full"
                             resizeMode="cover"
                           />
                         )}
+                        {/* Top Left: TRUYỆN / PHIM */}
+                        <View
+                          style={{
+                            backgroundColor: seriesList[0].contentType?.toUpperCase() === "COMIC" ? "#2563EB" : "#DC2626",
+                            borderColor: seriesList[0].contentType?.toUpperCase() === "COMIC" ? "#60A5FA" : "#F87171",
+                          }}
+                          className="absolute top-3 left-3 px-2.5 py-0.5 rounded-lg border z-20 shadow-lg"
+                        >
+                          <Text className="text-white text-[9px] font-black uppercase tracking-wider">
+                            {seriesList[0].contentType?.toUpperCase() === "COMIC" ? "TRUYỆN" : "PHIM"}
+                          </Text>
+                        </View>
+
+                        {/* Top Right: Age Rating Badge */}
+                        {(() => {
+                          const formatted = formatAgeRating(
+                            seriesList[0].ageRating ||
+                              (seriesList[0] as any).targetAudience ||
+                              (seriesList[0] as any).contentRating,
+                          );
+                          if (!formatted) return null;
+                          const style = getAgeRatingStyle(formatted);
+                          return (
+                            <View
+                              className={`absolute top-3 right-3 px-2 py-0.5 rounded-lg border ${style.bg} ${style.border} shadow-md z-20`}
+                            >
+                              <Text
+                                className={`text-[9px] font-black ${style.text}`}
+                              >
+                                {formatted}
+                              </Text>
+                            </View>
+                          );
+                        })()}
+
                         <LinearGradient
                           colors={[
                             "transparent",
-                            "rgba(18,18,20,0.45)",
-                            "rgba(18,18,20,0.95)",
+                            "rgba(10,8,6,0.5)",
+                            "rgba(10,8,6,0.98)",
                           ]}
-                          className="absolute inset-0 p-4 justify-end"
+                          locations={[0, 0.4, 1]}
+                          style={[
+                            StyleSheet.absoluteFillObject,
+                            {
+                              justifyContent: "flex-end",
+                              padding: 16,
+                              paddingBottom: 14,
+                            },
+                          ]}
                         >
-                          <View className="bg-[#D4AF37] self-start px-2.5 py-1 rounded-lg mb-2 flex-row items-center shadow-md">
-                            <Ionicons name="flame" size={13} color="#141210" />
-                            <Text className="text-[#141210] text-[10px] font-black uppercase tracking-wider ml-1">
-                              SIÊU PHẨM TUẦN NÀY
+                          <View style={{ marginTop: "auto" }}>
+                            <Text
+                              className="text-white font-extrabold text-xl leading-tight shadow-md"
+                              numberOfLines={1}
+                            >
+                              {seriesList[0].title}
+                            </Text>
+                            <Text
+                              className="text-[#D1D5DB] text-xs mt-1 leading-snug font-medium"
+                              numberOfLines={2}
+                            >
+                              {seriesList[0].description ||
+                                "Cuộc chiến giữa các thế lực kịch tính và hấp dẫn kéo theo những lựa chọn không thể quay đầu."}
                             </Text>
                           </View>
-                          <Text
-                            className="text-white font-extrabold text-xl leading-tight"
-                            numberOfLines={1}
-                          >
-                            {seriesList[0].title}
-                          </Text>
-                          <Text
-                            className="text-[#D1D5DB] text-xs mt-1 leading-snug"
-                            numberOfLines={2}
-                          >
-                            {seriesList[0].description ||
-                              "Cuộc chiến giữa các thế lực kịch tính và hấp dẫn kéo theo những lựa chọn không thể quay đầu."}
-                          </Text>
                         </LinearGradient>
                       </TouchableOpacity>
                     </View>
@@ -542,6 +584,20 @@ export default function PublicChannelScreen() {
                               />
                             </View>
                           )}
+
+                          {/* Top Left: TRUYỆN / PHIM */}
+                          <View
+                            style={{
+                              backgroundColor: isComic ? "#2563EB" : "#DC2626",
+                              borderColor: isComic ? "#60A5FA" : "#F87171",
+                            }}
+                            className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md border z-20 shadow-md"
+                          >
+                            <Text className="text-white text-[8px] font-black uppercase tracking-wider">
+                              {isComic ? "TRUYỆN" : "PHIM"}
+                            </Text>
+                          </View>
+
                           {/* Age Rating Overlay Badge Top Right - Only if provided by API */}
                           {(() => {
                             const formatted = formatAgeRating(

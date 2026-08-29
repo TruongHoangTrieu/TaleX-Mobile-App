@@ -21,51 +21,50 @@ export async function getUserFeatureProfile(): Promise<GetUserFeatureResult> {
   const baseUrlClean = BASE_URL.replace(/\/$/, "");
   const url = `${baseUrlClean}${USER_FEATURE_ENDPOINT}`;
 
-  const res = await authFetch(url, {
-    method: "GET",
-  });
-
-  if (res.status === 404) {
-    return { data: null, isMissing: true };
-  }
-
-  // Handle server errors (5xx) gracefully — don't crash the UI
-  if (!res.ok) {
-    const text2 = await res.text().catch(() => "");
-    let json2: any = null;
-    try { json2 = text2 ? JSON.parse(text2) : null; } catch {}
-    const msg = json2?.message || `Lỗi server khi tải profile (${res.status})`;
-    console.warn("[getUserFeatureProfile] Server error:", msg);
-    // Trả về isMissing để UI không bị crash, thay vì throw
-    return { data: null, isMissing: true };
-  }
-
-  const text = await res.text();
-  let json: any;
   try {
-    json = text ? JSON.parse(text) : null;
-  } catch (e) {
-    throw new Error(`Invalid JSON response from ${url}`);
+    const res = await authFetch(url, {
+      method: "GET",
+    });
+
+    if (res.status === 404) {
+      return { data: null, isMissing: true };
+    }
+
+    // Handle server errors (5xx) gracefully — don't crash the UI
+    if (!res.ok) {
+      const text2 = await res.text().catch(() => "");
+      let json2: any = null;
+      try { json2 = text2 ? JSON.parse(text2) : null; } catch {}
+      const msg = json2?.message || `Lỗi server khi tải profile (${res.status})`;
+      console.warn("[getUserFeatureProfile] Server error:", msg);
+      return { data: null, isMissing: false };
+    }
+
+    const text = await res.text();
+    let json: any;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch (e) {
+      return { data: null, isMissing: false };
+    }
+
+    // Unwrap data if response is in standard wrapper { success: true, data: { ... } }
+    const payload = (json && typeof json === "object" && "data" in json && json.data) ? json.data : json;
+
+    // Check if profile document is empty or lacks onboarding preferences
+    const hasOnboardingData =
+      Boolean(payload?.gender) ||
+      (Array.isArray(payload?.onboardingGenres) && payload.onboardingGenres.length > 0) ||
+      (Array.isArray(payload?.onboardingTags) && payload.onboardingTags.length > 0) ||
+      (Array.isArray(payload?.onboardingMovieGenres) && payload.onboardingMovieGenres.length > 0);
+
+    const isMissing = !payload || !hasOnboardingData;
+
+    return { data: payload as UserFeatureProfile, isMissing };
+  } catch (err: any) {
+    console.warn("[getUserFeatureProfile] Network/timeout warning:", err?.message || err);
+    return { data: null, isMissing: false };
   }
-
-  if (!res.ok) {
-    const msg = json?.message || `Failed to fetch user features (status ${res.status})`;
-    throw new Error(msg);
-  }
-
-  // Unwrap data if response is in standard wrapper { success: true, data: { ... } }
-  const payload = (json && typeof json === "object" && "data" in json && json.data) ? json.data : json;
-
-  // Check if profile document is empty or lacks onboarding preferences
-  const hasOnboardingData =
-    Boolean(payload?.gender) ||
-    (Array.isArray(payload?.onboardingGenres) && payload.onboardingGenres.length > 0) ||
-    (Array.isArray(payload?.onboardingTags) && payload.onboardingTags.length > 0) ||
-    (Array.isArray(payload?.onboardingMovieGenres) && payload.onboardingMovieGenres.length > 0);
-
-  const isMissing = !payload || !hasOnboardingData;
-
-  return { data: payload as UserFeatureProfile, isMissing };
 }
 
 /**

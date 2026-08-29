@@ -9,6 +9,7 @@ import {
   View,
   Animated,
   RefreshControl,
+  StyleSheet,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -238,7 +239,6 @@ export default function ComicsScreen() {
 
   // Modern Card Component
   const renderComicCard = ({ item }: { item: SearchSeriesItem }) => {
-    const isComic = item.contentType === "COMIC";
     const coverUri = item.coverUrl || item.bannerUrl;
     const imageSource = coverUri
       ? { uri: coverUri }
@@ -270,30 +270,26 @@ export default function ComicsScreen() {
             resizeMode="cover"
           />
 
-          <LinearGradient
-            colors={["transparent", "rgba(10, 8, 6, 0.98)"]}
-            className="absolute bottom-0 left-0 right-0 h-16 justify-end p-2.5"
+          {/* Views Counter Badge Bottom Right */}
+          <View
+            style={{ zIndex: 20 }}
+            className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-20 shadow-md"
           >
-            <View className="flex-row items-center justify-between">
-              <Text
-                className="flex-1 text-white text-xs font-black mr-1.5"
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {item.title}
-              </Text>
-              <View className="flex-row items-center bg-black/90 px-1.5 py-0.5 rounded-full border border-white/20">
-                <Ionicons name="star" size={10} color="#D4AF37" style={{ marginRight: 2 }} />
-                <Text className="text-[#E5E0D8] text-[9px] font-black">
-                  {(item.averageRating ?? 0).toFixed(1)}
-                </Text>
-              </View>
-            </View>
-          </LinearGradient>
+            <Ionicons name="eye" size={9} color="#38bdf8" />
+            <Text className="text-white text-[9px] font-bold ml-1">
+              {formatAnalyticNumber(item.totalViews ?? 0)}
+            </Text>
+          </View>
         </View>
 
         <Text
-          className="text-[#A1A1AA] text-[11px] mt-1.5 px-0.5"
+          className="text-stone-100 font-bold text-xs mt-2 px-0.5"
+          numberOfLines={1}
+        >
+          {item.title}
+        </Text>
+        <Text
+          className="text-[#7C766B] text-[10px] font-semibold mt-0.5 px-0.5"
           numberOfLines={1}
         >
           {item.description || item.creatorName || "Truyện tranh TaleX"}
@@ -436,7 +432,7 @@ export default function ComicsScreen() {
               <TouchableOpacity
                 activeOpacity={0.9}
                 onPress={() => openComicDetail(spotlightComic.seriesId)}
-                className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900"
+                className="relative rounded-3xl overflow-hidden border border-white/15 bg-zinc-900 h-[210px] justify-end"
               >
                 <Image
                   source={
@@ -444,28 +440,46 @@ export default function ComicsScreen() {
                       ? { uri: spotlightComic.bannerUrl || spotlightComic.coverUrl }
                       : require("@assets/comic4.webp")
                   }
-                  className="w-full h-[170px]"
+                  style={StyleSheet.absoluteFillObject}
+                  className="w-full h-full"
                   resizeMode="cover"
                 />
-                <LinearGradient
-                  colors={["rgba(20,22,25,0.2)", "rgba(20,22,25,0.95)"]}
-                  className="absolute inset-0 p-4 justify-end"
+                {/* Top Left: TRUYỆN */}
+                <View
+                  style={{ backgroundColor: "#2563EB", borderColor: "#60A5FA" }}
+                  className="absolute top-3 left-3 px-2 py-0.5 rounded-lg border z-20 shadow-lg"
                 >
-                  <View className="bg-[#D4AF37] self-start px-2 py-0.5 rounded-md mb-1.5 flex-row items-center">
-                    <Ionicons name="flame" size={12} color="#141619" />
-                    <Text className="text-[#141619] text-[10px] font-black uppercase tracking-wider ml-1">
-                      SIÊU PHẨM TUẦN NÀY
+                  <Text className="text-white text-[9px] font-black uppercase tracking-wider">
+                    TRUYỆN
+                  </Text>
+                </View>
+
+                {/* Top Right: Độ tuổi */}
+                {renderAgeRatingBadge(spotlightComic.ageRating)}
+
+                <LinearGradient
+                  colors={["transparent", "rgba(10,8,6,0.6)", "rgba(10,8,6,0.98)"]}
+                  locations={[0, 0.45, 1]}
+                  style={[
+                    StyleSheet.absoluteFillObject,
+                    {
+                      justifyContent: "flex-end",
+                      padding: 16,
+                      paddingBottom: 14,
+                    },
+                  ]}
+                >
+                  <View style={{ marginTop: "auto" }}>
+                    <Text className="text-white font-extrabold text-lg leading-tight shadow-md" numberOfLines={1}>
+                      {spotlightComic.title}
+                    </Text>
+                    <Text
+                      className="text-[#D1D5DB] text-xs mt-1 leading-snug font-medium"
+                      numberOfLines={2}
+                    >
+                      {spotlightComic.description || "Truyện tranh hấp dẫn trên TaleX."}
                     </Text>
                   </View>
-                  <Text className="text-white font-extrabold text-lg leading-tight">
-                    {spotlightComic.title}
-                  </Text>
-                  <Text
-                    className="text-[#D1D5DB] text-xs mt-1 leading-snug"
-                    numberOfLines={2}
-                  >
-                    {spotlightComic.description || "Truyện tranh hấp dẫn trên TaleX."}
-                  </Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -539,18 +553,21 @@ export default function ComicsScreen() {
                     const sId = item.seriesId;
                     const coverUri = item.coverUrl || item.bannerUrl;
                     const views = item.totalViews ?? item.views ?? item.analyticData?.views ?? 0;
+                    const recCardWidth = (screenWidth - 44) / 2;
+                    const recCardHeight = recCardWidth * 1.45;
 
                     return (
                       <TouchableOpacity
                         key={`rec-comic-${sId || index}-${index}`}
                         activeOpacity={0.85}
                         onPress={() => openComicDetail(sId)}
-                        style={{ width: (screenWidth - 44) / 2 }}
-                        className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
+                        style={{ width: recCardWidth, height: recCardHeight }}
+                        className="mb-4 rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
                       >
                         {coverUri ? (
                           <Image
                             source={{ uri: coverUri }}
+                            style={StyleSheet.absoluteFillObject}
                             className="w-full h-full"
                             resizeMode="cover"
                           />
@@ -573,10 +590,20 @@ export default function ComicsScreen() {
                         {/* Age Rating Overlay Badge */}
                         {renderAgeRatingBadge(item.ageRating)}
 
-                        {/* Gradient Overlay */}
+                        {/* Gradient Overlay with Title, Star Rating, and Views */}
                         <LinearGradient
-                          colors={["transparent", "rgba(10, 8, 6, 0.95)"]}
-                          className="absolute bottom-0 left-0 right-0 h-20 justify-end p-2.5"
+                          colors={["transparent", "rgba(10, 8, 6, 0.75)", "rgba(10, 8, 6, 0.98)"]}
+                          locations={[0, 0.35, 1]}
+                          style={{
+                            position: "absolute",
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: 85,
+                            justifyContent: "flex-end",
+                            padding: 10,
+                            zIndex: 20,
+                          }}
                         >
                           <Text
                             className="text-white font-black text-xs leading-tight"
@@ -593,9 +620,9 @@ export default function ComicsScreen() {
                               </Text>
                             </View>
 
-                            <View className="flex-row items-center bg-black/60 px-1.5 py-0.5 rounded">
+                            <View className="flex-row items-center bg-black/75 px-1.5 py-0.5 rounded border border-white/10">
                               <Ionicons name="eye" size={9} color="#38bdf8" />
-                              <Text className="text-zinc-300 text-[9px] font-bold ml-1">
+                              <Text className="text-zinc-200 text-[9px] font-bold ml-1">
                                 {formatAnalyticNumber(views)}
                               </Text>
                             </View>
@@ -612,7 +639,7 @@ export default function ComicsScreen() {
                     activeOpacity={0.8}
                     onPress={() => loadRecommendedComics(false)}
                     disabled={loadingMoreRecs}
-                    className="w-full py-3 mt-2 rounded-2xl bg-zinc-900/80 border border-white/10 items-center justify-center flex-row"
+                    className="w-full py-3.5 mt-3 mb-10 rounded-2xl bg-zinc-900/90 border border-[#D4AF37]/30 items-center justify-center flex-row shadow-lg"
                   >
                     {loadingMoreRecs ? (
                       <SkeletonPulse className="w-24 h-4 rounded" />

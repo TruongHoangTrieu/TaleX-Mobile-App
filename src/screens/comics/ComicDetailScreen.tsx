@@ -413,6 +413,13 @@ export default function ComicDetailScreen() {
   }
 
   const bgImageSource =
+    comic.bannerUrl || comic.coverUrl
+      ? { uri: comic.bannerUrl || comic.coverUrl }
+      : typeof comic.image === "object"
+      ? comic.image
+      : null;
+
+  const posterImageSource =
     comic.coverUrl || comic.bannerUrl
       ? { uri: comic.coverUrl || comic.bannerUrl }
       : typeof comic.image === "object"
@@ -437,60 +444,58 @@ export default function ComicDetailScreen() {
         }
       >
         {/* ================= 1. HERO 16:9 BANNER BACKDROP ================= */}
-        <View style={{ width, height: width * (9 / 16) + 40 }} className="relative bg-zinc-900">
+        <View style={{ width, height: width * (9 / 16) + 40 }} className="relative bg-[#121214]">
           {bgImageSource ? (
             <ImageBackground
               source={bgImageSource}
               style={{ width: "100%", height: "100%" }}
               resizeMode="cover"
             >
+              {/* Bottom fade only - top is 100% clear and transparent */}
               <LinearGradient
-                colors={[
-                  "rgba(18, 18, 20, 0.4)",
-                  "rgba(18, 18, 20, 0.75)",
-                  "#121214",
-                ]}
-                className="absolute inset-0 justify-between p-4"
-              >
-                {/* Top Navigation Bar */}
-                <SafeAreaView edges={["top"]} className="flex-row justify-between items-center w-full z-20">
-                  <TouchableOpacity
-                    onPress={() => navigation.goBack()}
-                    className="w-9 h-9 rounded-full bg-black/50 items-center justify-center border border-white/10"
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
-                  </TouchableOpacity>
-
-                  <View className="flex-row items-center gap-2">
-                    <ShareButton
-                      episodeId={firstEpisode?.episodeId || comicId}
-                      title={comic.title}
-                      size="sm"
-                    />
-                    <BookmarkButton
-                      episodeId={firstEpisode?.episodeId || comicId}
-                      contentType="COMIC"
-                      size="sm"
-                    />
-                  </View>
-                </SafeAreaView>
-              </LinearGradient>
+                colors={["transparent", "rgba(18, 18, 20, 0.35)", "#121214"]}
+                locations={[0.25, 0.65, 1]}
+                className="absolute inset-0"
+              />
             </ImageBackground>
           ) : (
             <View className="w-full h-full bg-zinc-900 justify-end p-4">
               <Text className="text-white text-2xl font-black">{comic.title}</Text>
             </View>
           )}
+
+          {/* Top Navigation Bar overlay */}
+          <SafeAreaView edges={["top"]} className="absolute top-0 left-0 right-0 z-20 flex-row justify-between items-center px-4 pt-1">
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              className="w-9 h-9 rounded-full bg-black/60 items-center justify-center border border-white/15 shadow-lg"
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <View className="flex-row items-center gap-2">
+              <ShareButton
+                episodeId={firstEpisode?.episodeId || comicId}
+                title={comic.title}
+                size="sm"
+              />
+              <BookmarkButton
+                episodeId={firstEpisode?.episodeId || comicId}
+                contentType="COMIC"
+                size="sm"
+              />
+            </View>
+          </SafeAreaView>
         </View>
 
         {/* ================= 2. OVERLAPPING HERO CARD (POSTER & META INFO) ================= */}
         <View className="px-4 flex-row items-end mt-[-70px] z-10 mb-4">
           {/* Poster Thumbnail with Age Rating Overlay Badge */}
           <View className="w-[105px] h-[148px] rounded-2xl border border-white/15 bg-zinc-800 shadow-2xl overflow-hidden relative">
-            {bgImageSource ? (
+            {posterImageSource ? (
               <Image
-                source={bgImageSource}
+                source={posterImageSource}
                 className="w-full h-full"
                 resizeMode="cover"
               />

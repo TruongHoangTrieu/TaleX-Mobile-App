@@ -238,6 +238,47 @@ export default function HomeScreen() {
     }
   };
 
+  const renderAgeRatingBadge = (ageRating?: string) => {
+    if (!ageRating) return null;
+    const ratingStr = ageRating.toUpperCase().trim();
+    let label = ratingStr;
+    let bgStyle = "bg-emerald-600 border-emerald-400";
+
+    if (ratingStr === "MATURE" || ratingStr.includes("18") || ratingStr.includes("ADULT")) {
+      label = "18+";
+      bgStyle = "bg-red-600 border-red-400";
+    } else if (ratingStr === "TEEN" || ratingStr.includes("13") || ratingStr.includes("PG")) {
+      label = "13+";
+      bgStyle = "bg-amber-600 border-amber-400";
+    } else if (ratingStr === "EVERYONE" || ratingStr === "P") {
+      label = "P";
+      bgStyle = "bg-emerald-600 border-emerald-400";
+    }
+
+    return (
+      <View className={`absolute top-2 right-2 px-2 py-0.5 rounded-lg border z-20 shadow-md ${bgStyle}`}>
+        <Text className="text-white text-[9px] font-black tracking-wider uppercase">{label}</Text>
+      </View>
+    );
+  };
+
+  const renderContentTypeBadge = (contentType?: string) => {
+    const isComic = contentType?.toUpperCase() === "COMIC";
+    return (
+      <View
+        style={{
+          backgroundColor: isComic ? "#2563EB" : "#DC2626",
+          borderColor: isComic ? "#60A5FA" : "#F87171",
+        }}
+        className="absolute top-2 left-2 px-2 py-0.5 rounded-lg border z-20 shadow-lg"
+      >
+        <Text className="text-white text-[9px] font-black uppercase tracking-wider">
+          {isComic ? "TRUYỆN" : "PHIM"}
+        </Text>
+      </View>
+    );
+  };
+
   const renderSectionHeader = (title: string, iconNode: React.ReactNode) => (
     <View className="flex-row items-center px-4 mb-3">
       {iconNode}
@@ -305,49 +346,107 @@ export default function HomeScreen() {
           windowSize={3}
           removeClippedSubviews={true}
           contentContainerStyle={{ paddingHorizontal: 16 }}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => handleSeriesPress(item)}
-              className="mr-3.5 w-[140px]"
-            >
-              <View className="w-full h-[195px] rounded-2xl overflow-hidden bg-zinc-900 border border-orange-500/30 relative shadow-xl">
-                <Image
-                  source={{ uri: getImageUri(item, true) }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-                <View className="absolute top-2 left-2 bg-[#FF6B00] border border-amber-300 w-7 h-7 rounded-full items-center justify-center shadow-lg">
-                  <Text className="text-white font-black text-xs">
-                    #{index + 1}
-                  </Text>
+          renderItem={({ item, index }) => {
+            const rank = index + 1;
+            const rankColors = ["#D4AF37", "#E2E8F0", "#CD7F32"];
+            const rankColor = rank <= 3 ? rankColors[index] : "#52525B";
+
+            return (
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={() => handleSeriesPress(item)}
+                className="mr-3 w-[155px]"
+              >
+                {/* Poster & Giant Rank Number Container */}
+                <View className="relative w-full h-[185px]">
+                  {/* Poster Thumbnail shifted right */}
+                  <View className="w-[125px] h-[185px] ml-[28px] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-2xl">
+                    <Image
+                      source={{ uri: getImageUri(item, true) }}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
+
+                    {/* Top Left: TRUYỆN / PHIM */}
+                    {renderContentTypeBadge(item.contentType)}
+
+                    {/* Top Right: Độ tuổi */}
+                    {renderAgeRatingBadge(item.ageRating)}
+
+                    {/* Views Counter Badge Bottom Right */}
+                    <View
+                      style={{ zIndex: 20 }}
+                      className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-20 shadow-md"
+                    >
+                      <Ionicons name="eye" size={9} color="#38bdf8" />
+                      <Text className="text-white text-[9px] font-bold ml-1">
+                        {formatAnalyticNumber(
+                          item.analyticData?.views ?? item.totalViews,
+                        )}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Giant 3D Rank Number overlapping bottom-left (Netflix Style) */}
+                  <View
+                    pointerEvents="none"
+                    className="absolute -bottom-3 left-0 z-20 justify-end"
+                  >
+                    {/* Shadow Layer for 3D depth */}
+                    <Text
+                      style={{
+                        fontSize: 78,
+                        fontWeight: "900",
+                        fontStyle: "italic",
+                        color: "#000000",
+                        position: "absolute",
+                        left: 2,
+                        top: 2,
+                        textShadowColor: "rgba(0,0,0,0.95)",
+                        textShadowOffset: { width: 3, height: 3 },
+                        textShadowRadius: 6,
+                        lineHeight: 84,
+                      }}
+                    >
+                      {rank}
+                    </Text>
+
+                    {/* Foreground Colored Layer */}
+                    <Text
+                      style={{
+                        fontSize: 78,
+                        fontWeight: "900",
+                        fontStyle: "italic",
+                        color: rankColor,
+                        lineHeight: 84,
+                        textShadowColor: "rgba(0,0,0,0.9)",
+                        textShadowOffset: { width: 1, height: 2 },
+                        textShadowRadius: 4,
+                      }}
+                    >
+                      {rank}
+                    </Text>
+                  </View>
                 </View>
 
-                {/* Views Counter Badge Bottom Right */}
-                <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
-                  <Ionicons name="eye" size={9} color="#38bdf8" />
-                  <Text className="text-white text-[9px] font-bold ml-1">
-                    {formatAnalyticNumber(
-                      item.analyticData?.views ?? item.totalViews,
-                    )}
+                {/* Title and Description shifted to align with poster */}
+                <View className="ml-[28px] w-[125px] mt-2">
+                  <Text
+                    className="text-stone-100 font-bold text-xs leading-tight"
+                    numberOfLines={1}
+                  >
+                    {item.title}
+                  </Text>
+                  <Text
+                    className="text-[#7C766B] text-[10px] font-semibold mt-0.5"
+                    numberOfLines={1}
+                  >
+                    {item.description || "Series thịnh hành"}
                   </Text>
                 </View>
-              </View>
-
-              <Text
-                className="text-stone-100 font-bold text-xs mt-2 px-0.5"
-                numberOfLines={1}
-              >
-                {item.title}
-              </Text>
-              <Text
-                className="text-[#7C766B] text-[10px] font-semibold mt-0.5 px-0.5"
-                numberOfLines={1}
-              >
-                {item.description || "Series thịnh hành"}
-              </Text>
-            </TouchableOpacity>
-          )}
+              </TouchableOpacity>
+            );
+          }}
         />
       </View>
     );
@@ -402,23 +501,24 @@ export default function HomeScreen() {
                   resizeMode="cover"
                 />
 
-                <View className="absolute top-2 right-2 bg-sky-500/30 border border-sky-400 px-2 py-0.5 rounded-md backdrop-blur-md">
-                  <Text className="text-sky-300 text-[9px] font-black uppercase">
-                    🚀 MỚI
-                  </Text>
-                </View>
+                {/* Top Left: TRUYỆN / PHIM */}
+                {renderContentTypeBadge(item.contentType)}
+
+                {/* Top Right: Độ tuổi */}
+                {renderAgeRatingBadge(item.ageRating)}
 
                 {/* Views Counter Badge Bottom Right */}
-                {item.analyticData?.views || item.totalViews ? (
-                  <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
-                    <Ionicons name="eye" size={9} color="#38bdf8" />
-                    <Text className="text-white text-[9px] font-bold ml-1">
-                      {formatAnalyticNumber(
-                        item.analyticData?.views ?? item.totalViews,
-                      )}
-                    </Text>
-                  </View>
-                ) : null}
+                <View
+                  style={{ zIndex: 20 }}
+                  className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-20 shadow-md"
+                >
+                  <Ionicons name="eye" size={9} color="#38bdf8" />
+                  <Text className="text-white text-[9px] font-bold ml-1">
+                    {formatAnalyticNumber(
+                      item.analyticData?.views ?? item.totalViews ?? 0,
+                    )}
+                  </Text>
+                </View>
               </View>
 
               <Text
@@ -428,12 +528,10 @@ export default function HomeScreen() {
                 {item.title}
               </Text>
               <Text
-                className="text-sky-400 text-[10px] font-semibold mt-0.5 px-0.5"
+                className="text-[#7C766B] text-[10px] font-semibold mt-0.5 px-0.5"
                 numberOfLines={1}
               >
-                {item.contentType?.toUpperCase() === "COMIC"
-                  ? "Truyện Tranh"
-                  : "Phim Bộ"}
+                {item.description || "Tác phẩm mới ra mắt"}
               </Text>
             </TouchableOpacity>
           )}
@@ -490,24 +588,25 @@ export default function HomeScreen() {
                   className="w-full h-full"
                   resizeMode="cover"
                 />
-                <View className="absolute top-2 left-2 bg-amber-500 px-2 py-0.5 rounded flex-row items-center">
-                  <Ionicons name="flash" size={9} color="#141210" />
-                  <Text className="text-[#141210] font-black text-[9px] uppercase ml-1">
-                    CẬP NHẬT
-                  </Text>
-                </View>
+
+                {/* Top Left: TRUYỆN / PHIM */}
+                {renderContentTypeBadge(item.contentType)}
+
+                {/* Top Right: Độ tuổi */}
+                {renderAgeRatingBadge(item.ageRating)}
 
                 {/* Views Counter Badge Bottom Right */}
-                {item.analyticData?.views || item.totalViews ? (
-                  <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
-                    <Ionicons name="eye" size={9} color="#38bdf8" />
-                    <Text className="text-white text-[9px] font-bold ml-1">
-                      {formatAnalyticNumber(
-                        item.analyticData?.views ?? item.totalViews,
-                      )}
-                    </Text>
-                  </View>
-                ) : null}
+                <View
+                  style={{ zIndex: 20 }}
+                  className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-20 shadow-md"
+                >
+                  <Ionicons name="eye" size={9} color="#38bdf8" />
+                  <Text className="text-white text-[9px] font-bold ml-1">
+                    {formatAnalyticNumber(
+                      item.analyticData?.views ?? item.totalViews ?? 0,
+                    )}
+                  </Text>
+                </View>
               </View>
 
               <Text
@@ -517,10 +616,10 @@ export default function HomeScreen() {
                 {item.title}
               </Text>
               <Text
-                className="text-amber-400 text-[10px] font-semibold mt-0.5 px-0.5"
+                className="text-[#7C766B] text-[10px] font-semibold mt-0.5 px-0.5"
                 numberOfLines={1}
               >
-                {formatViews(item.totalViews)}
+                {item.description || "Siêu phẩm cập nhật mới"}
               </Text>
             </TouchableOpacity>
           )}
@@ -546,7 +645,7 @@ export default function HomeScreen() {
               color="#A855F7"
             />,
           )}
-          {renderHorizontalSkeletonRow(3, 270, 145)}
+          {renderHorizontalSkeletonRow(3, 295, 175)}
         </View>
       );
     }
@@ -575,68 +674,82 @@ export default function HomeScreen() {
           contentContainerStyle={{ paddingHorizontal: 16 }}
           renderItem={({ item }) => {
             const isComic = item.contentType?.toUpperCase() === "COMIC";
-            const dateStr =
-              item.releasedUpdateTime || item.createdAt || item.updatedAt;
-            const yearStr = dateStr ? new Date(dateStr).getFullYear() : null;
+            const coverUri = getImageUri(item, false) || getImageUri(item, true);
 
             return (
               <TouchableOpacity
                 activeOpacity={0.88}
                 onPress={() => handleSeriesPress(item)}
-                className="mr-3.5 w-[270px] h-[145px] rounded-2xl overflow-hidden border border-purple-500/40 bg-[#1B1425] p-3 flex-row shadow-xl relative"
+                className="mr-3.5 w-[295px] h-[175px] rounded-3xl overflow-hidden border border-purple-500/40 bg-zinc-900 shadow-2xl relative"
               >
-                {/* Left Column: Vertical Poster Image */}
-                <View className="w-[85px] h-[120px] rounded-xl overflow-hidden bg-zinc-900 relative shadow-md">
-                  <Image
-                    source={{ uri: getImageUri(item, true) }}
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
-                </View>
+                {/* Background Image (Cover/Banner) */}
+                <Image
+                  source={{ uri: coverUri }}
+                  style={StyleSheet.absoluteFillObject}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
 
-                {/* Right Column: Info & Badges */}
-                <View className="flex-1 ml-3 justify-between py-0.5">
-                  <View>
-                    <View className="flex-row items-center justify-end mb-1.5">
-                      {/* Release Year Badge (e.g. 2026) */}
-                      {yearStr && !isNaN(yearStr) ? (
-                        <View className="bg-black/50 px-2 py-0.5 rounded-md border border-purple-400/40">
-                          <Text className="text-purple-200 font-extrabold text-[10px]">
-                            {yearStr}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
+                {/* Top Left: TRUYỆN / PHIM */}
+                {renderContentTypeBadge(item.contentType)}
 
-                    {/* Title */}
+                {/* Top Right: Độ tuổi */}
+                {renderAgeRatingBadge(item.ageRating)}
+
+                {/* Bottom Overlay Gradient */}
+                <LinearGradient
+                  colors={[
+                    "transparent",
+                    "rgba(15, 10, 25, 0.5)",
+                    "rgba(15, 10, 25, 0.95)",
+                  ]}
+                  locations={[0, 0.4, 1]}
+                  style={[
+                    StyleSheet.absoluteFillObject,
+                    {
+                      justifyContent: "flex-end",
+                      padding: 14,
+                      paddingBottom: 12,
+                    },
+                  ]}
+                >
+                  <View style={{ marginTop: "auto" }}>
                     <Text
-                      className="text-white font-black text-xs leading-snug mb-1"
+                      className="text-white font-extrabold text-sm leading-snug mb-1 shadow-md"
                       numberOfLines={1}
                     >
                       {item.title}
                     </Text>
-                    {/* Short 2-line Description */}
                     <Text
-                      className="text-purple-200/80 text-[11px] font-medium"
+                      className="text-purple-200/80 text-[11px] font-medium mb-2.5"
                       numberOfLines={2}
                     >
                       {item.description ||
-                        "Tác phẩm đề xuất xuất sắc nhất do thành viên cộng đồng bình chọn."}
+                        "Tác phẩm đề xuất xuất sắc nhất do cộng đồng bình chọn."}
                     </Text>
-                  </View>
 
-                  {/* Bottom Row: View Count + Dynamic Button */}
-                  <View className="flex-row items-center justify-between mt-1">
-                    <Text className="text-stone-400 text-[10px] font-semibold">
-                      {formatViews(item.totalViews)}
-                    </Text>
-                    <View className="bg-purple-600 px-2.5 py-1 rounded-lg flex-row items-center shadow-md">
-                      <Text className="text-white font-black text-[10px]">
-                        {isComic ? "Đọc ngay" : "Xem ngay"}
-                      </Text>
+                    {/* Bottom Row: Views + Read/Watch Now Button */}
+                    <View className="flex-row items-center justify-between">
+                      <View className="flex-row items-center bg-black/60 px-2 py-0.5 rounded-full border border-white/10">
+                        <Ionicons name="eye" size={9} color="#38bdf8" />
+                        <Text className="text-stone-300 text-[9px] font-bold ml-1">
+                          {formatViews(item.totalViews)}
+                        </Text>
+                      </View>
+                      <View className="bg-purple-600 px-3 py-1 rounded-xl flex-row items-center shadow-lg">
+                        <Ionicons
+                          name={isComic ? "book-outline" : "play"}
+                          size={10}
+                          color="#FFFFFF"
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text className="text-white font-black text-[10px]">
+                          {isComic ? "Đọc ngay" : "Xem ngay"}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
+                </LinearGradient>
               </TouchableOpacity>
             );
           }}
@@ -687,22 +800,41 @@ export default function HomeScreen() {
               onPress={() => handleSeriesPress(item)}
               className="mr-4 w-[155px]"
             >
-              <View className="w-full h-[215px] rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 shadow-2xl mb-2.5">
+              <View className="w-full h-[215px] rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 shadow-2xl mb-2.5 relative">
                 <Image
                   source={{ uri: getImageUri(item, true) }}
                   className="w-full h-full"
                   resizeMode="cover"
                 />
+
+                {/* Top Left: TRUYỆN / PHIM */}
+                {renderContentTypeBadge(item.contentType)}
+
+                {/* Top Right: Độ tuổi */}
+                {renderAgeRatingBadge(item.ageRating)}
+
+                {/* Views Counter Badge Bottom Right */}
+                <View
+                  style={{ zIndex: 20 }}
+                  className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-20 shadow-md"
+                >
+                  <Ionicons name="eye" size={9} color="#38bdf8" />
+                  <Text className="text-white text-[9px] font-bold ml-1">
+                    {formatAnalyticNumber(
+                      item.analyticData?.views ?? item.totalViews,
+                    )}
+                  </Text>
+                </View>
               </View>
 
-              {/* Large Gold Italic Rank Number + Title Info Row matching screenshot */}
+              {/* Large Gold Italic Rank Number + Title Info Row */}
               <View className="flex-row items-center">
                 <Text
                   style={{
                     fontStyle: "italic",
                     fontSize: 32,
                     fontWeight: "900",
-                    color: "#D4AF37",
+                    color: index === 0 ? "#D4AF37" : index === 1 ? "#E2E8F0" : index === 2 ? "#CD7F32" : "#71717A",
                     marginRight: 8,
                     lineHeight: 36,
                   }}
@@ -783,15 +915,18 @@ export default function HomeScreen() {
                   className="w-full h-full"
                   resizeMode="cover"
                 />
-                <View className="absolute top-2 left-2 bg-pink-500/40 border border-pink-400 px-2 py-0.5 rounded-full flex-row items-center backdrop-blur-md">
-                  <FontAwesome5 name="dice" size={8} color="#FBCFE8" />
-                  <Text className="text-pink-100 font-extrabold text-[9px] uppercase ml-1">
-                    Khám phá
-                  </Text>
-                </View>
+
+                {/* Top Left: TRUYỆN / PHIM */}
+                {renderContentTypeBadge(item.contentType)}
+
+                {/* Top Right: Độ tuổi */}
+                {renderAgeRatingBadge(item.ageRating)}
 
                 {/* Views Counter Badge Bottom Right */}
-                <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
+                <View
+                  style={{ zIndex: 20 }}
+                  className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-20 shadow-md"
+                >
                   <Ionicons name="eye" size={9} color="#38bdf8" />
                   <Text className="text-white text-[9px] font-bold ml-1">
                     {formatAnalyticNumber(
@@ -808,12 +943,10 @@ export default function HomeScreen() {
                 {item.title}
               </Text>
               <Text
-                className="text-pink-400 text-[10px] font-semibold mt-0.5 px-0.5"
+                className="text-[#7C766B] text-[10px] font-semibold mt-0.5 px-0.5"
                 numberOfLines={1}
               >
-                {item.contentType?.toUpperCase() === "COMIC"
-                  ? "Truyện Tranh"
-                  : "Phim Bộ"}
+                {item.description || "Khám phá bất ngờ"}
               </Text>
             </TouchableOpacity>
           )}
@@ -876,15 +1009,18 @@ export default function HomeScreen() {
                   className="w-full h-full"
                   resizeMode="cover"
                 />
-                <View className="absolute top-2 left-2 bg-emerald-500/40 border border-emerald-400 px-2 py-0.5 rounded-full flex-row items-center backdrop-blur-md">
-                  <Ionicons name="checkmark-circle" size={9} color="#A7F3D0" />
-                  <Text className="text-emerald-100 font-extrabold text-[9px] uppercase ml-1">
-                    Đã đăng ký
-                  </Text>
-                </View>
+
+                {/* Top Left: TRUYỆN / PHIM */}
+                {renderContentTypeBadge(item.contentType)}
+
+                {/* Top Right: Độ tuổi */}
+                {renderAgeRatingBadge(item.ageRating)}
 
                 {/* Views Counter Badge Bottom Right */}
-                <View className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-10">
+                <View
+                  style={{ zIndex: 20 }}
+                  className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 flex-row items-center border border-white/10 z-20 shadow-md"
+                >
                   <Ionicons name="eye" size={9} color="#38bdf8" />
                   <Text className="text-white text-[9px] font-bold ml-1">
                     {formatAnalyticNumber(
@@ -945,41 +1081,46 @@ export default function HomeScreen() {
             <View className="flex-row flex-wrap justify-between">
               {recommendedFeed.map((item, index) => {
                 const sId = item.seriesId;
-                const isComic = item.contentType?.toUpperCase() === "COMIC";
                 const coverUri = getImageUri(item, true);
                 const views = item.totalViews ?? item.views ?? item.analyticData?.views ?? 0;
+                const recCardWidth = (screenWidth - 44) / 2;
+                const recCardHeight = recCardWidth * 1.45;
 
                 return (
                   <TouchableOpacity
                     key={`rec-home-${sId || index}-${index}`}
                     activeOpacity={0.85}
                     onPress={() => handleSeriesPress(item)}
-                    style={{ width: (screenWidth - 44) / 2 }}
-                    className="mb-4 aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
+                    style={{ width: recCardWidth, height: recCardHeight }}
+                    className="mb-4 rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-xl"
                   >
                     <Image
                       source={{ uri: coverUri }}
+                      style={StyleSheet.absoluteFillObject}
                       className="w-full h-full"
                       resizeMode="cover"
                     />
 
-                    {/* Badge Content Type */}
-                    <View
-                      style={{
-                        backgroundColor: isComic ? "#2563EB" : "#D97706",
-                        borderColor: isComic ? "#60A5FA" : "#FBBF24",
-                      }}
-                      className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md border z-20 shadow-md"
-                    >
-                      <Text className="text-white text-[8px] font-black uppercase tracking-wider">
-                        {isComic ? "TRUYỆN" : "PHIM"}
-                      </Text>
-                    </View>
+                    {/* Top Left: TRUYỆN / PHIM */}
+                    {renderContentTypeBadge(item.contentType)}
 
-                    {/* Gradient Overlay */}
+                    {/* Top Right: Độ tuổi */}
+                    {renderAgeRatingBadge(item.ageRating)}
+
+                    {/* Gradient Overlay with Title, Star Rating, and Views */}
                     <LinearGradient
-                      colors={["transparent", "rgba(10, 8, 6, 0.95)"]}
-                      className="absolute bottom-0 left-0 right-0 h-20 justify-end p-2.5"
+                      colors={["transparent", "rgba(10, 8, 6, 0.75)", "rgba(10, 8, 6, 0.98)"]}
+                      locations={[0, 0.35, 1]}
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 85,
+                        justifyContent: "flex-end",
+                        padding: 10,
+                        zIndex: 20,
+                      }}
                     >
                       <Text
                         className="text-white font-black text-xs leading-tight"
@@ -996,9 +1137,9 @@ export default function HomeScreen() {
                           </Text>
                         </View>
 
-                        <View className="flex-row items-center bg-black/60 px-1.5 py-0.5 rounded">
+                        <View className="flex-row items-center bg-black/75 px-1.5 py-0.5 rounded border border-white/10">
                           <Ionicons name="eye" size={9} color="#38bdf8" />
-                          <Text className="text-zinc-300 text-[9px] font-bold ml-1">
+                          <Text className="text-zinc-200 text-[9px] font-bold ml-1">
                             {formatAnalyticNumber(views)}
                           </Text>
                         </View>
@@ -1015,7 +1156,7 @@ export default function HomeScreen() {
                 activeOpacity={0.8}
                 onPress={() => loadRecommendedFeed(false)}
                 disabled={loadingMoreRecs}
-                className="w-full py-3 mt-2 rounded-2xl bg-zinc-900/80 border border-white/10 items-center justify-center flex-row"
+                className="w-full py-3.5 mt-3 mb-10 rounded-2xl bg-zinc-900/90 border border-[#D4AF37]/30 items-center justify-center flex-row shadow-lg"
               >
                 {loadingMoreRecs ? (
                   <SkeletonPulse className="w-24 h-4 rounded" />

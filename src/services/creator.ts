@@ -28,6 +28,29 @@ export interface CreatorTermsVersion {
   updatedAt?: string;
 }
 
+export interface CreatorAnalyticData {
+  likes?: number;
+  views?: number;
+  comments?: number;
+  shares?: number;
+  bookmarks?: number;
+  watchTime?: number;
+}
+
+export interface CreatorTierData {
+  creatorTierId?: string;
+  tierName?: string;
+  tierLevel?: number;
+  minFollowerRequired?: number;
+  minViewsRequired?: number;
+  minWatchTimeRequired?: number;
+  premiumFundShareRatio?: number;
+  directPurchaseShareRatio?: number;
+  isDefault?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface OwnCreatorResponse {
   id?: string;
   creatorId?: string;
@@ -38,6 +61,9 @@ export interface OwnCreatorResponse {
   bannerUrl?: string;
   status?: string;
   followerCount?: number;
+  followToCount?: number;
+  analyticData?: CreatorAnalyticData;
+  creatorTier?: CreatorTierData;
   isAcceptedLatestTerms: boolean;
   termsVersion?: CreatorTermsVersion | null;
   latestTermsVersionId?: string;

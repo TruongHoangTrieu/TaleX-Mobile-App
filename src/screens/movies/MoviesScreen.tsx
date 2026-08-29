@@ -113,23 +113,46 @@ export default function MoviesScreen() {
       const recs = await getRecommendationFeed({
         sessionId: sessionIdRef.current,
         pageType: "MOVIES",
-        limit: 10,
+        limit: 15,
         offset: currentOffset,
       });
 
-      if (Array.isArray(recs)) {
-        if (reset) {
-          setRecommendedMovies(recs);
-        } else {
-          setRecommendedMovies((prev) => {
-            const seen = new Set(prev.map((p) => p.seriesId));
-            const newItems = recs.filter((r) => !seen.has(r.seriesId));
-            return [...prev, ...newItems];
-          });
+      // Lọc nghiêm ngặt chỉ lấy Phim (VIDEO)
+      let movieRecs = Array.isArray(recs)
+        ? recs.filter(
+            (r) =>
+              !r.contentType ||
+              r.contentType.toUpperCase() === "VIDEO" ||
+              r.contentType.toUpperCase() === "MOVIE",
+          )
+        : [];
+
+      // Fallback nếu kết quả ít
+      if (movieRecs.length < 5) {
+        const fallbackRes = await searchPublicSeries({
+          contentType: "VIDEO",
+          status: "PUBLISHED",
+          sortBy: "views",
+          sortDirection: "DESC",
+          page: Math.floor(currentOffset / 10),
+          size: 10,
+        });
+        if (fallbackRes?.data?.content) {
+          movieRecs = [...movieRecs, ...(fallbackRes.data.content as any[])];
         }
-        if (recs.length < 10) {
-          setHasMoreRecs(false);
-        }
+      }
+
+      if (reset) {
+        setRecommendedMovies(movieRecs);
+      } else {
+        setRecommendedMovies((prev) => {
+          const seen = new Set(prev.map((p) => p.seriesId));
+          const newItems = movieRecs.filter((r) => !seen.has(r.seriesId));
+          return [...prev, ...newItems];
+        });
+      }
+      if (movieRecs.length < 5) {
+        setHasMoreRecs(false);
       }
     } catch (err) {
       console.warn("[MoviesScreen] Error fetching recommended movies feed:", err);

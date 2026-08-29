@@ -16,6 +16,7 @@ import Toast from "react-native-toast-message";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import {
+  deleteReadNotifications,
   getMyNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -84,7 +85,31 @@ function getNotificationIcon(type?: string) {
   }
 }
 
-function getNavigationTarget(item: NotificationItem) {
+function getNavigationTarget(item: NotificationItem): { name: string; params?: any } | null {
+  const refType = item.referenceType?.toUpperCase();
+  const refId = item.referenceId;
+
+  // 1. Direct Reference Target (Series or Episode)
+  if (refType === "SERIES" && refId) {
+    return { name: "ComicDetailScreen", params: { comicId: refId } };
+  }
+
+  if (refType === "EPISODE" && refId) {
+    return { name: "ComicReader", params: { episodeId: refId } };
+  }
+
+  // 2. Creator Moderation & Violations
+  const isModeration =
+    ["APPEAL", "MODERATION", "PENALTY", "REPORT", "TICKET", "VIOLATION"].includes(refType || "") ||
+    ["vi phạm", "xử phạt", "cảnh báo", "khiếu nại", "appeal", "penalty", "violation"].some((k) =>
+      (item.title + " " + item.content).toLowerCase().includes(k),
+    );
+
+  if (isModeration) {
+    return { name: "CreatorChannel" };
+  }
+
+  // 3. Type-based targets
   switch (item.type) {
     case "SUBSCRIPTION_PURCHASE_SUCCESS":
       return { name: "SubscriptionPlans" };
@@ -93,7 +118,7 @@ function getNavigationTarget(item: NotificationItem) {
       return { name: "HistoryScreen" };
     case "EPISODE_FORCE_HIDDEN":
     case "EPISODE_RESTORED":
-      return { name: "CreatorDashboard" };
+      return { name: "CreatorChannel" };
     default:
       return null;
   }
@@ -116,6 +141,8 @@ export default function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+  const [clearConfirmVisible, setClearConfirmVisible] = useState(false);
+  const [clearingRead, setClearingRead] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedNotification, setSelectedNotification] =
     useState<NotificationItem | null>(null);
@@ -125,6 +152,11 @@ export default function NotificationsScreen() {
     if (unreadCount > 99) return "99+ thông báo chưa đọc";
     return `${unreadCount} thông báo chưa đọc`;
   }, [unreadCount]);
+
+  const hasReadNotifications = useMemo(
+    () => notifications.some((item) => item.isRead),
+    [notifications],
+  );
 
   const updateItemRead = useCallback((notificationId: string, isRead: boolean) => {
     setNotifications((current) =>
@@ -215,7 +247,7 @@ export default function NotificationsScreen() {
 
       const target = getNavigationTarget(item);
       if (target) {
-        navigation.navigate(target.name);
+        navigation.navigate(target.name, target.params);
         return;
       }
 
@@ -265,6 +297,33 @@ export default function NotificationsScreen() {
     notifications,
     refreshUnreadCount,
   ]);
+
+  const handleClearReadNotifications = useCallback(async () => {
+    if (!hasReadNotifications || clearingRead) return;
+    setClearingRead(true);
+
+    const result = await deleteReadNotifications();
+    setClearingRead(false);
+    setClearConfirmVisible(false);
+
+    if (result.success) {
+      const count = result.data ?? 0;
+      setNotifications((current) => current.filter((item) => !item.isRead));
+      Toast.show({
+        type: "success",
+        text1: "Xoá thông báo thành công",
+        text2: `Đã xoá ${count} thông báo đã xem.`,
+      });
+      void refreshUnreadCount({ silent: true });
+      return;
+    }
+
+    Toast.show({
+      type: "error",
+      text1: "Không thể xoá thông báo",
+      text2: result.message || "Vui lòng thử lại sau.",
+    });
+  }, [clearingRead, hasReadNotifications, refreshUnreadCount]);
 
   const renderItem = ({ item }: { item: NotificationItem }) => (
     <TouchableOpacity
@@ -389,18 +448,35 @@ export default function NotificationsScreen() {
             {unreadLabel}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={() => void handleMarkAllRead()}
-          disabled={markingAll || notifications.length === 0}
-          activeOpacity={0.75}
-          className="h-10 w-10 items-center justify-center rounded-full bg-[#252830] disabled:opacity-40"
-        >
-          {markingAll ? (
-            <ActivityIndicator size="small" color="#D4AF37" />
-          ) : (
-            <Feather name="check-circle" size={20} color="#D4AF37" />
-          )}
-        </TouchableOpacity>
+        <View className="flex-row items-center gap-2">
+          {/* Nút Xoá thông báo đã xem */}
+          <TouchableOpacity
+            onPress={() => setClearConfirmVisible(true)}
+            disabled={!hasReadNotifications || clearingRead}
+            activeOpacity={0.75}
+            className="h-10 w-10 items-center justify-center rounded-full bg-[#252830] disabled:opacity-30"
+          >
+            {clearingRead ? (
+              <ActivityIndicator size="small" color="#FB7185" />
+            ) : (
+              <Feather name="trash-2" size={17} color="#FB7185" />
+            )}
+          </TouchableOpacity>
+
+          {/* Nút Đánh dấu tất cả đã đọc */}
+          <TouchableOpacity
+            onPress={() => void handleMarkAllRead()}
+            disabled={markingAll || notifications.length === 0 || unreadCount === 0}
+            activeOpacity={0.75}
+            className="h-10 w-10 items-center justify-center rounded-full bg-[#252830] disabled:opacity-30"
+          >
+            {markingAll ? (
+              <ActivityIndicator size="small" color="#D4AF37" />
+            ) : (
+              <Feather name="check-circle" size={18} color="#D4AF37" />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading && notifications.length === 0 ? (
@@ -458,6 +534,7 @@ export default function NotificationsScreen() {
         />
       )}
 
+      {/* Modal chi tiết thông báo */}
       <Modal
         transparent
         animationType="fade"
@@ -499,6 +576,52 @@ export default function NotificationsScreen() {
             >
               <Text className="font-black text-[#141210]">Đóng</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal xác nhận xoá thông báo đã xem */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={clearConfirmVisible}
+        onRequestClose={() => setClearConfirmVisible(false)}
+      >
+        <View className="flex-1 justify-center bg-black/80 px-6">
+          <View className="overflow-hidden rounded-3xl border border-rose-500/25 bg-[#1C1818] p-6 shadow-2xl">
+            <View className="mb-4 h-14 w-14 items-center justify-center self-center rounded-full bg-rose-500/10 border border-rose-500/20">
+              <Feather name="trash-2" size={26} color="#FB7185" />
+            </View>
+
+            <Text className="text-center text-lg font-black text-white">
+              Xoá thông báo đã xem
+            </Text>
+            <Text className="mt-2 text-center text-sm leading-6 text-[#A19E95]">
+              Bạn có chắc chắn muốn xoá vĩnh viễn tất cả thông báo đã đọc không? Hành động này không thể hoàn tác.
+            </Text>
+
+            <View className="mt-6 flex-row gap-3">
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setClearConfirmVisible(false)}
+                className="flex-1 h-12 items-center justify-center rounded-xl bg-zinc-800 border border-white/10"
+              >
+                <Text className="font-bold text-zinc-300">Hủy</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => void handleClearReadNotifications()}
+                disabled={clearingRead}
+                className="flex-1 h-12 items-center justify-center rounded-xl bg-rose-600 shadow-lg shadow-rose-900/40"
+              >
+                {clearingRead ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text className="font-black text-white">Xoá ngay</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

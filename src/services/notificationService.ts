@@ -111,3 +111,7 @@ export function markNotificationRead(
 export function markAllNotificationsRead(): Promise<NotificationResult<null>> {
   return requestForResult<null>("/read-all", { method: "PUT" });
 }
+
+export function deleteReadNotifications(): Promise<NotificationResult<number>> {
+  return requestForResult<number>("/read", { method: "DELETE" });
+}

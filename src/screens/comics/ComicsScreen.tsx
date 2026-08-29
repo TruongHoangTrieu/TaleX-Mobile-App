@@ -117,23 +117,43 @@ export default function ComicsScreen() {
       const recs = await getRecommendationFeed({
         sessionId: sessionIdRef.current,
         pageType: "COMICS",
-        limit: 10,
+        limit: 15,
         offset: currentOffset,
       });
 
-      if (Array.isArray(recs)) {
-        if (reset) {
-          setRecommendedComics(recs);
-        } else {
-          setRecommendedComics((prev) => {
-            const seen = new Set(prev.map((p) => p.seriesId));
-            const newItems = recs.filter((r) => !seen.has(r.seriesId));
-            return [...prev, ...newItems];
-          });
+      // Lọc nghiêm ngặt chỉ lấy Truyện Tranh (COMIC)
+      let comicRecs = Array.isArray(recs)
+        ? recs.filter(
+            (r) => !r.contentType || r.contentType.toUpperCase() === "COMIC",
+          )
+        : [];
+
+      // Fallback nếu kết quả ít
+      if (comicRecs.length < 5) {
+        const fallbackRes = await searchPublicSeries({
+          contentType: "COMIC",
+          status: "PUBLISHED",
+          sortBy: "views",
+          sortDirection: "DESC",
+          page: Math.floor(currentOffset / 10),
+          size: 10,
+        });
+        if (fallbackRes?.data?.content) {
+          comicRecs = [...comicRecs, ...(fallbackRes.data.content as any[])];
         }
-        if (recs.length < 10) {
-          setHasMoreRecs(false);
-        }
+      }
+
+      if (reset) {
+        setRecommendedComics(comicRecs);
+      } else {
+        setRecommendedComics((prev) => {
+          const seen = new Set(prev.map((p) => p.seriesId));
+          const newItems = comicRecs.filter((r) => !seen.has(r.seriesId));
+          return [...prev, ...newItems];
+        });
+      }
+      if (comicRecs.length < 5) {
+        setHasMoreRecs(false);
       }
     } catch (err) {
       console.warn("[ComicsScreen] Error fetching recommended comics feed:", err);

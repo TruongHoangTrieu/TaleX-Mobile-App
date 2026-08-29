@@ -11,6 +11,7 @@ import {
   Alert,
   RefreshControl,
   Dimensions,
+  StyleSheet,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -39,7 +40,6 @@ import { useCreatorFollow } from "@/hooks/useCreatorFollow";
 import { FollowButton } from "@/components/FollowButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { ShareButton } from "@/components/ShareButton";
-import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
 import { useContentEntitlement } from "@/hooks/useContentEntitlement";
 import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
 
@@ -117,9 +117,6 @@ export default function ComicDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [isRead, setIsRead] = useState(false);
-
-  // Tabs dưới: "about" | "comments"
-  const [bottomTab, setBottomTab] = useState<"about" | "comments">("about");
   const [isAscending, setIsAscending] = useState(true);
 
   const creatorAccountId = comic?.creatorAccountId || comic?.authorAccountId || comic?.accountId;
@@ -427,7 +424,7 @@ export default function ComicDetailScreen() {
       : null;
 
   return (
-    <View className="flex-1 bg-[#121214]">
+    <View className="flex-1 bg-black" style={{ backgroundColor: "#000000" }}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       <ScrollView
@@ -443,23 +440,26 @@ export default function ComicDetailScreen() {
           />
         }
       >
-        {/* ================= 1. HERO 16:9 BANNER BACKDROP ================= */}
-        <View style={{ width, height: width * (9 / 16) + 40 }} className="relative bg-[#121214]">
+        {/* ================= 1. HERO 16:9 BANNER BACKDROP (CINEMATIC WEB STYLE) ================= */}
+        <View style={{ width, height: width * (9 / 16) + 40 }} className="relative bg-black overflow-hidden">
           {bgImageSource ? (
-            <ImageBackground
-              source={bgImageSource}
-              style={{ width: "100%", height: "100%" }}
-              resizeMode="cover"
-            >
-              {/* Bottom fade only - top is 100% clear and transparent */}
-              <LinearGradient
-                colors={["transparent", "rgba(18, 18, 20, 0.35)", "#121214"]}
-                locations={[0.25, 0.65, 1]}
-                className="absolute inset-0"
+            <View style={StyleSheet.absoluteFillObject} className="w-full h-full">
+              {/* Subtle blurred background with low opacity (Web style) */}
+              <Image
+                source={bgImageSource}
+                style={[StyleSheet.absoluteFillObject, { opacity: 0.25 }]}
+                resizeMode="cover"
+                blurRadius={4}
               />
-            </ImageBackground>
+              {/* Smooth cinematic gradient fade to deep black */}
+              <LinearGradient
+                colors={["transparent", "rgba(0, 0, 0, 0.5)", "rgba(0, 0, 0, 0.3)", "#000000"]}
+                locations={[0, 0.35, 0.7, 1]}
+                style={StyleSheet.absoluteFillObject}
+              />
+            </View>
           ) : (
-            <View className="w-full h-full bg-zinc-900 justify-end p-4">
+            <View className="w-full h-full bg-black justify-end p-4">
               <Text className="text-white text-2xl font-black">{comic.title}</Text>
             </View>
           )}
@@ -606,33 +606,8 @@ export default function ComicDetailScreen() {
           </View>
         </View>
 
-        {/* ================= 3. TAB NAVIGATION BAR (Chỉ còn 2 Tab: Chi tiết & Bình luận) ================= */}
-        <View className="flex-row border-b border-white/10 px-4 mt-2 mb-4">
-          {[
-            { key: "about", label: "Chi tiết" },
-            { key: "comments", label: "Bình luận" },
-          ].map((tab) => {
-            const active = bottomTab === (tab.key as any);
-            return (
-              <TouchableOpacity
-                key={tab.key}
-                onPress={() => setBottomTab(tab.key as any)}
-                className={`py-3 mr-8 relative ${active ? "" : "opacity-60"}`}
-              >
-                <Text className={`text-sm font-bold ${active ? "text-[#D4AF37]" : "text-zinc-400"}`}>
-                  {tab.label}
-                </Text>
-                {active && (
-                  <View className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D4AF37] rounded-full" />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* ================= 4. TAB CONTENT ================= */}
-        {bottomTab === "about" && (
-          <View className="px-4">
+        {/* ================= 3. NỘI DUNG CHI TIẾT ================= */}
+        <View className="px-4 mt-1">
 
             {/* Badge Summary Row with Age Rating */}
             <View className="flex-row items-center gap-2 mb-3 flex-wrap">
@@ -874,13 +849,6 @@ export default function ComicDetailScreen() {
               </View>
             </View>
           </View>
-        )}
-
-        {bottomTab === "comments" && (
-          <View className="px-4">
-            <EpisodeCommentsSection episodeId={firstEpisode?.episodeId || comicId || ""} />
-          </View>
-        )}
       </ScrollView>
 
       {/* ================= 5. STICKY BOTTOM ACTION BUTTON ================= */}

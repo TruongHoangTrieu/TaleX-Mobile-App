@@ -13,6 +13,7 @@ import {
   TextInput,
   FlatList,
   Dimensions,
+  StyleSheet,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -638,7 +639,7 @@ export default function MovieDetailScreen() {
         : require("@assets/movie2.jpg");
 
   return (
-    <View className="flex-1 bg-[#121214]">
+    <View className="flex-1 bg-black" style={{ backgroundColor: "#000000" }}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       <ScrollView
@@ -654,20 +655,23 @@ export default function MovieDetailScreen() {
           />
         }
       >
-        {/* ================= 1. HERO 16:9 BANNER BACKDROP ================= */}
-        <View style={{ width: screenWidth, height: screenWidth * (9 / 16) + 40 }} className="relative bg-[#121214]">
-          <ImageBackground
-            source={bgImageSource}
-            style={{ width: "100%", height: "100%" }}
-            resizeMode="cover"
-          >
-            {/* Bottom fade only - top is 100% clear and transparent */}
-            <LinearGradient
-              colors={["transparent", "rgba(18, 18, 20, 0.35)", "#121214"]}
-              locations={[0.25, 0.65, 1]}
-              className="absolute inset-0"
+        {/* ================= 1. HERO 16:9 BANNER BACKDROP (CINEMATIC WEB STYLE) ================= */}
+        <View style={{ width: screenWidth, height: screenWidth * (9 / 16) + 40 }} className="relative bg-black overflow-hidden">
+          <View style={StyleSheet.absoluteFillObject} className="w-full h-full">
+            {/* Subtle blurred background with low opacity (Web style) */}
+            <Image
+              source={bgImageSource}
+              style={[StyleSheet.absoluteFillObject, { opacity: 0.25 }]}
+              resizeMode="cover"
+              blurRadius={4}
             />
-          </ImageBackground>
+            {/* Smooth cinematic gradient fade to deep black */}
+            <LinearGradient
+              colors={["transparent", "rgba(0, 0, 0, 0.5)", "rgba(0, 0, 0, 0.3)", "#000000"]}
+              locations={[0, 0.35, 0.7, 1]}
+              style={StyleSheet.absoluteFillObject}
+            />
+          </View>
 
           {/* Top Navigation Bar overlay */}
           <SafeAreaView edges={["top"]} className="absolute top-0 left-0 right-0 z-20 flex-row justify-between items-center px-4 pt-1">

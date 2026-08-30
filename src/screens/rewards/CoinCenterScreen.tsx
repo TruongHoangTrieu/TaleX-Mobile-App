@@ -486,23 +486,44 @@ export default function CoinCenterScreen() {
               style={{
                 backgroundColor: checkInStatus.isCheckedInToday ? "#26262E" : "#D4AF37",
                 borderColor: checkInStatus.isCheckedInToday ? "rgba(255, 255, 255, 0.1)" : "#D4AF37",
+                height: 48,
+                width: "100%",
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 16,
+                borderWidth: 1,
               }}
-              className="mt-5 h-13 py-3.5 flex-row items-center justify-center rounded-2xl border shadow-lg"
+              className="mt-5 shadow-lg"
             >
               {isCheckingIn ? (
                 <ActivityIndicator size="small" color="#141210" />
               ) : checkInStatus.isCheckedInToday ? (
                 <>
-                  <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                  <Text className="ml-2 font-black text-zinc-400 text-sm uppercase tracking-wide">
-                    Đã Điểm Danh Hôm Nay
+                  <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "800",
+                      color: "#A1A1AA",
+                      marginLeft: 8,
+                    }}
+                  >
+                    ĐÃ ĐIỂM DANH HÔM NAY
                   </Text>
                 </>
               ) : (
                 <>
-                  <FontAwesome5 name="gift" size={16} color="#141210" />
-                  <Text className="ml-2 font-black text-[#141210] text-sm uppercase tracking-wide">
-                    Điểm Danh Hôm Nay
+                  <FontAwesome5 name="gift" size={14} color="#141210" />
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "800",
+                      color: "#141210",
+                      marginLeft: 8,
+                    }}
+                  >
+                    ĐIỂM DANH HÔM NAY
                   </Text>
                 </>
               )}

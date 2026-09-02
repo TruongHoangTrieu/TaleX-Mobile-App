@@ -45,6 +45,11 @@ import { useContentPurchase } from "@/hooks/useContentPurchase";
 import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
 import { ComboCard, CompactComboSection } from "@/components/combo/ComboCard";
 import { useContentEntitlement } from "@/hooks/useContentEntitlement";
+import {
+  getRecommendationFeed,
+  generateSessionId,
+  HomeFeedSeries,
+} from "@/services/recommendations";
 
 const { width } = Dimensions.get("window");
 
@@ -171,30 +176,58 @@ export default function ComicDetailScreen() {
     episodes: currentEpisodes,
   });
 
-  const [realRecommendations, setRealRecommendations] = useState<SeriesItem[]>([]);
+  const [realRecommendations, setRealRecommendations] = useState<any[]>([]);
   const [recPage, setRecPage] = useState<number>(1);
   const [loadingRecs, setLoadingRecs] = useState<boolean>(false);
+  const [hasMoreRecs, setHasMoreRecs] = useState<boolean>(true);
+  const recSessionIdRef = React.useRef<string>(generateSessionId("sess_comic_detail"));
 
   const fetchComicRecommendations = useCallback(
     async (pageToFetch = 1) => {
       setLoadingRecs(true);
       try {
-        const res = await getPublicSeries(pageToFetch, 20, "COMIC");
-        const items = res?.data?.content || [];
-        if (Array.isArray(items)) {
-          const filtered = items.filter((item: any) => {
-            const id = item.seriesId || item.id;
-            const isDifferentSeries = id && id !== comicId;
+        const offset = Math.max(0, (pageToFetch - 1) * 10);
+        const feed = await getRecommendationFeed({
+          sessionId: recSessionIdRef.current,
+          pageType: "HOME",
+          limit: 10,
+          offset,
+        });
+
+        if (Array.isArray(feed) && feed.length > 0) {
+          if (feed.length < 10) {
+            setHasMoreRecs(false);
+          }
+
+          const filtered = feed.filter((item: any) => {
+            const id = String(item.seriesId || item.id || "");
+            const isDifferentSeries = id && id !== String(comicId);
             const isComic = item.contentType
-              ? item.contentType.toUpperCase() === "COMIC"
+              ? String(item.contentType).toUpperCase() === "COMIC"
               : true;
             return isDifferentSeries && isComic;
           });
-          const shuffled = [...filtered].sort(() => 0.5 - Math.random());
-          setRealRecommendations(shuffled.slice(0, 6));
+
+          if (filtered.length > 0) {
+            setRealRecommendations(filtered.slice(0, 6));
+          } else {
+            setHasMoreRecs(false);
+            if (pageToFetch === 1) {
+              setRealRecommendations([]);
+            }
+          }
+        } else {
+          setHasMoreRecs(false);
+          if (pageToFetch === 1) {
+            setRealRecommendations([]);
+          }
         }
       } catch (err) {
         console.error("Lỗi tải đề xuất truyện:", err);
+        setHasMoreRecs(false);
+        if (pageToFetch === 1) {
+          setRealRecommendations([]);
+        }
       } finally {
         setLoadingRecs(false);
       }
@@ -203,7 +236,8 @@ export default function ComicDetailScreen() {
   );
 
   const handleRefreshRecommendations = () => {
-    const nextPage = recPage >= 3 ? 1 : recPage + 1;
+    if (!hasMoreRecs || loadingRecs) return;
+    const nextPage = recPage + 1;
     setRecPage(nextPage);
     fetchComicRecommendations(nextPage);
   };
@@ -753,25 +787,27 @@ export default function ComicDetailScreen() {
               )}
             </View>
 
-            {/* ================= 6. ĐỀ XUẤT TRUYỆN CÙNG THỂ LOẠI (API GET /api/v1/public/series?contentType=COMIC) ================= */}
+            {/* ================= 6. ĐỀ XUẤT TRUYỆN ================= */}
             <View className="mt-2 mb-4">
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-white text-base font-bold">Đề xuất</Text>
-                <TouchableOpacity
-                  onPress={handleRefreshRecommendations}
-                  disabled={loadingRecs}
-                  className="flex-row items-center px-2.5 py-1 bg-zinc-800/80 border border-white/10 rounded-full active:scale-95 shadow-sm"
-                  activeOpacity={0.7}
-                >
-                  <Text className="text-zinc-300 text-xs font-semibold mr-1.5">
-                    {loadingRecs ? "Đang tải..." : "Làm mới"}
-                  </Text>
-                  {loadingRecs ? (
-                    <ActivityIndicator size="small" color="#D4AF37" />
-                  ) : (
-                    <Ionicons name="refresh-outline" size={14} color="#D4AF37" />
-                  )}
-                </TouchableOpacity>
+                {hasMoreRecs && realRecommendations.length > 0 && (
+                  <TouchableOpacity
+                    onPress={handleRefreshRecommendations}
+                    disabled={loadingRecs}
+                    className="flex-row items-center px-2.5 py-1 bg-zinc-800/80 border border-white/10 rounded-full active:scale-95 shadow-sm"
+                    activeOpacity={0.7}
+                  >
+                    <Text className="text-zinc-300 text-xs font-semibold mr-1.5">
+                      {loadingRecs ? "Đang tải..." : "Làm mới"}
+                    </Text>
+                    {loadingRecs ? (
+                      <ActivityIndicator size="small" color="#D4AF37" />
+                    ) : (
+                      <Ionicons name="refresh-outline" size={14} color="#D4AF37" />
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* 3-Column Recommendations Grid */}

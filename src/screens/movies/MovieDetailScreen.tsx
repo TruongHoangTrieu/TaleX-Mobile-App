@@ -54,7 +54,10 @@ import { FollowersModal } from "@/components/FollowersModal";
 import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSection";
 import { getCategories, getTags } from "@/services/creatorContent";
 import { useContentEntitlement } from "@/hooks/useContentEntitlement";
-import { getRecommendationFeed } from "@/services/recommendations";
+import {
+  getRecommendationFeed,
+  generateSessionId,
+} from "@/services/recommendations";
 import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
 import { ComboCard, CompactComboSection } from "@/components/combo/ComboCard";
 
@@ -203,46 +206,55 @@ export default function MovieDetailScreen() {
   const [realRecommendations, setRealRecommendations] = useState<SeriesItem[]>([]);
   const [recPage, setRecPage] = useState<number>(1);
   const [loadingRecs, setLoadingRecs] = useState<boolean>(false);
+  const [hasMoreRecs, setHasMoreRecs] = useState<boolean>(true);
+  const movieRecSessionIdRef = React.useRef<string>(generateSessionId("sess_movie_detail"));
 
   const fetchMovieRecommendations = useCallback(
     async (pageToFetch = 1) => {
       setLoadingRecs(true);
       try {
+        const offset = Math.max(0, (pageToFetch - 1) * 10);
         const feed = await getRecommendationFeed({
-          pageType: "WATCH",
-          limit: 12,
-          offset: (pageToFetch - 1) * 12,
+          sessionId: movieRecSessionIdRef.current,
+          pageType: "HOME",
+          limit: 10,
+          offset,
         });
 
         if (feed && feed.length > 0) {
+          if (feed.length < 10) {
+            setHasMoreRecs(false);
+          }
+
           const filtered = feed.filter((item: any) => {
-            const id = String(item.seriesId || item.id);
-            const isDifferent = id !== String(movieId);
-            const typeStr = item.contentType ? String(item.contentType).toUpperCase() : "";
-            const isNotComic = typeStr !== "COMIC";
-            return isDifferent && isNotComic;
+            const id = String(item.seriesId || item.id || "");
+            const isDifferent = id && id !== String(movieId);
+            const isVideo = item.contentType
+              ? String(item.contentType).toUpperCase() === "VIDEO"
+              : true;
+            return isDifferent && isVideo;
           });
+
           if (filtered.length > 0) {
             setRealRecommendations(filtered.slice(0, 6) as any);
-            return;
+          } else {
+            setHasMoreRecs(false);
+            if (pageToFetch === 1) {
+              setRealRecommendations([]);
+            }
           }
-        }
-
-        // Fallback to public series list if feed is empty
-        const res = await getPublicSeries(pageToFetch, 20, "VIDEO");
-        if (res?.data?.content) {
-          const filtered = res.data.content.filter((item: any) => {
-            const id = String(item.seriesId || item.id);
-            const isDifferent = id !== String(movieId);
-            const typeStr = item.contentType ? String(item.contentType).toUpperCase() : "";
-            const isNotComic = typeStr !== "COMIC";
-            return isDifferent && isNotComic;
-          });
-          const shuffled = [...filtered].sort(() => 0.5 - Math.random());
-          setRealRecommendations(shuffled.slice(0, 6));
+        } else {
+          setHasMoreRecs(false);
+          if (pageToFetch === 1) {
+            setRealRecommendations([]);
+          }
         }
       } catch (err) {
         console.error("Lỗi tải đề xuất phim:", err);
+        setHasMoreRecs(false);
+        if (pageToFetch === 1) {
+          setRealRecommendations([]);
+        }
       } finally {
         setLoadingRecs(false);
       }
@@ -251,7 +263,8 @@ export default function MovieDetailScreen() {
   );
 
   const handleRefreshRecommendations = () => {
-    const nextPage = recPage >= 3 ? 1 : recPage + 1;
+    if (!hasMoreRecs || loadingRecs) return;
+    const nextPage = recPage + 1;
     setRecPage(nextPage);
     fetchMovieRecommendations(nextPage);
   };
@@ -978,25 +991,27 @@ export default function MovieDetailScreen() {
               )}
             </View>
 
-            {/* ================= 6. ĐỀ XUẤT PHIM HAY CÙNG THỂ LOẠI (API GET /api/v1/public/series?contentType=VIDEO) ================= */}
+            {/* ================= 6. ĐỀ XUẤT PHIM ================= */}
             <View className="mt-2 mb-4">
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-white text-base font-bold">Đề xuất phim hay</Text>
-                <TouchableOpacity
-                  onPress={handleRefreshRecommendations}
-                  disabled={loadingRecs}
-                  className="flex-row items-center px-2.5 py-1 bg-zinc-800/80 border border-white/10 rounded-full active:scale-95 shadow-sm"
-                  activeOpacity={0.7}
-                >
-                  <Text className="text-zinc-300 text-xs font-semibold mr-1.5">
-                    {loadingRecs ? "Đang tải..." : "Làm mới"}
-                  </Text>
-                  {loadingRecs ? (
-                    <ActivityIndicator size="small" color="#D4AF37" />
-                  ) : (
-                    <Ionicons name="refresh-outline" size={14} color="#D4AF37" />
-                  )}
-                </TouchableOpacity>
+                {hasMoreRecs && realRecommendations.length > 0 && (
+                  <TouchableOpacity
+                    onPress={handleRefreshRecommendations}
+                    disabled={loadingRecs}
+                    className="flex-row items-center px-2.5 py-1 bg-zinc-800/80 border border-white/10 rounded-full active:scale-95 shadow-sm"
+                    activeOpacity={0.7}
+                  >
+                    <Text className="text-zinc-300 text-xs font-semibold mr-1.5">
+                      {loadingRecs ? "Đang tải..." : "Làm mới"}
+                    </Text>
+                    {loadingRecs ? (
+                      <ActivityIndicator size="small" color="#D4AF37" />
+                    ) : (
+                      <Ionicons name="refresh-outline" size={14} color="#D4AF37" />
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* 3-Column Recommendations Grid */}

@@ -19,7 +19,6 @@ import {
 import { getWallet } from "@/services/rewardService";
 import { useReward } from "@/context/RewardContext";
 import { buildComboWebUrl, buildEpisodeWebUrl } from "@/utils/web-checkout-links";
-import { formatVnd } from "./format-vnd";
 
 export interface QuickUnlockModalProps {
   visible: boolean;
@@ -335,13 +334,8 @@ export default function QuickUnlockModal({
                 </Text>
 
                 <Text className="mt-3 text-2xl font-black text-[#D4AF37]">
-                  -{(order?.coinAmountUsed || 0).toLocaleString("vi-VN")} Coin
+                  {(order?.coinAmountUsed || 0).toLocaleString("vi-VN")} Coin
                 </Text>
-                {!!order?.totalAmount && (
-                  <Text className="mt-0.5 text-[11px] text-zinc-500">
-                    Tương đương {formatVnd(order.totalAmount)}
-                  </Text>
-                )}
 
                 <View className="mt-3.5 w-full flex-row items-center justify-between rounded-xl bg-white/5 px-3 py-2">
                   <Text className="text-xs text-zinc-400">Số dư hiện tại:</Text>

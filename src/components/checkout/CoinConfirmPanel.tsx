@@ -1,7 +1,6 @@
 import React from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { formatVnd } from "./format-vnd";
 
 interface CoinConfirmPanelProps {
   walletBalance: number;
@@ -34,10 +33,7 @@ export default function CoinConfirmPanel({
       </View>
 
       <Text className="mt-4 text-2xl font-black text-[#D4AF37]">
-        -{coinAmountUsed.toLocaleString("vi-VN")} Coin
-      </Text>
-      <Text className="mt-1 text-xs text-[#7C766B]">
-        Tương đương {formatVnd(totalAmount)}
+        {coinAmountUsed.toLocaleString("vi-VN")} Coin
       </Text>
       <Text className="mt-2 text-xs font-semibold text-[#A19E95]">
         Còn lại sau khi mua: {remaining.toLocaleString("vi-VN")} Coin

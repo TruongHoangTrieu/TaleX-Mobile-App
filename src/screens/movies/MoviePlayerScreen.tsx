@@ -39,6 +39,7 @@ import {
 } from "@/services/series";
 import {
   getRecommendationFeed,
+  generateSessionId,
   HomeFeedSeries,
 } from "@/services/recommendations";
 import { useAuth } from "@/context/AuthContext";
@@ -337,6 +338,15 @@ function VideoPlayerCore({
       {/* B. BLUR FRAME & UNLOCK FORM OVERLAY (Hiển thị khi video 10s kết thúc hoặc tua > 10s) */}
       {isUnlockFormVisible && (
         <View className="absolute inset-0 bg-black/90 items-center justify-center p-4 z-30">
+          {/* Nút Quay lại góc trên bên trái */}
+          <TouchableOpacity
+            onPress={onGoBack}
+            className="absolute top-3 left-3 w-9 h-9 rounded-full bg-black/60 items-center justify-center border border-white/10 z-40 active:opacity-70"
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+
           <View className="w-12 h-12 rounded-full bg-[#D4AF37]/15 items-center justify-center border border-[#D4AF37]/40 mb-2">
             <Ionicons name="lock-closed" size={24} color="#D4AF37" />
           </View>
@@ -805,41 +815,33 @@ export default function MoviePlayerScreen() {
     HomeFeedSeries[]
   >([]);
   const [loadingFeedRecs, setLoadingFeedRecs] = useState<boolean>(false);
+  const playerRecSessionIdRef = useRef<string>(generateSessionId("sess_movie_player"));
 
   const loadFeedRecommendations = useCallback(async () => {
     setLoadingFeedRecs(true);
     try {
       const feed = await getRecommendationFeed({
-        pageType: "WATCH",
-        limit: 12,
+        sessionId: playerRecSessionIdRef.current,
+        pageType: "HOME",
+        limit: 10,
+        offset: 0,
       });
       if (feed && feed.length > 0) {
         const filtered = feed.filter((item: any) => {
-          const id = String(item.seriesId || item.id);
-          const isDifferent = id !== String(movieId);
-          const typeStr = item.contentType ? String(item.contentType).toUpperCase() : "";
-          const isNotComic = typeStr !== "COMIC";
-          return isDifferent && isNotComic;
+          const id = String(item.seriesId || item.id || "");
+          const isDifferent = id && id !== String(movieId);
+          const isVideo = item.contentType
+            ? String(item.contentType).toUpperCase() === "VIDEO"
+            : true;
+          return isDifferent && isVideo;
         });
-        if (filtered.length > 0) {
-          setFeedRecommendations(filtered);
-          return;
-        }
-      }
-      // Fallback to public series list if feed is empty
-      const fallbackRes = await getPublicSeries(1, 15, "VIDEO");
-      if (fallbackRes?.data?.content) {
-        const filtered = fallbackRes.data.content.filter((item: any) => {
-          const id = String(item.seriesId || item.id);
-          const isDifferent = id !== String(movieId);
-          const typeStr = item.contentType ? String(item.contentType).toUpperCase() : "";
-          const isNotComic = typeStr !== "COMIC";
-          return isDifferent && isNotComic;
-        });
-        setFeedRecommendations(filtered as any);
+        setFeedRecommendations(filtered);
+      } else {
+        setFeedRecommendations([]);
       }
     } catch (err) {
       console.warn("loadFeedRecommendations error:", err);
+      setFeedRecommendations([]);
     } finally {
       setLoadingFeedRecs(false);
     }
@@ -855,6 +857,17 @@ export default function MoviePlayerScreen() {
 
       {/* ================= 1. EXACT YOUTUBE VIDEO PLAYER FRAME ================= */}
       <View className="w-full h-[225px] bg-black relative justify-center items-center">
+        {/* Nút Back dự phòng khi không có video hoặc đang ở paywall */}
+        {!playbackUrl && (
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            className="absolute top-3 left-3 w-9 h-9 rounded-full bg-black/60 items-center justify-center border border-white/10 z-30 active:opacity-70"
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
+
         {playbackUrl ? (
           <VideoPlayerCore
             key={playbackUrl}
@@ -1064,15 +1077,10 @@ export default function MoviePlayerScreen() {
 
         {/* D. COMPACT HORIZONTAL RECOMMENDED VIDEOS (OPTION 1) */}
         <View className="mt-3">
-          <View className="flex-row items-center justify-between px-4 pt-2 pb-2.5">
+          <View className="px-4 pt-2 pb-2.5">
             <Text className="text-white text-sm font-bold tracking-wide">
               Đề xuất cho bạn
             </Text>
-            {feedRecommendations.length > 0 && (
-              <Text className="text-zinc-500 text-[11px] font-medium">
-                {feedRecommendations.length} video
-              </Text>
-            )}
           </View>
 
           {loadingFeedRecs && feedRecommendations.length === 0 ? (

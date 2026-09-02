@@ -12,9 +12,10 @@ import {
   StyleSheet,
   Animated,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from "react-native";
+import Toast from "react-native-toast-message";
+import { useConfirm } from "@/context/ConfirmModalContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -39,6 +40,7 @@ import { ShareButton } from "@/components/ShareButton";
 import ContentPaywall from "@/components/purchase/ContentPaywall";
 import { useContentPurchase } from "@/hooks/useContentPurchase";
 import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
+import { useComicPlaybackTracking } from "@/hooks/useComicPlaybackTracking";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -403,6 +405,7 @@ export default function ComicReaderScreen() {
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { showConfirm } = useConfirm();
 
   const {
     comicId,
@@ -490,6 +493,13 @@ export default function ComicReaderScreen() {
 
   const currentEp = currentEpisodeIdx !== -1 ? allEpisodes[currentEpisodeIdx] : undefined;
   const activeEpId = episodeId || currentEp?.episodeId;
+
+  // Tự động ghi nhận lượt xem & định kỳ lưu tiến trình đọc truyện lên server
+  useComicPlaybackTracking(
+    activeEpId,
+    currentPage + 1,
+    !isLockedEpisode && pages.length > 0,
+  );
 
   // Fetch comments modal list from real API
   const fetchCommentsModalData = useCallback(async () => {
@@ -635,7 +645,11 @@ export default function ComicReaderScreen() {
   const handleSendComment = async () => {
     if (!commentText.trim() || !activeEpId) return;
     if (!user) {
-      Alert.alert("Thông báo", "Vui lòng đăng nhập để gửi bình luận.");
+      Toast.show({
+        type: "info",
+        text1: "Yêu cầu đăng nhập",
+        text2: "Vui lòng đăng nhập để gửi bình luận.",
+      });
       return;
     }
     setIsSendingComment(true);
@@ -643,6 +657,11 @@ export default function ComicReaderScreen() {
       if (editingCommentId) {
         await updateComment(editingCommentId, commentText.trim());
         setEditingCommentId(null);
+        Toast.show({
+          type: "success",
+          text1: "Thành công",
+          text2: "Đã cập nhật bình luận.",
+        });
       } else {
         await createComment({
           episodeId: activeEpId,
@@ -651,33 +670,51 @@ export default function ComicReaderScreen() {
         });
         setReplyingParentId(null);
         setCommentCount((prev) => prev + 1);
+        Toast.show({
+          type: "success",
+          text1: "Thành công",
+          text2: "Đã gửi bình luận.",
+        });
       }
       setCommentText("");
       fetchCommentsModalData();
     } catch (err: any) {
-      Alert.alert("Lỗi", err.message || "Không thể thực hiện bình luận.");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi bình luận",
+        text2: err.message || "Không thể thực hiện bình luận.",
+      });
     } finally {
       setIsSendingComment(false);
     }
   };
 
-  const handleDeleteComment = (targetCommentId: string) => {
-    Alert.alert("Xác nhận xóa", "Bạn có chắc chắn muốn xóa bình luận này?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Xóa",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteComment(targetCommentId);
-            setCommentCount((prev) => Math.max(0, prev - 1));
-            fetchCommentsModalData();
-          } catch (err: any) {
-            Alert.alert("Lỗi", err.message || "Không thể xóa bình luận.");
-          }
-        },
-      },
-    ]);
+  const handleDeleteComment = async (targetCommentId: string) => {
+    const confirmed = await showConfirm({
+      title: "Xóa Bình Luận",
+      message: "Bạn có chắc chắn muốn xóa bình luận này không?",
+      type: "danger",
+      confirmText: "Xóa",
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await deleteComment(targetCommentId);
+      setCommentCount((prev) => Math.max(0, prev - 1));
+      fetchCommentsModalData();
+      Toast.show({
+        type: "success",
+        text1: "Đã xóa",
+        text2: "Bình luận đã được xóa thành công.",
+      });
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi xóa bình luận",
+        text2: err.message || "Không thể xóa bình luận.",
+      });
+    }
   };
 
   const handleEditComment = (item: CommentDto) => {

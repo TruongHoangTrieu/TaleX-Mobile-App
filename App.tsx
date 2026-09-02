@@ -3,6 +3,7 @@ import "./global.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { RewardProvider } from "@/context/RewardContext";
+import { ConfirmModalProvider } from "@/context/ConfirmModalContext";
 import {
   configureReanimatedLogger,
   ReanimatedLogLevel,
@@ -20,8 +21,10 @@ export default function App() {
     <AuthProvider>
       <NotificationProvider>
         <RewardProvider>
-          <RootNavigator />
-          <Toast config={toastConfig} />
+          <ConfirmModalProvider>
+            <RootNavigator />
+            <Toast config={toastConfig} />
+          </ConfirmModalProvider>
         </RewardProvider>
       </NotificationProvider>
     </AuthProvider>

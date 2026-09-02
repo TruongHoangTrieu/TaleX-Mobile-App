@@ -16,6 +16,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import Toast from "react-native-toast-message";
 import {
   Ionicons,
   Feather,
@@ -55,6 +56,7 @@ import { getCategories, getTags } from "@/services/creatorContent";
 import { useContentEntitlement } from "@/hooks/useContentEntitlement";
 import { getRecommendationFeed } from "@/services/recommendations";
 import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
+import { ComboCard, CompactComboSection } from "@/components/combo/ComboCard";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -213,13 +215,13 @@ export default function MovieDetailScreen() {
         });
 
         if (feed && feed.length > 0) {
-          const filtered = feed.filter(
-            (item: any) =>
-              (item.seriesId || item.id) !== movieId &&
-              (item.contentType?.toUpperCase() === "VIDEO" ||
-                item.contentType?.toUpperCase() === "MOVIE" ||
-                !item.contentType)
-          );
+          const filtered = feed.filter((item: any) => {
+            const id = String(item.seriesId || item.id);
+            const isDifferent = id !== String(movieId);
+            const typeStr = item.contentType ? String(item.contentType).toUpperCase() : "";
+            const isNotComic = typeStr !== "COMIC";
+            return isDifferent && isNotComic;
+          });
           if (filtered.length > 0) {
             setRealRecommendations(filtered.slice(0, 6) as any);
             return;
@@ -229,11 +231,13 @@ export default function MovieDetailScreen() {
         // Fallback to public series list if feed is empty
         const res = await getPublicSeries(pageToFetch, 20, "VIDEO");
         if (res?.data?.content) {
-          const filtered = res.data.content.filter(
-            (item: any) =>
-              (item.seriesId || item.id) !== movieId &&
-              (item.contentType?.toUpperCase() === "VIDEO" || item.contentType?.toUpperCase() === "MOVIE" || !item.contentType)
-          );
+          const filtered = res.data.content.filter((item: any) => {
+            const id = String(item.seriesId || item.id);
+            const isDifferent = id !== String(movieId);
+            const typeStr = item.contentType ? String(item.contentType).toUpperCase() : "";
+            const isNotComic = typeStr !== "COMIC";
+            return isDifferent && isNotComic;
+          });
           const shuffled = [...filtered].sort(() => 0.5 - Math.random());
           setRealRecommendations(shuffled.slice(0, 6));
         }
@@ -335,7 +339,11 @@ export default function MovieDetailScreen() {
 
   const handleCreatorPress = () => {
     if (!creatorAccountId) {
-      Alert.alert("Thông báo", "Tác phẩm này chưa liên kết kênh tác giả.");
+      Toast.show({
+        type: "info",
+        text1: "Thông báo",
+        text2: "Tác phẩm này chưa liên kết kênh tác giả.",
+      });
       return;
     }
     const isMyChannel =
@@ -872,76 +880,22 @@ export default function MovieDetailScreen() {
               </View>
             )}
 
-            {/* ================= 4B. COMBO TIẾT KIỆM ================= */}
-            {seriesCombos.length > 0 && (
-              <View className="mt-2 mb-6">
-                <View className="flex-row items-center gap-2 mb-3">
-                  <Ionicons name="pricetags" size={14} color="#D4AF37" />
-                  <Text className="text-white text-base font-bold">Combo tiết kiệm</Text>
-                </View>
-                {seriesCombos.map((combo) => {
-                  const originalPrice = combo.originalPriceVnd ?? combo.priceVnd;
-                  const discount =
-                    originalPrice > combo.priceVnd
-                      ? Math.round(((originalPrice - combo.priceVnd) / originalPrice) * 100)
-                      : 0;
-                  const epCount = combo.episodes?.length ?? 0;
-                  return (
-                    <View
-                      key={combo.comboId}
-                      className="mb-3 bg-[#1E2024] border border-white/10 rounded-2xl p-4"
-                    >
-                      <View className="flex-row items-start justify-between">
-                        <Text className="text-white font-bold text-[14px] flex-1 mr-2">
-                          {combo.title}
-                        </Text>
-                        {discount > 0 && (
-                          <View className="px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20">
-                            <Text className="text-[10px] font-black text-red-400">-{discount}%</Text>
-                          </View>
-                        )}
-                      </View>
-                      {combo.description ? (
-                        <Text className="text-gray-400 text-[12px] mt-1" numberOfLines={2}>
-                          {combo.description}
-                        </Text>
-                      ) : null}
-                      <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-white/5">
-                        <View>
-                          <Text className="text-gray-500 text-[11px]">{epCount} tập bao gồm</Text>
-                          {originalPrice > combo.priceVnd ? (
-                            <Text className="text-gray-600 text-[11px] line-through">
-                              {originalPrice.toLocaleString("vi-VN")} đ
-                            </Text>
-                          ) : null}
-                        </View>
-                        <Text className="text-[#D4AF37] text-[18px] font-black">
-                          {combo.priceVnd.toLocaleString("vi-VN")} đ
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        className="mt-3 h-[40px] bg-[#D4AF37] rounded-xl items-center justify-center"
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          if (!user) {
-                            navigation.navigate("LoginScreen");
-                            return;
-                          }
-                          setUnlockModalConfig({
-                            visible: true,
-                            itemId: combo.comboId,
-                            itemType: "COMBO",
-                            itemTitle: combo.title,
-                          });
-                        }}
-                      >
-                        <Text className="text-black font-bold text-[13px]">Mua Gói Ngay</Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+            {/* ================= 4B. GÓI COMBO TIẾT KIỆM (TỐI ƯU GIAO DIỆN MOBILE) ================= */}
+            <CompactComboSection
+              combos={seriesCombos}
+              onPurchase={(c) => {
+                if (!user) {
+                  navigation.navigate("LoginScreen");
+                  return;
+                }
+                setUnlockModalConfig({
+                  visible: true,
+                  itemId: c.comboId,
+                  itemType: "COMBO",
+                  itemTitle: c.title,
+                });
+              }}
+            />
 
             {/* ================= 5. DANH SÁCH TẬP (GRID 3 CỘT CHUẨN MẪU) ================= */}
             <View className="mt-2 mb-6">
@@ -1046,7 +1000,7 @@ export default function MovieDetailScreen() {
               </View>
 
               {/* 3-Column Recommendations Grid */}
-              <View className="flex-row flex-wrap justify-between gap-y-3">
+              <View className="flex-row flex-wrap gap-2.5">
                 {(realRecommendations.length > 0 ? realRecommendations : recommendations).map((rec: any) => {
                   const recId = rec.seriesId || rec.id;
                   const recImg = rec.coverUrl || rec.bannerUrl || rec.thumbnailUrl || rec.image;
@@ -1056,7 +1010,7 @@ export default function MovieDetailScreen() {
                       onPress={() => {
                         navigation.replace("MovieDetailScreen", { movieId: recId, seriesItem: rec });
                       }}
-                      className="w-[31.5%]"
+                      style={{ width: "31%" }}
                       activeOpacity={0.85}
                     >
                       <View className="w-full h-[140px] rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">

@@ -8,13 +8,13 @@ import {
   ActivityIndicator,
   RefreshControl,
   StatusBar,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, FontAwesome, Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/context/ConfirmModalContext";
 import {
   getMyLikedEpisodes,
   unlikeEpisode,
@@ -91,7 +91,9 @@ export default function LikedScreen() {
     fetchLikedData();
   };
 
-  const handleUnlike = (item: AccountLikeResponse) => {
+  const { showConfirm } = useConfirm();
+
+  const handleUnlike = async (item: AccountLikeResponse) => {
     const isComic = contentTypes[item.episodeId] === "COMIC";
     const typeName = isComic ? "chương truyện" : "tập phim";
     const titleText =
@@ -99,35 +101,33 @@ export default function LikedScreen() {
       (item.episodeNumber != null ? `Tập ${item.episodeNumber}` : "");
     const displayTitle = titleText ? `"${titleText}"` : "";
 
-    Alert.alert(
-      `Xác nhận bỏ thích ${typeName}`,
-      `Bạn có muốn bỏ ${typeName} ${displayTitle} khỏi danh sách yêu thích không?`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Bỏ thích",
-          style: "destructive",
-          onPress: async () => {
-            setLikedList((prev) =>
-              prev.filter((i) => i.episodeId !== item.episodeId),
-            );
-            try {
-              await unlikeEpisode(item.episodeId);
-              Toast.show({
-                type: "success",
-                text1: `Đã bỏ ${typeName} khỏi danh sách yêu thích.`,
-              });
-            } catch (err: any) {
-              Alert.alert(
-                "Lỗi",
-                err.message || `Không thể bỏ thích ${typeName}.`,
-              );
-              fetchLikedData();
-            }
-          },
-        },
-      ],
+    const confirmed = await showConfirm({
+      title: `Bỏ Thích ${isComic ? "Truyện" : "Phim"}`,
+      message: `Bạn có muốn bỏ ${typeName} ${displayTitle} khỏi danh sách yêu thích không?`,
+      type: "danger",
+      confirmText: "Bỏ Thích",
+    });
+
+    if (!confirmed) return;
+
+    setLikedList((prev) =>
+      prev.filter((i) => i.episodeId !== item.episodeId),
     );
+    try {
+      await unlikeEpisode(item.episodeId);
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: `Đã bỏ ${typeName} khỏi danh sách yêu thích.`,
+      });
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: err.message || `Không thể bỏ thích ${typeName}.`,
+      });
+      fetchLikedData();
+    }
   };
 
   const handleOpenItem = async (item: AccountLikeResponse) => {

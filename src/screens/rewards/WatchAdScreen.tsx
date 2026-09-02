@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Dimensions,
   Image,
   Linking,
+  Modal,
   StatusBar,
   StyleSheet,
   Text,
@@ -51,6 +51,37 @@ function formatCountdown(seconds: number) {
   return `00:${String(safeSeconds).padStart(2, "0")}`;
 }
 
+function AdVideoPlayer({
+  videoUrl,
+  isMuted,
+}: {
+  videoUrl: string;
+  isMuted: boolean;
+}) {
+  const player = useVideoPlayer({ uri: videoUrl }, (p) => {
+    p.loop = true;
+    p.muted = isMuted;
+    try {
+      p.play();
+    } catch {}
+  });
+
+  useEffect(() => {
+    if (player) {
+      player.muted = isMuted;
+    }
+  }, [isMuted, player]);
+
+  return (
+    <VideoView
+      player={player}
+      style={{ width: screenWidth, height: screenHeight }}
+      contentFit="contain"
+      nativeControls={false}
+    />
+  );
+}
+
 export default function WatchAdScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<WatchAdScreenRouteProp>();
@@ -64,20 +95,12 @@ export default function WatchAdScreen() {
   const [countdown, setCountdown] = useState(WATCH_SECONDS);
   const [isMuted, setIsMuted] = useState(false);
 
+  const [showExitModal, setShowExitModal] = useState(false);
+
   const hasCompletedRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
 
   const isVideo = ad?.mediaType?.toUpperCase() === "VIDEO" && Boolean(ad?.mediaUrl);
-
-  const videoSource = useMemo(() => {
-    if (!isVideo || !ad?.mediaUrl) return null;
-    return { uri: ad.mediaUrl };
-  }, [ad?.mediaUrl, isVideo]);
-
-  const player = useVideoPlayer(videoSource, (p) => {
-    p.loop = true;
-    p.muted = isMuted;
-  });
 
   // Tải ad và tạo session
   const loadAdMission = useCallback(async () => {
@@ -88,6 +111,7 @@ export default function WatchAdScreen() {
     setSession(null);
     setAd(null);
     setCountdown(WATCH_SECONDS);
+    setShowExitModal(false);
     hasCompletedRef.current = false;
 
     try {
@@ -107,28 +131,15 @@ export default function WatchAdScreen() {
       sessionIdRef.current = sessionData.sessionId;
       setAd(selectedAd);
       setStatus("watching");
-
-      // Tự động play video nếu có
-      if (player && selectedAd.mediaType?.toUpperCase() === "VIDEO") {
-        try {
-          player.play();
-        } catch {}
-      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Không thể khởi động phiên quảng cáo.");
       setStatus("error");
     }
-  }, [missionCode, player]);
+  }, [missionCode]);
 
   useEffect(() => {
     void loadAdMission();
-
-    return () => {
-      try {
-        player.pause();
-      } catch {}
-    };
-  }, [loadAdMission, player]);
+  }, [loadAdMission]);
 
   // Hoàn tất nhận thưởng khi countdown về 0
   const completeCurrentSession = useCallback(async () => {
@@ -136,13 +147,10 @@ export default function WatchAdScreen() {
     if (!currentSessionId || hasCompletedRef.current) return;
 
     hasCompletedRef.current = true;
+    setShowExitModal(false);
     setStatus("completing");
 
     try {
-      try {
-        player.pause();
-      } catch {}
-
       await completeAdMissionSession(currentSessionId);
 
       // Track impression cho nhà quảng cáo
@@ -166,7 +174,7 @@ export default function WatchAdScreen() {
       setErrorMessage(error instanceof Error ? error.message : "Lỗi xác nhận thưởng từ máy chủ.");
       setStatus("error");
     }
-  }, [ad?.campaignId, player, refreshRewardData, rewardAmount, session?.sessionId]);
+  }, [ad?.campaignId, refreshRewardData, rewardAmount, session?.sessionId]);
 
   // Bộ đếm ngược 15 giây độc lập (chuẩn xác như Web)
   useEffect(() => {
@@ -192,20 +200,8 @@ export default function WatchAdScreen() {
       navigation.goBack();
       return;
     }
-
-    Alert.alert(
-      "Dừng xem quảng cáo?",
-      `Bạn còn ${countdown} giây để nhận +${rewardAmount} Xu. Nếu rời đi bây giờ, bạn sẽ không nhận được thưởng.`,
-      [
-        { text: "Xem Tiếp", style: "cancel" },
-        {
-          text: "Rời Đi",
-          style: "destructive",
-          onPress: () => navigation.goBack(),
-        },
-      ],
-    );
-  }, [countdown, navigation, rewardAmount, status]);
+    setShowExitModal(true);
+  }, [navigation, status]);
 
   // Intercept nút Back cứng của Android
   useEffect(() => {
@@ -236,12 +232,11 @@ export default function WatchAdScreen() {
 
       {/* 1. MEDIA DISPLAY (VIDEO OR IMAGE) */}
       <View style={StyleSheet.absoluteFillObject} className="items-center justify-center bg-black">
-        {isVideo && videoSource ? (
-          <VideoView
-            player={player}
-            style={{ width: screenWidth, height: screenHeight }}
-            contentFit="contain"
-            nativeControls={false}
+        {isVideo && ad?.mediaUrl ? (
+          <AdVideoPlayer
+            key={ad.campaignId || ad.mediaUrl}
+            videoUrl={ad.mediaUrl}
+            isMuted={isMuted}
           />
         ) : ad?.mediaUrl ? (
           <Image
@@ -303,9 +298,7 @@ export default function WatchAdScreen() {
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => {
-                const nextMuted = !isMuted;
-                setIsMuted(nextMuted);
-                if (player) player.muted = nextMuted;
+                setIsMuted((prev) => !prev);
               }}
               style={{ backgroundColor: "rgba(0,0,0,0.65)", borderColor: "rgba(255,255,255,0.15)" }}
               className="h-10 w-10 items-center justify-center rounded-full border"
@@ -467,6 +460,84 @@ export default function WatchAdScreen() {
           </View>
         </View>
       )}
+      {/* 6. CUSTOM EXIT CONFIRMATION MODAL OVERLAY */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={showExitModal}
+        statusBarTranslucent
+        onRequestClose={() => setShowExitModal(false)}
+      >
+        <View
+          style={StyleSheet.absoluteFillObject}
+          className="items-center justify-center bg-black/85 p-6 z-50"
+        >
+          <View
+            style={{
+              backgroundColor: "#161519",
+              borderColor: "rgba(212, 175, 55, 0.4)",
+            }}
+            className="w-full max-w-sm rounded-3xl p-6 border items-center shadow-2xl"
+          >
+            {/* Warning Icon Badge */}
+            <View
+              style={{
+                backgroundColor: "rgba(251, 146, 60, 0.15)",
+                borderColor: "rgba(251, 146, 60, 0.4)",
+              }}
+              className="w-16 h-16 rounded-2xl border items-center justify-center mb-4 shadow-md"
+            >
+              <FontAwesome5 name="exclamation-triangle" size={26} color="#FB923C" />
+            </View>
+
+            <Text className="text-xl font-black text-white text-center">
+              Dừng Xem Quảng Cáo?
+            </Text>
+
+            <Text className="text-zinc-300 text-xs text-center mt-2.5 px-1 leading-5">
+              Bạn chỉ còn <Text className="text-[#D4AF37] font-black">{countdown} giây</Text> nữa để nhận{" "}
+              <Text className="text-[#D4AF37] font-black">+{rewardAmount.toLocaleString("vi-VN")} Xu</Text>.
+            </Text>
+
+            <Text className="text-zinc-500 text-[11px] text-center mt-1">
+              Nếu rời đi bây giờ, bạn sẽ không nhận được xu thưởng.
+            </Text>
+
+            {/* Buttons Group */}
+            <View className="w-full mt-6">
+              {/* Primary Action: Tiếp Tục Xem */}
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setShowExitModal(false)}
+                style={{ backgroundColor: "#D4AF37" }}
+                className="w-full h-12 rounded-2xl items-center justify-center shadow-lg mb-2.5"
+              >
+                <Text className="text-black font-black text-xs uppercase tracking-wider">
+                  TIẾP TỤC XEM ({countdown}S)
+                </Text>
+              </TouchableOpacity>
+
+              {/* Secondary Action: Rời Đi */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  setShowExitModal(false);
+                  navigation.goBack();
+                }}
+                style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.06)",
+                  borderColor: "rgba(255, 255, 255, 0.12)",
+                }}
+                className="w-full h-11 rounded-2xl border items-center justify-center"
+              >
+                <Text className="text-zinc-400 font-bold text-xs uppercase">
+                  Rời Đi & Bỏ Thưởng
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

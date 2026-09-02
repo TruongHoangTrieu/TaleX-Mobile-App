@@ -77,9 +77,10 @@ export async function getPublicSeries(
   pageSize = 20,
   contentType?: "VIDEO" | "COMIC" | "video" | "comic",
 ): Promise<SeriesResponse> {
+  const normalizedType = contentType ? contentType.toUpperCase() : undefined;
   let url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/series?page=${page}&pageSize=${pageSize}`;
-  if (contentType) {
-    url += `&contentType=${contentType}`;
+  if (normalizedType) {
+    url = `${BASE_URL.replace(/\/$/, "")}/api/v1/public/series/search?contentType=${normalizedType}&page=${Math.max(0, page - 1)}&size=${pageSize}`;
   }
   const res = await fetch(url, {
     method: "GET",
@@ -352,8 +353,9 @@ export async function getPublicCombos(): Promise<ComboItem[]> {
     });
     if (!res.ok) return [];
     const json = await res.json();
-    // Hỗ trợ cả dạng { data: [...] } và dạng mảng thẳng
+    if (Array.isArray(json?.data?.content)) return json.data.content;
     if (Array.isArray(json?.data)) return json.data;
+    if (Array.isArray(json?.content)) return json.content;
     if (Array.isArray(json)) return json;
     return [];
   } catch {

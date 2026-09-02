@@ -8,7 +8,6 @@ import {
   ImageBackground,
   StatusBar,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   Dimensions,
   StyleSheet,
@@ -18,6 +17,7 @@ import {
   Ionicons,
   Feather,
 } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Animated } from "react-native";
@@ -40,8 +40,11 @@ import { useCreatorFollow } from "@/hooks/useCreatorFollow";
 import { FollowButton } from "@/components/FollowButton";
 import { BookmarkButton } from "@/components/BookmarkButton";
 import { ShareButton } from "@/components/ShareButton";
-import { useContentEntitlement } from "@/hooks/useContentEntitlement";
+import ContentPaywall from "@/components/purchase/ContentPaywall";
+import { useContentPurchase } from "@/hooks/useContentPurchase";
 import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
+import { ComboCard, CompactComboSection } from "@/components/combo/ComboCard";
+import { useContentEntitlement } from "@/hooks/useContentEntitlement";
 
 const { width } = Dimensions.get("window");
 
@@ -177,12 +180,16 @@ export default function ComicDetailScreen() {
       setLoadingRecs(true);
       try {
         const res = await getPublicSeries(pageToFetch, 20, "COMIC");
-        if (res?.data?.content) {
-          const filtered = res.data.content.filter(
-            (item: any) =>
-              (item.seriesId || item.id) !== comicId &&
-              (item.contentType?.toUpperCase() === "COMIC" || !item.contentType)
-          );
+        const items = res?.data?.content || [];
+        if (Array.isArray(items)) {
+          const filtered = items.filter((item: any) => {
+            const id = item.seriesId || item.id;
+            const isDifferentSeries = id && id !== comicId;
+            const isComic = item.contentType
+              ? item.contentType.toUpperCase() === "COMIC"
+              : true;
+            return isDifferentSeries && isComic;
+          });
           const shuffled = [...filtered].sort(() => 0.5 - Math.random());
           setRealRecommendations(shuffled.slice(0, 6));
         }
@@ -323,7 +330,11 @@ export default function ComicDetailScreen() {
   const handleReadEpisode = (ep: EpisodeItem | null, index: number) => {
     const targetEp = ep || firstEpisode;
     if (!targetEp) {
-      Alert.alert("Thông báo", "Truyện chưa có tập nào được phát hành.");
+      Toast.show({
+        type: "info",
+        text1: "Thông báo",
+        text2: "Truyện chưa có tập nào được phát hành.",
+      });
       return;
     }
     navigation.navigate("ComicReader", {
@@ -644,76 +655,22 @@ export default function ComicDetailScreen() {
               </View>
             )}
 
-            {/* ================= 4B. COMBO TIẾT KIỆM ================= */}
-            {seriesCombos.length > 0 && (
-              <View className="mt-2 mb-6">
-                <View className="flex-row items-center gap-2 mb-3">
-                  <Ionicons name="pricetags" size={14} color="#D4AF37" />
-                  <Text className="text-white text-base font-bold">Combo tiết kiệm</Text>
-                </View>
-                {seriesCombos.map((combo) => {
-                  const originalPrice = combo.originalPriceVnd ?? combo.priceVnd;
-                  const discount =
-                    originalPrice > combo.priceVnd
-                      ? Math.round(((originalPrice - combo.priceVnd) / originalPrice) * 100)
-                      : 0;
-                  const epCount = combo.episodes?.length ?? 0;
-                  return (
-                    <View
-                      key={combo.comboId}
-                      className="mb-3 bg-[#1E2024] border border-white/10 rounded-2xl p-4"
-                    >
-                      <View className="flex-row items-start justify-between">
-                        <Text className="text-white font-bold text-[14px] flex-1 mr-2">
-                          {combo.title}
-                        </Text>
-                        {discount > 0 && (
-                          <View className="px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20">
-                            <Text className="text-[10px] font-black text-red-400">-{discount}%</Text>
-                          </View>
-                        )}
-                      </View>
-                      {combo.description ? (
-                        <Text className="text-gray-400 text-[12px] mt-1" numberOfLines={2}>
-                          {combo.description}
-                        </Text>
-                      ) : null}
-                      <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-white/5">
-                        <View>
-                          <Text className="text-gray-500 text-[11px]">{epCount} tập bao gồm</Text>
-                          {originalPrice > combo.priceVnd ? (
-                            <Text className="text-gray-600 text-[11px] line-through">
-                              {originalPrice.toLocaleString("vi-VN")} đ
-                            </Text>
-                          ) : null}
-                        </View>
-                        <Text className="text-[#D4AF37] text-[18px] font-black">
-                          {combo.priceVnd.toLocaleString("vi-VN")} đ
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        className="mt-3 h-[40px] bg-[#D4AF37] rounded-xl items-center justify-center"
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          if (!user) {
-                            navigation.navigate("LoginScreen");
-                            return;
-                          }
-                          setUnlockModalConfig({
-                            visible: true,
-                            itemId: combo.comboId,
-                            itemType: "COMBO",
-                            itemTitle: combo.title,
-                          });
-                        }}
-                      >
-                        <Text className="text-black font-bold text-[13px]">Mua Gói Ngay</Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+            {/* ================= 4B. GÓI COMBO TIẾT KIỆM (TỐI ƯU GIAO DIỆN MOBILE) ================= */}
+            <CompactComboSection
+              combos={seriesCombos}
+              onPurchase={(c) => {
+                if (!user) {
+                  navigation.navigate("LoginScreen");
+                  return;
+                }
+                setUnlockModalConfig({
+                  visible: true,
+                  itemId: c.comboId,
+                  itemType: "COMBO",
+                  itemTitle: c.title,
+                });
+              }}
+            />
 
             {/* ================= 5. DANH SÁCH TẬP (GRID 3 CỘT CHUẨN MẪU) ================= */}
             <View className="mt-2 mb-6">
@@ -818,35 +775,41 @@ export default function ComicDetailScreen() {
               </View>
 
               {/* 3-Column Recommendations Grid */}
-              <View className="flex-row flex-wrap justify-between gap-y-3">
-                {realRecommendations.map((rec: any) => {
-                  const recId = rec.seriesId || rec.id;
-                  const recImg = rec.coverUrl || rec.bannerUrl || rec.thumbnailUrl || rec.image;
-                  return (
-                    <TouchableOpacity
-                      key={recId}
-                      onPress={() => {
-                        navigation.replace("ComicDetailScreen", { comicId: recId, seriesItem: rec });
-                      }}
-                      className="w-[31.5%]"
-                      activeOpacity={0.85}
-                    >
-                      <View className="w-full h-[140px] rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
-                        {typeof recImg === "string" ? (
-                          <Image source={{ uri: recImg }} className="w-full h-full" resizeMode="cover" />
-                        ) : recImg ? (
-                          <Image source={recImg} className="w-full h-full" resizeMode="cover" />
-                        ) : (
-                          <Image source={require("@assets/comic1.webp")} className="w-full h-full" resizeMode="cover" />
-                        )}
-                      </View>
-                      <Text className="text-white text-xs font-bold mt-1.5 leading-4" numberOfLines={2}>
-                        {rec.title}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              {realRecommendations.length > 0 ? (
+                <View className="flex-row flex-wrap gap-2.5">
+                  {realRecommendations.map((rec: any) => {
+                    const recId = rec.seriesId || rec.id;
+                    const recImg = rec.coverUrl || rec.bannerUrl || rec.thumbnailUrl || rec.image;
+                    return (
+                      <TouchableOpacity
+                        key={recId}
+                        onPress={() => {
+                          navigation.replace("ComicDetailScreen", { comicId: recId, seriesItem: rec });
+                        }}
+                        style={{ width: "31%" }}
+                        activeOpacity={0.85}
+                      >
+                        <View className="w-full h-[140px] rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
+                          {typeof recImg === "string" ? (
+                            <Image source={{ uri: recImg }} className="w-full h-full" resizeMode="cover" />
+                          ) : recImg ? (
+                            <Image source={recImg} className="w-full h-full" resizeMode="cover" />
+                          ) : (
+                            <Image source={require("@assets/comic1.webp")} className="w-full h-full" resizeMode="cover" />
+                          )}
+                        </View>
+                        <Text className="text-white text-xs font-bold mt-1.5 leading-4" numberOfLines={2}>
+                          {rec.title}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View className="py-6 items-center justify-center bg-zinc-900/40 rounded-2xl border border-white/5">
+                  <Text className="text-zinc-500 text-xs">Chưa có truyện đề xuất tương tự.</Text>
+                </View>
+              )}
             </View>
           </View>
       </ScrollView>

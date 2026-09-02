@@ -6,10 +6,11 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { Feather, FontAwesome5, Ionicons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/context/ConfirmModalContext";
 import {
   CommentDto,
   getCommentReplies,
@@ -33,20 +34,25 @@ export function CommentItem({
   onRefreshParent,
 }: CommentItemProps) {
   const { user } = useAuth();
+  const { showConfirm } = useConfirm();
   const currentAccountId = user?.accountId;
-
   const isCommentOwner =
     comment.isOwner ||
     (Boolean(currentAccountId) &&
       Boolean(comment.accountId) &&
-      currentAccountId === comment.accountId);
+      String(comment.accountId) === String(currentAccountId));
 
-  const canHideComment =
-    user?.roleName === "ADMIN" || user?.roleName === "STAFF";
+  const role = user?.roleName || (user as any)?.role;
+  const isStaffOrAdmin =
+    role === "ADMIN" ||
+    role === "STAFF" ||
+    role === "SYSTEM_ADMIN";
+
+  const canHideComment = isStaffOrAdmin;
 
   // States
   const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState(comment.content);
+  const [editContent, setEditContent] = useState(comment.content || "");
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [isReplying, setIsReplying] = useState(false);
@@ -97,8 +103,17 @@ export function CommentItem({
       await updateComment(comment.commentId, editContent.trim());
       comment.content = editContent.trim();
       setIsEditing(false);
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Đã cập nhật bình luận.",
+      });
     } catch (err: any) {
-      Alert.alert("Lỗi", err.message || "Không thể cập nhật bình luận.");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi cập nhật",
+        text2: err.message || "Không thể cập nhật bình luận.",
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -109,72 +124,94 @@ export function CommentItem({
     if (!replyContent.trim()) return;
     setIsCreatingReply(true);
     try {
-      await createComment({
-        content: replyContent.trim(),
+      const created = await createComment({
         episodeId,
+        content: replyContent.trim(),
         commentParentId: comment.commentId,
       });
+
+      // Add to replies
+      setReplies((prev) => [created, ...prev]);
+      comment.replyCount = (comment.replyCount || 0) + 1;
       setReplyContent("");
       setIsReplying(false);
       setShowReplies(true);
-      fetchReplies(0);
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Đã gửi câu trả lời.",
+      });
     } catch (err: any) {
-      Alert.alert("Lỗi", err.message || "Không thể phản hồi bình luận.");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi gửi câu trả lời",
+        text2: err.message || "Không thể gửi câu trả lời.",
+      });
     } finally {
       setIsCreatingReply(false);
     }
   };
 
   // Delete comment
-  const handleDelete = () => {
-    Alert.alert(
-      "Xóa bình luận",
-      "Bạn có chắc chắn muốn xóa bình luận này?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: async () => {
-            setIsDeleting(true);
-            try {
-              await deleteComment(comment.commentId);
-              if (onRefreshParent) onRefreshParent();
-            } catch (err: any) {
-              Alert.alert("Lỗi", err.message || "Không thể xóa bình luận.");
-            } finally {
-              setIsDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleDelete = async () => {
+    const confirmed = await showConfirm({
+      title: "Xóa Bình Luận",
+      message: "Bạn có chắc chắn muốn xóa bình luận này không? Hành động này không thể hoàn tác.",
+      type: "danger",
+      confirmText: "Xóa Bình Luận",
+    });
+
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteComment(comment.commentId);
+      Toast.show({
+        type: "success",
+        text1: "Đã xóa",
+        text2: "Bình luận đã được xóa thành công.",
+      });
+      if (onRefreshParent) onRefreshParent();
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi xóa bình luận",
+        text2: err.message || "Không thể xóa bình luận.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Hide comment (Admin / Staff)
-  const handleHide = () => {
-    Alert.alert(
-      "Ẩn bình luận",
-      "Bình luận sẽ bị ẩn vĩnh viễn và không thể khôi phục. Bạn có chắc chắn?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xác nhận ẩn",
-          style: "destructive",
-          onPress: async () => {
-            setIsHiding(true);
-            try {
-              await hideComment(comment.commentId);
-              comment.status = "HIDDEN";
-            } catch (err: any) {
-              Alert.alert("Lỗi", err.message || "Không thể ẩn bình luận.");
-            } finally {
-              setIsHiding(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleHide = async () => {
+    const confirmed = await showConfirm({
+      title: "Ẩn Bình Luận",
+      message: "Bình luận sẽ bị ẩn và không hiển thị công khai. Bạn có chắc chắn muốn ẩn?",
+      type: "warning",
+      confirmText: "Xác Nhận Ẩn",
+    });
+
+    if (!confirmed) return;
+
+    setIsHiding(true);
+    try {
+      await hideComment(comment.commentId);
+      comment.status = "HIDDEN";
+      Toast.show({
+        type: "success",
+        text1: "Đã ẩn",
+        text2: "Bình luận đã được ẩn khỏi danh sách.",
+      });
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi ẩn bình luận",
+        text2: err.message || "Không thể ẩn bình luận.",
+      });
+    } finally {
+      setIsHiding(false);
+    }
   };
 
   const isHidden = comment.status === "HIDDEN";

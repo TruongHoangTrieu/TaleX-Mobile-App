@@ -13,7 +13,6 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
-  Alert,
   Dimensions,
   Modal,
   Share,
@@ -27,6 +26,7 @@ import {
 } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import {
   getEpisodePlayback,
   getSeasonEpisodes,
@@ -51,6 +51,7 @@ import { EpisodeCommentsSection } from "@/components/comments/EpisodeCommentsSec
 import ContentPaywall from "@/components/purchase/ContentPaywall";
 import { useContentPurchase } from "@/hooks/useContentPurchase";
 import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
+import { useVideoPlaybackTracking } from "@/hooks/useVideoPlaybackTracking";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -80,6 +81,7 @@ function VideoPlayerCore({
   replayCounter,
   playbackSpeed,
   initialPosition = 0,
+  episodeId,
   onNavigateToPlans,
   onFinishedChange,
   onCycleSpeed,
@@ -93,6 +95,7 @@ function VideoPlayerCore({
   replayCounter: number;
   playbackSpeed: number;
   initialPosition?: number;
+  episodeId?: string;
   onNavigateToPlans: () => void;
   onFinishedChange: (finished: boolean) => void;
   onCycleSpeed?: () => void;
@@ -106,6 +109,15 @@ function VideoPlayerCore({
   const [showOverlayControls, setShowOverlayControls] = useState<boolean>(true);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [barWidth, setBarWidth] = useState<number>(1);
+
+  const [isBuffering, setIsBuffering] = useState<boolean>(true);
+
+  const { onTimeUpdate: trackTimeUpdate } = useVideoPlaybackTracking(
+    episodeId,
+    isPlaying && !isBuffering,
+    displayTime,
+    !isLocked,
+  );
 
   const source = useMemo(() => {
     const headers: Record<string, string> = {};
@@ -152,10 +164,19 @@ function VideoPlayerCore({
     setDisplayTime(initialPosition || 0);
     setIsUnlockFormVisible(false);
     setIsPlaying(true);
+    setIsBuffering(true);
   }, [videoUrl, initialPosition]);
 
   useEffect(() => {
     if (!player) return;
+
+    const statusSub = player.addListener("statusChange", ({ status }: any) => {
+      if (status === "loading" || status === "idle") {
+        setIsBuffering(true);
+      } else if (status === "readyToPlay") {
+        setIsBuffering(false);
+      }
+    });
 
     const endSub = player.addListener("playToEnd", () => {
       if (isLocked) {
@@ -173,11 +194,14 @@ function VideoPlayerCore({
     const playSub = player.addListener("playingChange", (payload) => {
       setIsPlaying(payload.isPlaying);
       if (payload.isPlaying) {
+        setIsBuffering(false);
         onFinishedChange(false);
       }
     });
 
     const timeSub = player.addListener("timeUpdate", ({ currentTime }) => {
+      setIsBuffering(false);
+      trackTimeUpdate(currentTime);
       if (isLocked) {
         if (currentTime >= 9.8) {
           try {
@@ -197,6 +221,7 @@ function VideoPlayerCore({
     });
 
     return () => {
+      statusSub.remove();
       endSub.remove();
       playSub.remove();
       timeSub.remove();
@@ -259,6 +284,8 @@ function VideoPlayerCore({
     } else {
       if (isLocked && displayTime >= 10) {
         handleSeek(0);
+      } else if (apiDuration > 0 && displayTime >= apiDuration - 0.5) {
+        handleSeek(0);
       } else {
         try {
           player.play();
@@ -288,11 +315,24 @@ function VideoPlayerCore({
       style={{ width: "100%", height: "100%", position: "relative" }}
     >
       <VideoView
+        key={videoUrl || "movie-player-core"}
         player={player}
         style={{ width: "100%", height: "100%" }}
         nativeControls={false}
         allowsPictureInPicture
       />
+
+      {/* BUFFERING / LOADING OVERLAY */}
+      {isBuffering && !isUnlockFormVisible && (
+        <View
+          pointerEvents="none"
+          className="absolute inset-0 bg-black/40 items-center justify-center z-15"
+        >
+          <View className="w-14 h-14 rounded-2xl bg-black/75 border border-[#D4AF37]/50 items-center justify-center shadow-2xl">
+            <ActivityIndicator size="large" color="#D4AF37" />
+          </View>
+        </View>
+      )}
 
       {/* B. BLUR FRAME & UNLOCK FORM OVERLAY (Hiển thị khi video 10s kết thúc hoặc tua > 10s) */}
       {isUnlockFormVisible && (
@@ -606,6 +646,28 @@ export default function MoviePlayerScreen() {
       .catch(() => {});
   }, [movieId]);
 
+  const handleCreatorPress = useCallback(() => {
+    const targetId = creatorInfo.accountId;
+    if (!targetId) {
+      Toast.show({
+        type: "info",
+        text1: "Thông báo",
+        text2: "Tác phẩm này chưa liên kết kênh tác giả.",
+      });
+      return;
+    }
+
+    const isMyChannel =
+      user?.accountId &&
+      String(user.accountId).toLowerCase() === String(targetId).toLowerCase();
+
+    if (isMyChannel) {
+      navigation.navigate("CreatorChannel");
+    } else {
+      navigation.navigate("PublicChannel", { creatorId: targetId });
+    }
+  }, [creatorInfo, user, navigation]);
+
   useEffect(() => {
     if (passedEpisodes.length > 0) return;
 
@@ -752,21 +814,28 @@ export default function MoviePlayerScreen() {
         limit: 12,
       });
       if (feed && feed.length > 0) {
-        const filtered = feed.filter(
-          (item) =>
-            String(item.seriesId || (item as any).id) !== String(movieId),
-        );
+        const filtered = feed.filter((item: any) => {
+          const id = String(item.seriesId || item.id);
+          const isDifferent = id !== String(movieId);
+          const typeStr = item.contentType ? String(item.contentType).toUpperCase() : "";
+          const isNotComic = typeStr !== "COMIC";
+          return isDifferent && isNotComic;
+        });
         if (filtered.length > 0) {
           setFeedRecommendations(filtered);
           return;
         }
       }
       // Fallback to public series list if feed is empty
-      const fallbackRes = await getPublicSeries(1, 10, "VIDEO");
+      const fallbackRes = await getPublicSeries(1, 15, "VIDEO");
       if (fallbackRes?.data?.content) {
-        const filtered = fallbackRes.data.content.filter(
-          (item: any) => String(item.seriesId || item.id) !== String(movieId),
-        );
+        const filtered = fallbackRes.data.content.filter((item: any) => {
+          const id = String(item.seriesId || item.id);
+          const isDifferent = id !== String(movieId);
+          const typeStr = item.contentType ? String(item.contentType).toUpperCase() : "";
+          const isNotComic = typeStr !== "COMIC";
+          return isDifferent && isNotComic;
+        });
         setFeedRecommendations(filtered as any);
       }
     } catch (err) {
@@ -795,6 +864,7 @@ export default function MoviePlayerScreen() {
             replayCounter={replayCounter}
             playbackSpeed={playbackSpeed}
             initialPosition={params.initialPosition}
+            episodeId={activeEpisodeId}
             onNavigateToPlans={() => handleOpenUnlockModal(activeEpisodeId)}
             onFinishedChange={setIsFinished}
             onCycleSpeed={handleCycleSpeed}
@@ -827,34 +897,6 @@ export default function MoviePlayerScreen() {
             </Text>
           </View>
         )}
-
-        {isFinished && (
-          <View className="absolute inset-0 bg-black/85 items-center justify-center space-y-3">
-            <TouchableOpacity
-              onPress={handleReplay}
-              className="bg-[#D4AF37] px-6 py-2.5 rounded-full flex-row items-center shadow-lg"
-              activeOpacity={0.8}
-            >
-              <Ionicons name="reload" size={16} color="#141210" />
-              <Text className="text-[#141210] font-black text-xs ml-2 uppercase tracking-wide">
-                Phát lại
-              </Text>
-            </TouchableOpacity>
-
-            {currentIndex < episodes.length - 1 && (
-              <TouchableOpacity
-                onPress={handleNextEpisode}
-                className="bg-white/15 border border-white/20 px-5 py-2 rounded-full flex-row items-center"
-                activeOpacity={0.8}
-              >
-                <Text className="text-white font-bold text-xs mr-1.5">
-                  Tập tiếp theo
-                </Text>
-                <Ionicons name="play-skip-forward" size={14} color="#FFFFFF" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
       </View>
 
       {/* ================= 2. EXACT YOUTUBE MOBILE BODY CONTENT ================= */}
@@ -869,17 +911,19 @@ export default function MoviePlayerScreen() {
             {movieTitle || currentEp?.title}
           </Text>
 
-          <Text className="text-zinc-400 text-xs mt-1">
-            @{creatorInfo.name || "TaleX"}{"    "}
-            {formatAnalyticNumber(
-              currentEp?.analyticData?.likes ?? likeCount ?? 0,
-            )}{" "}
-            lượt thích{"    "}
-            {formatAnalyticNumber(
-              currentEp?.analyticData?.views ?? currentEp?.views ?? 0,
-            )}{" "}
-            lượt xem
-          </Text>
+          <TouchableOpacity onPress={handleCreatorPress} activeOpacity={0.75}>
+            <Text className="text-zinc-400 text-xs mt-1">
+              @{creatorInfo.name || "TaleX"}{"    "}
+              {formatAnalyticNumber(
+                currentEp?.analyticData?.likes ?? likeCount ?? 0,
+              )}{" "}
+              lượt thích{"    "}
+              {formatAnalyticNumber(
+                currentEp?.analyticData?.views ?? currentEp?.views ?? 0,
+              )}{" "}
+              lượt xem
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* B. CHANNEL ROW & 4 ACTION ICONS (EXACT YOUTUBE LAYOUT) */}
@@ -887,9 +931,7 @@ export default function MoviePlayerScreen() {
           {/* BÊN TRÁI: AVATAR KÊNH + NÚT ĐĂNG KÝ (FULL CHỮ, KHÔNG BỊ CẮT) */}
           <View className="flex-row items-center flex-1 mr-2">
             <TouchableOpacity
-              onPress={() =>
-                creatorInfo.accountId && setShowFollowersModal(true)
-              }
+              onPress={handleCreatorPress}
               activeOpacity={0.8}
               className="w-9 h-9 rounded-full overflow-hidden bg-zinc-800 mr-2.5"
             >
@@ -904,6 +946,16 @@ export default function MoviePlayerScreen() {
                   <FontAwesome5 name="user-ninja" size={15} color="#D4AF37" />
                 </View>
               )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleCreatorPress}
+              activeOpacity={0.8}
+              className="mr-2.5 max-w-[120px]"
+            >
+              <Text className="text-white text-xs font-bold" numberOfLines={1}>
+                {creatorInfo.name || "TaleX"}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1010,8 +1062,19 @@ export default function MoviePlayerScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* D. FULL-WIDTH RECOMMENDED VIDEOS FEED (EXACT YOUTUBE CARDS WITH SERIES EPISODE BADGE) */}
+        {/* D. COMPACT HORIZONTAL RECOMMENDED VIDEOS (OPTION 1) */}
         <View className="mt-3">
+          <View className="flex-row items-center justify-between px-4 pt-2 pb-2.5">
+            <Text className="text-white text-sm font-bold tracking-wide">
+              Đề xuất cho bạn
+            </Text>
+            {feedRecommendations.length > 0 && (
+              <Text className="text-zinc-500 text-[11px] font-medium">
+                {feedRecommendations.length} video
+              </Text>
+            )}
+          </View>
+
           {loadingFeedRecs && feedRecommendations.length === 0 ? (
             <View className="py-8 items-center justify-center">
               <ActivityIndicator size="small" color="#D4AF37" />
@@ -1020,78 +1083,81 @@ export default function MoviePlayerScreen() {
               </Text>
             </View>
           ) : feedRecommendations.length > 0 ? (
-            feedRecommendations.map((rec) => {
-              const recId = rec.seriesId || (rec as any).id;
-              const recImg =
-                rec.coverUrl || rec.bannerUrl || (rec as any).thumbnailUrl;
-              const recRating =
-                rec.averageRating ?? (rec as any).rating ?? 5.0;
-              const recViews = rec.views ?? rec.totalViews ?? 0;
-              const recCreator =
-                rec.creatorName || creatorInfo.name || "TaleX Official";
+            <View className="space-y-1">
+              {feedRecommendations.map((rec) => {
+                const recId = rec.seriesId || (rec as any).id;
+                const recImg =
+                  rec.coverUrl || rec.bannerUrl || (rec as any).thumbnailUrl;
+                const recRating =
+                  rec.averageRating ?? (rec as any).rating ?? 5.0;
+                const recViews = rec.views ?? rec.totalViews ?? 0;
+                const recCreator =
+                  rec.creatorName || creatorInfo.name || "TaleX Official";
 
-              return (
-                <TouchableOpacity
-                  key={recId}
-                  onPress={() => {
-                    navigation.replace("MovieDetailScreen", {
-                      movieId: recId,
-                      seriesItem: rec,
-                    });
-                  }}
-                  className="mb-6"
-                  activeOpacity={0.9}
-                >
-                  {/* Full-width 16:9 Thumbnail Image */}
-                  <View className="w-full aspect-video bg-zinc-900 relative">
-                    {recImg ? (
-                      <Image
-                        source={{ uri: recImg }}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <Image
-                        source={require("@assets/movie2.jpg")}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                      />
-                    )}
-                  </View>
-
-                  {/* Video Meta Info Row below thumbnail */}
-                  <View className="flex-row items-start px-4 pt-3">
-                    {/* Left Creator Avatar */}
-                    <View className="w-9 h-9 rounded-full overflow-hidden bg-zinc-800 mr-3">
-                      {rec.creatorAvatar || recImg ? (
+                return (
+                  <TouchableOpacity
+                    key={recId}
+                    onPress={() => {
+                      navigation.replace("MovieDetailScreen", {
+                        movieId: recId,
+                        seriesItem: rec,
+                      });
+                    }}
+                    className="flex-row items-center px-4 py-2 active:bg-white/5"
+                    activeOpacity={0.75}
+                  >
+                    {/* Left: Compact 16:9 Thumbnail (130px x 74px) */}
+                    <View className="w-[124px] h-[70px] rounded-xl overflow-hidden bg-zinc-800 border border-white/10 relative shadow-sm mr-3">
+                      {recImg ? (
                         <Image
-                          source={{ uri: rec.creatorAvatar || recImg }}
+                          source={{ uri: recImg }}
                           className="w-full h-full"
                           resizeMode="cover"
                         />
                       ) : (
-                        <View className="w-full h-full items-center justify-center bg-zinc-800">
-                          <FontAwesome5 name="user-ninja" size={14} color="#D4AF37" />
-                        </View>
+                        <Image
+                          source={require("@assets/movie2.jpg")}
+                          className="w-full h-full"
+                          resizeMode="cover"
+                        />
                       )}
+                      {/* Rating / HD Badge */}
+                      <View className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded-md flex-row items-center border border-white/10">
+                        <Ionicons name="star" size={9} color="#D4AF37" />
+                        <Text className="text-white text-[9px] font-bold ml-0.5">
+                          {Number(recRating).toFixed(1)}
+                        </Text>
+                      </View>
                     </View>
 
-                    {/* Middle: Title & Creator/Views */}
-                    <View className="flex-1 pr-2">
+                    {/* Right: Meta Information */}
+                    <View className="flex-1 justify-between py-0.5">
                       <Text
-                        className="text-white font-semibold text-sm leading-snug"
+                        className="text-white font-bold text-xs leading-4"
                         numberOfLines={2}
                       >
                         {rec.title}
                       </Text>
-                      <Text className="text-zinc-400 text-xs mt-1" numberOfLines={1}>
-                        {recCreator} · {formatAnalyticNumber(recViews)} lượt xem · ⭐ {Number(recRating).toFixed(1)}
-                      </Text>
+
+                      <View className="mt-1">
+                        <Text
+                          className="text-zinc-400 text-[11px]"
+                          numberOfLines={1}
+                        >
+                          {recCreator}
+                        </Text>
+                        <Text
+                          className="text-zinc-500 text-[10px] mt-0.5 font-medium"
+                          numberOfLines={1}
+                        >
+                          {formatAnalyticNumber(recViews)} lượt xem · HD
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           ) : (
             <View className="py-8 items-center justify-center">
               <Text className="text-zinc-500 text-xs">

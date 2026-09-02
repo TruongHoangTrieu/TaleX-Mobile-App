@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  Alert,
   StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/context/ConfirmModalContext";
 import {
   getMyBookmarkedEpisodes,
   unbookmarkEpisode,
@@ -78,36 +78,39 @@ export default function BookmarkedScreen({ navigation }: any) {
     fetchBookmarkedData();
   };
 
-  const handleUnbookmark = (item: AccountBookmarkResponse) => {
+  const { showConfirm } = useConfirm();
+
+  const handleUnbookmark = async (item: AccountBookmarkResponse) => {
     const isComic = contentTypes[item.episodeId] === "COMIC";
     const typeName = isComic ? "chương truyện" : "tập phim";
     const titleText = item.episodeTitle || (item.episodeNumber != null ? `Tập ${item.episodeNumber}` : "");
     const displayTitle = titleText ? `"${titleText}"` : "";
 
-    Alert.alert(
-      `Xác nhận bỏ lưu ${typeName}`,
-      `Bạn có muốn bỏ ${typeName} ${displayTitle} khỏi danh sách đã lưu không?`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Bỏ lưu",
-          style: "destructive",
-          onPress: async () => {
-            setBookmarkedList((prev) => prev.filter((i) => i.episodeId !== item.episodeId));
-            try {
-              await unbookmarkEpisode(item.episodeId);
-              Toast.show({
-                type: "success",
-                text1: `Đã bỏ ${typeName} khỏi danh sách đã lưu.`,
-              });
-            } catch (err: any) {
-              Alert.alert("Lỗi", err.message || `Không thể bỏ lưu ${typeName}.`);
-              fetchBookmarkedData();
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await showConfirm({
+      title: `Bỏ Lưu ${isComic ? "Truyện" : "Phim"}`,
+      message: `Bạn có muốn bỏ ${typeName} ${displayTitle} khỏi danh sách đã lưu không?`,
+      type: "danger",
+      confirmText: "Bỏ Lưu",
+    });
+
+    if (!confirmed) return;
+
+    setBookmarkedList((prev) => prev.filter((i) => i.episodeId !== item.episodeId));
+    try {
+      await unbookmarkEpisode(item.episodeId);
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: `Đã bỏ ${typeName} khỏi danh sách đã lưu.`,
+      });
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: err.message || `Không thể bỏ lưu ${typeName}.`,
+      });
+      fetchBookmarkedData();
+    }
   };
 
   const handleOpenItem = (item: AccountBookmarkResponse) => {

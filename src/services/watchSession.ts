@@ -125,3 +125,68 @@ export async function getEpisodeWatchPosition(episodeId: string): Promise<number
     return null;
   }
 }
+
+export interface WatchProgressPayload {
+  session_id: string;
+  episode_id: string;
+  current_position: number;
+  heartbeat_value: number;
+  event: "first_event" | "heartbeat" | "last_event";
+}
+
+/**
+ * POST /api/v1/episodes/{episodeId}/views
+ * Ghi nhận lượt xem và khởi tạo phiên xem
+ */
+export async function recordEpisodeView(episodeId: string, sessionId: string): Promise<any> {
+  try {
+    const res = await authFetch(apiUrl(`/api/v1/episodes/${episodeId}/views`), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "*/*",
+      },
+      body: JSON.stringify({
+        sessionId,
+        episodeId,
+      }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn("recordEpisodeView error:", err);
+    return null;
+  }
+}
+
+/**
+ * POST /api/v1/episodes/watch-progress
+ * Ghi nhận Heartbeat tiến trình xem phim / đọc truyện
+ */
+export async function recordWatchProgress(payload: WatchProgressPayload): Promise<any> {
+  try {
+    // heartbeat_value phải trong khoảng [1.0, 5.0] theo validation của server
+    const clampedHeartbeat = Math.max(1.0, Math.min(5.0, Number(payload.heartbeat_value.toFixed(1))));
+    const clampedPosition = Math.max(0, Number(payload.current_position.toFixed(2)));
+
+    const res = await authFetch(apiUrl("/api/v1/episodes/watch-progress"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "*/*",
+      },
+      body: JSON.stringify({
+        session_id: payload.session_id,
+        episode_id: payload.episode_id,
+        current_position: clampedPosition,
+        heartbeat_value: clampedHeartbeat,
+        event: payload.event,
+      }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn("recordWatchProgress error:", err);
+    return null;
+  }
+}

@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Image,
   StatusBar,
   ActivityIndicator,
@@ -22,14 +23,21 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import Toast from "react-native-toast-message";
 import { getCreatorDetail, getFollowers } from "@/services/follow";
-import { getPublicSeries, type SeriesItem } from "@/services/series";
+import {
+  getPublicSeries,
+  getPublicCombos,
+  type SeriesItem,
+  type ComboItem,
+} from "@/services/series";
 import { listSeriesByCreator } from "@/services/creatorContent";
 import { useCreatorFollow } from "@/hooks/useCreatorFollow";
 import { useAuth } from "@/context/AuthContext";
+import { ComboCard } from "@/components/combo/ComboCard";
+import QuickUnlockModal from "@/components/checkout/QuickUnlockModal";
 
 const { width } = Dimensions.get("window");
 
-type TabType = "home" | "comics" | "movies" | "about";
+type TabType = "home" | "comics" | "movies" | "combos" | "about";
 
 const formatAgeRating = (rating?: string) => {
   if (!rating || typeof rating !== "string" || !rating.trim()) return null;
@@ -69,8 +77,18 @@ export default function PublicChannelScreen() {
   const [creatorDetail, setCreatorDetail] = useState<any>(null);
   const [seriesList, setSeriesList] = useState<SeriesItem[]>([]);
   const [followersCount, setFollowersCount] = useState<number>(0);
+  const [combosList, setCombosList] = useState<ComboItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>("home");
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [unlockModalConfig, setUnlockModalConfig] = useState<{
+    visible: boolean;
+    itemId?: string | null;
+    itemTitle?: string;
+  }>({
+    visible: false,
+    itemId: null,
+    itemTitle: "",
+  });
 
   const { user, isAuthenticated } = useAuth();
 
@@ -170,6 +188,16 @@ export default function PublicChannelScreen() {
         } catch (e) {
           // ignore
         }
+
+        // 4. Lấy danh sách Gói Combo
+        try {
+          const combosRes = await getPublicCombos();
+          if (isMounted && Array.isArray(combosRes)) {
+            setCombosList(combosRes);
+          }
+        } catch (e) {
+          // ignore
+        }
       } catch (err: any) {
         console.error("Lỗi tải Kênh công khai:", err);
       } finally {
@@ -193,9 +221,7 @@ export default function PublicChannelScreen() {
       avatarUrl: first.creatorAvatar || first.coverUrl,
       bannerUrl: first.bannerUrl,
       accountId: first.accountId || first.creatorId || paramCreatorId,
-      bio:
-        first.description ||
-        "Chào mừng bạn đến với kênh sáng tạo chính thức trên TaleX!",
+      bio: null,
     };
   }, [seriesList, paramCreatorId]);
 
@@ -222,6 +248,31 @@ export default function PublicChannelScreen() {
     [seriesList],
   );
 
+  // Lọc danh sách Combo của riêng Tác giả này
+  const creatorCombos = useMemo(() => {
+    const target = String(effectiveAccountId || paramCreatorId || "").toLowerCase();
+    return combosList.filter((combo) => {
+      const cId = combo.creatorId ? String(combo.creatorId).toLowerCase() : "";
+      const aId = combo.creatorAccountId || combo.accountId ? String(combo.creatorAccountId || combo.accountId).toLowerCase() : "";
+      const matchesEp = combo.episodes?.some((ep: any) =>
+        seriesList.some((s) => s.seriesId === ep.seriesId)
+      );
+      return (cId && cId === target) || (aId && aId === target) || matchesEp;
+    });
+  }, [combosList, effectiveAccountId, paramCreatorId, seriesList]);
+
+  const handlePurchaseCombo = (combo: ComboItem) => {
+    if (!user) {
+      navigation.navigate("LoginScreen");
+      return;
+    }
+    setUnlockModalConfig({
+      visible: true,
+      itemId: combo.comboId,
+      itemTitle: combo.title,
+    });
+  };
+
   const handleSeriesPress = (item: any) => {
     const sId = item.seriesId || item.id;
     if (item.contentType?.toUpperCase() === "COMIC") {
@@ -239,7 +290,7 @@ export default function PublicChannelScreen() {
       <View className="flex-1 items-center justify-center bg-[#0F0F0F]">
         <ActivityIndicator size="large" color="#D4AF37" />
         <Text className="text-zinc-500 text-xs mt-3">
-          Đang tải kênh YouTube Style...
+          Đang tải kênh...
         </Text>
       </View>
     );
@@ -259,10 +310,13 @@ export default function PublicChannelScreen() {
 
   // Background phía sau luôn luôn lấy trực tiếp ảnh của Avatar:
   const creatorBanner = creatorAvatar;
+  const rawBio =
+    creatorDetail?.bio ||
+    creatorDetail?.description;
   const bioText =
-    effectiveCreator?.bio ||
-    effectiveCreator?.description ||
-    "Chào mừng bạn đến với kênh sáng tạo chính thức trên TaleX! Hãy nhấn Đăng ký để không bỏ lỡ nội dung mới nhất.";
+    rawBio && typeof rawBio === "string" && rawBio.trim().length > 0
+      ? rawBio.trim()
+      : null;
 
   return (
     <View className="flex-1 bg-[#0F0F0F]">
@@ -348,24 +402,26 @@ export default function PublicChannelScreen() {
           </View>
 
           {/* BIO SNIPPET VỚI NÚT XEM THÊM (YOUTUBE BIO LINK) */}
-          <TouchableOpacity
-            onPress={() => setShowAboutModal(true)}
-            activeOpacity={0.7}
-            className="flex-row items-center justify-between mt-3 bg-zinc-900/60 px-3 py-2 rounded-xl border border-white/5"
-          >
-            <Text
-              className="text-zinc-300 text-xs flex-1 mr-2"
-              numberOfLines={1}
+          {bioText && (
+            <TouchableOpacity
+              onPress={() => setShowAboutModal(true)}
+              activeOpacity={0.7}
+              className="flex-row items-center justify-between mt-3 bg-zinc-900/60 px-3 py-2 rounded-xl border border-white/5"
             >
-              {bioText}
-            </Text>
-            <View className="flex-row items-center">
-              <Text className="text-[#D4AF37] text-xs font-bold mr-0.5">
-                xem thêm
+              <Text
+                className="text-zinc-300 text-xs flex-1 mr-2"
+                numberOfLines={1}
+              >
+                {bioText}
               </Text>
-              <Feather name="chevron-right" size={14} color="#D4AF37" />
-            </View>
-          </TouchableOpacity>
+              <View className="flex-row items-center">
+                <Text className="text-[#D4AF37] text-xs font-bold mr-0.5">
+                  xem thêm
+                </Text>
+                <Feather name="chevron-right" size={14} color="#D4AF37" />
+              </View>
+            </TouchableOpacity>
+          )}
 
           {/* NÚT ĐĂNG KÝ / THEO DÕI STYLE YOUTUBE PILL BUTTON */}
           <TouchableOpacity
@@ -413,6 +469,7 @@ export default function PublicChannelScreen() {
             { id: "home", label: "Trang chủ" },
             { id: "comics", label: `Truyện (${comicSeries.length})` },
             { id: "movies", label: `Phim (${movieSeries.length})` },
+            { id: "combos", label: `Combo (${creatorCombos.length})` },
             { id: "about", label: "Giới thiệu" },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
@@ -756,7 +813,64 @@ export default function PublicChannelScreen() {
             </View>
           )}
 
-          {/* TAB 4: GIỚI THIỆU (ABOUT KÊNH) */}
+          {/* TAB 4: GÓI COMBO CỦA TÁC GIẢ (CHUẨN GIAO DIỆN WEB) */}
+          {activeTab === "combos" && (
+            <View className="space-y-4">
+              <View className="flex-row items-center justify-between pb-3 border-b border-white/5 mb-3">
+                <View className="flex-row items-center">
+                  <MaterialCommunityIcons
+                    name="fire"
+                    size={20}
+                    color="#FF4E4E"
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text className="text-white text-base font-black">
+                    Gói Combo Của Tác Giả ({creatorCombos.length})
+                  </Text>
+                </View>
+                {creatorCombos.length > 0 && (
+                  <View className="bg-[#D4AF37]/15 border border-[#D4AF37]/30 px-2.5 py-0.5 rounded-full">
+                    <Text className="text-[#D4AF37] font-black text-[10px]">
+                      Ưu đãi trọn bộ
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {creatorCombos.length > 0 ? (
+                <View className="flex-row flex-wrap justify-between gap-y-2.5">
+                  {creatorCombos.map((combo) => {
+                    const isSingle = creatorCombos.length === 1;
+                    return (
+                      <View
+                        key={combo.comboId}
+                        style={{ width: isSingle ? "100%" : "48.5%" }}
+                      >
+                        <ComboCard
+                          combo={combo}
+                          variant="grid2"
+                          onPurchase={handlePurchaseCombo}
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View className="py-16 items-center justify-center bg-zinc-900/40 rounded-2xl border border-white/5">
+                  <MaterialCommunityIcons
+                    name="package-variant-closed"
+                    size={48}
+                    color="#3F3F46"
+                  />
+                  <Text className="text-zinc-400 text-sm font-bold mt-3 text-center">
+                    Chưa có gói Combo ưu đãi nào từ tác giả này
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* TAB 5: GIỚI THIỆU (ABOUT KÊNH) */}
           {activeTab === "about" && (
             <View className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4 space-y-4">
               <View className="flex-row items-center pb-3 border-b border-white/5">
@@ -809,7 +923,7 @@ export default function PublicChannelScreen() {
                     Mô tả kênh:
                   </Text>
                   <Text className="text-zinc-300 text-xs leading-5">
-                    {bioText}
+                    {bioText || "Kênh chưa cập nhật phần giới thiệu."}
                   </Text>
                 </View>
               </View>
@@ -818,67 +932,76 @@ export default function PublicChannelScreen() {
         </View>
       </ScrollView>
 
-      {/* MODAL THÔNG TIN GIỚI THIỆU KÊNH (STYLE YOUTUBE ABOUT MODAL) */}
-      <Modal visible={showAboutModal} transparent animationType="slide">
-        <View className="flex-1 bg-black/70 justify-end">
-          <View className="bg-[#18181B] rounded-t-3xl p-5 border-t border-white/10 max-h-[80%]">
+      {/* MODAL THÔNG TIN GIỚI THIỆU KÊNH (ELEVATED BOTTOM SHEET) */}
+      <Modal
+        visible={showAboutModal}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setShowAboutModal(false)}
+      >
+        <View style={StyleSheet.absoluteFillObject} className="bg-black/85 justify-end z-50">
+          <TouchableWithoutFeedback onPress={() => setShowAboutModal(false)}>
+            <View style={StyleSheet.absoluteFillObject} />
+          </TouchableWithoutFeedback>
+
+          <View
+            style={{ minHeight: "55%", maxHeight: "85%" }}
+            className="bg-[#18181B] rounded-t-3xl p-6 border-t border-white/10 shadow-2xl"
+          >
+            {/* Top drag bar indicator */}
+            <View className="w-12 h-1 rounded-full bg-zinc-600 self-center mb-4" />
+
             <View className="flex-row items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <Text className="text-white text-base font-bold">
+              <Text className="text-white text-base font-black">
                 Giới thiệu về kênh
               </Text>
               <TouchableOpacity
                 onPress={() => setShowAboutModal(false)}
-                className="p-1"
+                className="w-8 h-8 rounded-full bg-zinc-800 items-center justify-center border border-white/10"
               >
-                <Feather name="x" size={20} color="#FFFFFF" />
+                <Feather name="x" size={16} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text className="text-white text-lg font-black">
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+              <Text className="text-white text-xl font-black">
                 {creatorName}
               </Text>
-              <Text className="text-[#D4AF37] text-xs font-bold mt-0.5 mb-3">
+              <Text className="text-[#D4AF37] text-xs font-bold mt-1 mb-4">
                 @{effectiveCreator?.username || "creator"}
               </Text>
 
-              <Text className="text-zinc-300 text-sm leading-6 mb-4">
-                {bioText}
-              </Text>
+              <View className="bg-zinc-900/60 p-4 rounded-2xl border border-white/5 mb-5">
+                <Text className="text-zinc-300 text-sm leading-6">
+                  {bioText || "Kênh chưa cập nhật phần giới thiệu."}
+                </Text>
+              </View>
 
-              <View className="space-y-3 pt-3 border-t border-white/10">
+              <View className="space-y-3 pt-2 border-t border-white/10">
                 <View className="flex-row items-center">
-                  <Feather
-                    name="users"
-                    size={16}
-                    color="#A1A1AA"
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text className="text-zinc-300 text-xs">
+                  <View className="w-8 h-8 rounded-full bg-zinc-800/80 items-center justify-center mr-3 border border-white/5">
+                    <Feather name="users" size={14} color="#D4AF37" />
+                  </View>
+                  <Text className="text-zinc-300 text-xs font-semibold">
                     {followersCount} người đăng ký kênh
                   </Text>
                 </View>
 
                 <View className="flex-row items-center">
-                  <Feather
-                    name="layers"
-                    size={16}
-                    color="#A1A1AA"
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text className="text-zinc-300 text-xs">
+                  <View className="w-8 h-8 rounded-full bg-zinc-800/80 items-center justify-center mr-3 border border-white/5">
+                    <Feather name="layers" size={14} color="#D4AF37" />
+                  </View>
+                  <Text className="text-zinc-300 text-xs font-semibold">
                     {seriesList.length} tác phẩm đã đăng
                   </Text>
                 </View>
 
                 <View className="flex-row items-center">
-                  <Feather
-                    name="globe"
-                    size={16}
-                    color="#A1A1AA"
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text className="text-zinc-300 text-xs">
+                  <View className="w-8 h-8 rounded-full bg-zinc-800/80 items-center justify-center mr-3 border border-white/5">
+                    <Feather name="globe" size={14} color="#D4AF37" />
+                  </View>
+                  <Text className="text-zinc-300 text-xs font-semibold">
                     Gia nhập cộng đồng TaleX Mobile
                   </Text>
                 </View>
@@ -887,6 +1010,24 @@ export default function PublicChannelScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* QUICK UNLOCK MODAL CHO COMBO */}
+      <QuickUnlockModal
+        visible={unlockModalConfig.visible}
+        itemId={unlockModalConfig.itemId}
+        itemType="COMBO"
+        itemTitle={unlockModalConfig.itemTitle}
+        onClose={() =>
+          setUnlockModalConfig((prev) => ({ ...prev, visible: false }))
+        }
+        onSuccess={() => {
+          Toast.show({
+            type: "success",
+            text1: "Thành công",
+            text2: "Đã mở khóa gói Combo thành công!",
+          });
+        }}
+      />
     </View>
   );
 }

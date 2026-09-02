@@ -1043,11 +1043,14 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
             user?.username ||
             anyProfile?.fullName ||
             "Kênh sáng tạo";
-          const effectiveBio =
+          const rawBio =
             anyCreator?.bio ||
             anyCreator?.description ||
-            anyProfile?.bio ||
-            "Chưa có tiểu sử giới thiệu. Hãy thêm tiểu sử trong Studio sáng tạo.";
+            anyProfile?.bio;
+          const effectiveBio =
+            rawBio && typeof rawBio === "string" && rawBio.trim().length > 0
+              ? rawBio.trim()
+              : null;
 
           return (
             <>
@@ -1126,9 +1129,11 @@ export default function CreatorChannelScreen({ navigation: propNav }: any) {
                   @{user?.username || "creator"} • {followersCount} người đăng ký • {series.length} tác phẩm
                 </Text>
 
-                <Text className="text-stone-200 text-[13px] font-semibold mt-3 leading-5">
-                  {effectiveBio}
-                </Text>
+                {effectiveBio && (
+                  <Text className="text-stone-300 text-[13px] font-medium mt-3 leading-5">
+                    {effectiveBio}
+                  </Text>
+                )}
               </View>
             </>
           );

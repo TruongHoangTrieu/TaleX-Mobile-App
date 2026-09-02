@@ -166,8 +166,10 @@ export function getCheckInStatus(): Promise<CheckInStatus> {
   });
 }
 
-export function performCheckIn(): Promise<CheckInStatus> {
-  return requestData<CheckInStatus>("/api/v1/check-in", { method: "POST" });
+export function performCheckIn(): Promise<import("@/types/reward").CheckInResponse> {
+  return requestData<import("@/types/reward").CheckInResponse>("/api/v1/check-in", {
+    method: "POST",
+  });
 }
 
 export function getMissions(): Promise<MissionData[]> {

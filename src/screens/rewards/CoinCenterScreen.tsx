@@ -29,17 +29,6 @@ const INITIAL_CHECK_IN_STATUS: CheckInStatus = {
 
 const COIN_CENTER_SYNC_INTERVAL_MS = 60_000;
 
-// Lộ trình 7 ngày điểm danh
-const SEVEN_DAYS = [
-  { day: 1, label: "Ngày 1" },
-  { day: 2, label: "Ngày 2" },
-  { day: 3, label: "Ngày 3" },
-  { day: 4, label: "Ngày 4" },
-  { day: 5, label: "Ngày 5" },
-  { day: 6, label: "Ngày 6" },
-  { day: 7, label: "Ngày 7", isSuper: true },
-];
-
 function MissionCard({
   mission,
   onPressAd,
@@ -247,12 +236,50 @@ export default function CoinCenterScreen() {
     }
   };
 
-  // Tính số ngày hiện tại trong chu kỳ 7 ngày (1 -> 7)
-  const currentStreakDay = useMemo(() => {
-    const raw = checkInStatus.currentStreak || 0;
-    const cycle = raw % 7;
-    return cycle === 0 && raw > 0 ? 7 : (cycle || 1);
-  }, [checkInStatus.currentStreak]);
+  const nextStreak =
+    checkInStatus.nextStreak ??
+    (checkInStatus.currentStreak + (checkInStatus.isCheckedInToday ? 0 : 1));
+  const todayRewardAmount = checkInStatus.todayRewardAmount;
+
+  // Sắp xếp danh sách mốc theo ngày tăng dần
+  const milestones = useMemo(() => {
+    if (!Array.isArray(checkInStatus.milestones) || checkInStatus.milestones.length === 0) {
+      return [];
+    }
+    return [...checkInStatus.milestones].sort((a, b) => a.day - b.day);
+  }, [checkInStatus.milestones]);
+
+  // Mốc tối đa và mốc tiếp theo cần đạt
+  const maxMilestoneDay = useMemo(() => {
+    if (milestones.length === 0) return 30;
+    return Math.max(...milestones.map((m) => m.day));
+  }, [milestones]);
+
+  const nextTargetMilestone = useMemo(() => {
+    return milestones.find((m) => m.day > checkInStatus.currentStreak) ?? milestones[milestones.length - 1];
+  }, [checkInStatus.currentStreak, milestones]);
+
+  // % Tiến độ chuỗi tổng thể
+  const overallProgress = useMemo(() => {
+    if (maxMilestoneDay <= 0) return 0;
+    return Math.min(100, Math.max(0, (checkInStatus.currentStreak / maxMilestoneDay) * 100));
+  }, [checkInStatus.currentStreak, maxMilestoneDay]);
+
+  const getMilestoneIcon = (day: number, isReached: boolean, isNextTarget: boolean) => {
+    if (isReached) {
+      return <Ionicons name="checkmark-circle" size={24} color="#10B981" />;
+    }
+    if (day >= 30) {
+      return <FontAwesome5 name="trophy" size={20} color={isNextTarget ? "#F59E0B" : "#A1A1AA"} />;
+    }
+    if (day >= 14) {
+      return <FontAwesome5 name="crown" size={19} color={isNextTarget ? "#EAB308" : "#A1A1AA"} />;
+    }
+    if (day >= 7) {
+      return <FontAwesome5 name="gift" size={20} color={isNextTarget ? "#D4AF37" : "#A1A1AA"} />;
+    }
+    return <FontAwesome5 name="coins" size={18} color={isNextTarget ? "#D4AF37" : "#A1A1AA"} />;
+  };
 
   return (
     <SafeAreaView
@@ -262,7 +289,7 @@ export default function CoinCenterScreen() {
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
       <CinematicBackground>
-        {/* 1. HEADER BAR - Tiêu đề đầy đủ "Điểm Danh Hằng Ngày" */}
+        {/* 1. HEADER BAR */}
         <View
           style={{ backgroundColor: "transparent", borderColor: "rgba(255, 255, 255, 0.08)" }}
           className="h-14 flex-row items-center justify-between px-4 border-b"
@@ -288,7 +315,6 @@ export default function CoinCenterScreen() {
             </Text>
           </View>
 
-          {/* Placeholder for perfect symmetry */}
           <View className="w-10 h-10" />
         </View>
 
@@ -305,7 +331,7 @@ export default function CoinCenterScreen() {
             />
           }
         >
-          {/* 2. SỐ DƯ VÍ & CHUỖI ĐIỂM DANH (OPEN, SPACIOUS & CLEAN) */}
+          {/* 2. SỐ DƯ VÍ & CHUỖI ĐIỂM DANH */}
           <View className="mb-6 px-1 flex-row items-center justify-between">
             <View>
               <Text className="text-[11px] font-extrabold uppercase tracking-widest text-[#D4AF37]">
@@ -332,159 +358,84 @@ export default function CoinCenterScreen() {
             </View>
           </View>
 
-          {/* 3. LỘ TRÌNH 7 NGÀY ĐIỂM DANH */}
+          {/* 3. HERO CARD: TỔNG QUAN ĐIỂM DANH HOÀNG KIM */}
           <View
-            style={{ backgroundColor: "#141417", borderColor: "rgba(255, 255, 255, 0.08)" }}
-            className="mb-7 rounded-3xl border p-5 shadow-xl"
+            style={{
+              backgroundColor: "#141418",
+              borderColor: checkInStatus.isCheckedInToday ? "rgba(16, 185, 129, 0.35)" : "rgba(212, 175, 55, 0.4)",
+            }}
+            className="mb-6 rounded-3xl border p-5 shadow-2xl relative overflow-hidden"
           >
-            <View className="flex-row items-center mb-5">
-              <View
-                style={{ backgroundColor: "rgba(212, 175, 55, 0.15)" }}
-                className="w-9 h-9 rounded-xl items-center justify-center mr-3"
-              >
-                <Ionicons name="calendar-outline" size={18} color="#D4AF37" />
+            {/* Top Row: Flame Streak & Today Reward Badge */}
+            <View className="flex-row items-center justify-between mb-4">
+              <View className="flex-row items-center flex-1 mr-2">
+                <View
+                  style={{
+                    backgroundColor: checkInStatus.isCheckedInToday
+                      ? "rgba(16, 185, 129, 0.18)"
+                      : "rgba(212, 175, 55, 0.18)",
+                    borderColor: checkInStatus.isCheckedInToday
+                      ? "rgba(16, 185, 129, 0.45)"
+                      : "rgba(212, 175, 55, 0.45)",
+                  }}
+                  className="w-12 h-12 rounded-2xl border items-center justify-center mr-3"
+                >
+                  <FontAwesome5
+                    name={checkInStatus.isCheckedInToday ? "check-circle" : "calendar-check"}
+                    size={22}
+                    color={checkInStatus.isCheckedInToday ? "#10B981" : "#D4AF37"}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-black text-white">
+                    Điểm danh ngày {nextStreak}
+                  </Text>
+                  <Text className="text-xs text-zinc-400 mt-0.5">
+                    {checkInStatus.isCheckedInToday
+                      ? "Hôm nay bạn đã nhận thưởng điểm danh"
+                      : todayRewardAmount
+                        ? `Hôm nay nhận +${todayRewardAmount.toLocaleString("vi-VN")} Xu`
+                        : "Điểm danh hàng ngày nhận xu khủng"}
+                  </Text>
+                </View>
               </View>
-              <View>
-                <Text className="text-base font-black text-white">
-                  Lộ Trình Điểm Danh 7 Ngày
-                </Text>
-                <Text className="text-xs text-zinc-400 mt-0.5">
-                  Duy trì chuỗi liên tục để nhận thưởng mốc lớn
-                </Text>
-              </View>
-            </View>
 
-            {/* 7-Day Grid Matrix - Rộng rãi, thoáng đãng */}
-            <View className="flex-row flex-wrap justify-between gap-y-3">
-              {SEVEN_DAYS.map((item) => {
-                const isPastChecked =
-                  checkInStatus.isCheckedInToday
-                    ? item.day <= currentStreakDay
-                    : item.day < currentStreakDay;
-                const isToday = item.day === currentStreakDay;
-
-                if (item.isSuper) {
-                  // Day 7 Super Box Card
-                  return (
-                    <View
-                      key={`day-${item.day}`}
-                      style={{
-                        backgroundColor: isPastChecked
-                          ? "rgba(16, 185, 129, 0.12)"
-                          : isToday && !checkInStatus.isCheckedInToday
-                            ? "rgba(212, 175, 55, 0.18)"
-                            : "#1B1B20",
-                        borderColor: isPastChecked
-                          ? "rgba(16, 185, 129, 0.4)"
-                          : isToday && !checkInStatus.isCheckedInToday
-                            ? "#D4AF37"
-                            : "rgba(212, 175, 55, 0.3)",
-                      }}
-                      className="w-full mt-1.5 p-4 rounded-2xl border flex-row items-center justify-between"
-                    >
-                      <View className="flex-row items-center">
-                        <View
-                          style={{ backgroundColor: "rgba(212, 175, 55, 0.2)", borderColor: "rgba(212, 175, 55, 0.4)" }}
-                          className="w-12 h-12 rounded-2xl border items-center justify-center mr-3.5"
-                        >
-                          <FontAwesome5 name="gift" size={22} color="#D4AF37" />
-                        </View>
-                        <View>
-                          <Text className="text-xs font-black text-[#D4AF37]">
-                            NGÀY 7 • SIÊU PHẦN THƯỞNG
-                          </Text>
-                          <Text className="text-xs text-zinc-300 font-medium mt-0.5">
-                            Rương quà bí ẩn mốc 7 ngày
-                          </Text>
-                        </View>
-                      </View>
-
-                      {isPastChecked ? (
-                        <View
-                          style={{ backgroundColor: "rgba(16, 185, 129, 0.2)", borderColor: "rgba(16, 185, 129, 0.4)" }}
-                          className="flex-row items-center px-3 py-1.5 rounded-full border"
-                        >
-                          <Ionicons name="checkmark-sharp" size={14} color="#10B981" />
-                          <Text className="text-[11px] font-black text-emerald-400 ml-1">Đã nhận</Text>
-                        </View>
-                      ) : (
-                        <View
-                          style={{ backgroundColor: "rgba(212, 175, 55, 0.2)", borderColor: "rgba(212, 175, 55, 0.4)" }}
-                          className="flex-row items-center px-3 py-1.5 rounded-full border"
-                        >
-                          <FontAwesome5 name="gift" size={12} color="#D4AF37" />
-                          <Text className="text-[11px] font-black text-[#D4AF37] ml-1.5">Siêu quà</Text>
-                        </View>
-                      )}
-                    </View>
-                  );
-                }
-
-                // Days 1 to 6
-                return (
-                  <View
-                    key={`day-${item.day}`}
-                    style={{
-                      width: "31%",
-                      height: 90,
-                      backgroundColor: isPastChecked
-                        ? "rgba(16, 185, 129, 0.12)"
-                        : isToday && !checkInStatus.isCheckedInToday
-                          ? "rgba(212, 175, 55, 0.18)"
-                          : "#1B1B20",
-                      borderColor: isPastChecked
-                        ? "rgba(16, 185, 129, 0.4)"
-                        : isToday && !checkInStatus.isCheckedInToday
-                          ? "#D4AF37"
-                          : "rgba(255, 255, 255, 0.08)",
-                    }}
-                    className="p-3 rounded-2xl border items-center justify-between"
+              {/* Reward Coin Badge Top Right */}
+              {todayRewardAmount ? (
+                <View
+                  style={{
+                    backgroundColor: checkInStatus.isCheckedInToday
+                      ? "rgba(16, 185, 129, 0.15)"
+                      : "rgba(212, 175, 55, 0.15)",
+                    borderColor: checkInStatus.isCheckedInToday
+                      ? "rgba(16, 185, 129, 0.35)"
+                      : "rgba(212, 175, 55, 0.35)",
+                  }}
+                  className="flex-row items-center border px-3 py-1.5 rounded-xl"
+                >
+                  <FontAwesome5
+                    name="coins"
+                    size={12}
+                    color={checkInStatus.isCheckedInToday ? "#10B981" : "#D4AF37"}
+                  />
+                  <Text
+                    className={`ml-1.5 text-xs font-black ${
+                      checkInStatus.isCheckedInToday ? "text-emerald-400" : "text-[#D4AF37]"
+                    }`}
                   >
-                    <Text
-                      className={`text-[11px] font-black uppercase tracking-wide ${
-                        isPastChecked
-                          ? "text-emerald-400"
-                          : isToday && !checkInStatus.isCheckedInToday
-                            ? "text-[#D4AF37]"
-                            : "text-zinc-400"
-                      }`}
-                    >
-                      {item.label}
-                    </Text>
-
-                    <View className="my-1">
-                      {isPastChecked ? (
-                        <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-                      ) : isToday && !checkInStatus.isCheckedInToday ? (
-                        <FontAwesome5 name="gift" size={20} color="#D4AF37" />
-                      ) : (
-                        <FontAwesome5 name="coins" size={18} color="#71717A" />
-                      )}
-                    </View>
-
-                    <Text
-                      className={`text-[11px] font-black ${
-                        isPastChecked
-                          ? "text-emerald-400"
-                          : isToday && !checkInStatus.isCheckedInToday
-                            ? "text-[#D4AF37]"
-                            : "text-zinc-400"
-                      }`}
-                    >
-                      {isPastChecked ? "Đã nhận" : isToday ? "Hôm nay" : "Quà tặng"}
-                    </Text>
-                  </View>
-                );
-              })}
+                    +{todayRewardAmount.toLocaleString("vi-VN")}
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
-            {/* Big Check-in Action Button */}
+            {/* Check-In Action Button */}
             <TouchableOpacity
               activeOpacity={0.85}
               disabled={checkInStatus.isCheckedInToday || isCheckingIn}
               onPress={handleCheckIn}
               style={{
-                backgroundColor: checkInStatus.isCheckedInToday ? "#26262E" : "#D4AF37",
+                backgroundColor: checkInStatus.isCheckedInToday ? "#222228" : "#D4AF37",
                 borderColor: checkInStatus.isCheckedInToday ? "rgba(255, 255, 255, 0.1)" : "#D4AF37",
                 height: 48,
                 width: "100%",
@@ -494,19 +445,20 @@ export default function CoinCenterScreen() {
                 borderRadius: 16,
                 borderWidth: 1,
               }}
-              className="mt-5 shadow-lg"
+              className="shadow-lg"
             >
               {isCheckingIn ? (
                 <ActivityIndicator size="small" color="#141210" />
               ) : checkInStatus.isCheckedInToday ? (
                 <>
-                  <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
                   <Text
                     style={{
                       fontSize: 13,
                       fontWeight: "800",
                       color: "#A1A1AA",
                       marginLeft: 8,
+                      letterSpacing: 0.5,
                     }}
                   >
                     ĐÃ ĐIỂM DANH HÔM NAY
@@ -521,14 +473,172 @@ export default function CoinCenterScreen() {
                       fontWeight: "800",
                       color: "#141210",
                       marginLeft: 8,
+                      letterSpacing: 0.5,
                     }}
                   >
-                    ĐIỂM DANH HÔM NAY
+                    {todayRewardAmount
+                      ? `ĐIỂM DANH +${todayRewardAmount.toLocaleString("vi-VN")} XU`
+                      : "ĐIỂM DANH NGAY"}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
           </View>
+
+          {/* 4. MỐC THƯỞNG CHUỖI: BENTO GRID 2X2 (HIỂN THỊ TRỌN VẸN, KHÔNG CẦN VUỐT) */}
+          {milestones.length > 0 && (
+            <View
+              style={{ backgroundColor: "#141418", borderColor: "rgba(255, 255, 255, 0.08)" }}
+              className="mb-7 rounded-3xl border p-5 shadow-xl"
+            >
+              {/* Header Mục Mốc Thưởng */}
+              <View className="flex-row items-center justify-between mb-4">
+                <View className="flex-row items-center">
+                  <View
+                    style={{ backgroundColor: "rgba(212, 175, 55, 0.15)" }}
+                    className="w-8 h-8 rounded-xl items-center justify-center mr-2.5"
+                  >
+                    <FontAwesome5 name="gem" size={13} color="#D4AF37" />
+                  </View>
+                  <View>
+                    <Text className="text-base font-black text-white">
+                      Mốc Thưởng Chuỗi Ngày
+                    </Text>
+                    <Text className="text-xs text-zinc-400 mt-0.5">
+                      Tích lũy chuỗi ngày để mở khóa rương xu khủng
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Badge chuỗi hiện tại */}
+                <View
+                  style={{ backgroundColor: "rgba(251, 146, 60, 0.15)", borderColor: "rgba(251, 146, 60, 0.35)" }}
+                  className="flex-row items-center border px-2.5 py-1 rounded-xl"
+                >
+                  <MaterialCommunityIcons name="fire" size={14} color="#FB923C" />
+                  <Text className="text-[11px] font-black text-white ml-1">
+                    {checkInStatus.currentStreak} ngày
+                  </Text>
+                </View>
+              </View>
+
+              {/* Bento Grid 2 Cột - Hiển thị gọn gàng, trực quan */}
+              <View className="flex-row flex-wrap justify-between gap-y-3">
+                {milestones.map((item) => {
+                  const isReached = checkInStatus.currentStreak >= item.day;
+                  const isNextTarget =
+                    !isReached &&
+                    (nextTargetMilestone?.day === item.day || nextStreak === item.day);
+
+                  const milestoneName =
+                    item.day >= 30
+                      ? "Mốc Siêu Quà 30 Ngày"
+                      : item.day >= 14
+                        ? "Mốc Thưởng 14 Ngày"
+                        : item.day >= 7
+                          ? "Mốc Tuần 7 Ngày"
+                          : "Mốc Khởi Đầu 1 Ngày";
+
+                  const remainingDays = Math.max(0, item.day - checkInStatus.currentStreak);
+
+                  return (
+                    <View
+                      key={`bento-card-${item.day}`}
+                      style={{
+                        width: milestones.length <= 2 ? "100%" : "48.5%",
+                        backgroundColor: isReached
+                          ? "rgba(16, 185, 129, 0.1)"
+                          : isNextTarget
+                            ? "rgba(212, 175, 55, 0.14)"
+                            : "#1B1B20",
+                        borderColor: isReached
+                          ? "rgba(16, 185, 129, 0.45)"
+                          : isNextTarget
+                            ? "#D4AF37"
+                            : "rgba(255, 255, 255, 0.08)",
+                        borderWidth: isNextTarget ? 1.5 : 1,
+                      }}
+                      className="p-3.5 rounded-2xl justify-between shadow-sm"
+                    >
+                      {/* Top: Header Card */}
+                      <View className="flex-row items-center justify-between mb-2">
+                        <View
+                          style={{
+                            backgroundColor: isReached
+                              ? "rgba(16, 185, 129, 0.2)"
+                              : isNextTarget
+                                ? "rgba(212, 175, 55, 0.2)"
+                                : "rgba(255, 255, 255, 0.06)",
+                          }}
+                          className="px-2.5 py-0.5 rounded-md"
+                        >
+                          <Text
+                            className={`text-[10px] font-black uppercase ${
+                              isReached
+                                ? "text-emerald-400"
+                                : isNextTarget
+                                  ? "text-[#D4AF37]"
+                                  : "text-zinc-400"
+                            }`}
+                          >
+                            MỐC {item.day} NGÀY
+                          </Text>
+                        </View>
+
+                        {getMilestoneIcon(item.day, isReached, isNextTarget)}
+                      </View>
+
+                      {/* Center: Title & Reward Amount */}
+                      <View className="my-1">
+                        <Text className="text-[11px] font-bold text-zinc-400" numberOfLines={1}>
+                          {milestoneName}
+                        </Text>
+                        <Text
+                          className={`text-base font-black tracking-tight mt-0.5 ${
+                            isReached
+                              ? "text-emerald-400"
+                              : isNextTarget
+                                ? "text-[#D4AF37]"
+                                : "text-white"
+                          }`}
+                        >
+                          +{item.rewardAmount.toLocaleString("vi-VN")} Xu
+                        </Text>
+                      </View>
+
+                      {/* Bottom: Status Tag */}
+                      <View
+                        style={{
+                          backgroundColor: isReached
+                            ? "rgba(16, 185, 129, 0.18)"
+                            : isNextTarget
+                              ? "rgba(212, 175, 55, 0.2)"
+                              : "rgba(255, 255, 255, 0.04)",
+                        }}
+                        className="mt-2 py-1 rounded-xl items-center"
+                      >
+                        <Text
+                          className={`text-[9px] font-black uppercase ${
+                            isReached
+                              ? "text-emerald-400"
+                              : isNextTarget
+                                ? "text-[#D4AF37]"
+                                : "text-zinc-500"
+                          }`}
+                        >
+                          {isReached
+                            ? "✓ ĐÃ ĐẠT MỐC"
+                            : isNextTarget
+                              ? "★ ĐANG TIẾN TỚI"
+                              : `CÒN ${remainingDays} NGÀY`}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           {/* 4. DAILY QUEST / MISSION SECTION */}
           <View className="mb-4 flex-row items-center justify-between">

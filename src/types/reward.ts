@@ -4,8 +4,21 @@ export interface WalletData {
   totalSpent: number;
 }
 
+export interface CheckInMilestone {
+  day: number;
+  rewardAmount: number;
+}
+
 export interface CheckInStatus {
   isCheckedInToday: boolean;
+  currentStreak: number;
+  nextStreak?: number;
+  todayRewardAmount?: number;
+  milestones?: CheckInMilestone[];
+}
+
+export interface CheckInResponse {
+  rewardAmount: number;
   currentStreak: number;
 }
 
